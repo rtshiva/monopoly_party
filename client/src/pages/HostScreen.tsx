@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { motion } from 'framer-motion';
+import type { Socket } from 'socket.io-client';
 import { emitWithAck, freshSocket } from '../socket';
 import { loadControl, useGame } from '../store';
 import { BoardGrid } from '../components/BoardGrid';
+import { ConnPill } from '../components/ConnPill';
 import { BOARD, TOKENS } from '@monopoly/shared';
 
 export function HostScreen() {
@@ -14,6 +16,7 @@ export function HostScreen() {
   const [err, setErr] = useState('');
   const upCode = code.toUpperCase();
   const pid = sp.get('pid') || localStorage.getItem('monopoly.pid') || '';
+  const [sockState, setSockState] = useState<Socket | null>(null);
 
   const joinURL = useMemo(() => {
     // Phones need a reachable host. Preserve protocol + current port so the QR
@@ -26,6 +29,7 @@ export function HostScreen() {
 
   useEffect(() => {
     const s = freshSocket();
+    setSockState(s);
     let alive = true;
     // Re-attach as player when we have a seat, otherwise spectate.
     if (pid) {
@@ -48,7 +52,7 @@ export function HostScreen() {
       });
     }
     s.on('roomState', (r) => { if (alive) setRoom(r); });
-    return () => { alive = false; s.disconnect(); };
+    return () => { alive = false; s.disconnect(); setSockState(null); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [upCode]);
 
@@ -93,6 +97,7 @@ export function HostScreen() {
       )}
 
       {room.auction && <AuctionPanel room={room} />}
+      <ConnPill sock={sockState} />
 
       {room.status === 'lobby' && (
         <div className="glass mt-3 flex flex-col items-center gap-4 rounded-3xl p-5 md:flex-row">

@@ -33,5 +33,12 @@ After coding, review the diff AS a senior staff engineer guarding long-term main
 4. Report: `PLAN vs BUILT` deltas, files changed, test results as PASS lines.
 If any check fails, fix and re-run — never mark the cycle complete on a red build or a diff you would not want to maintain.
 
-### 5. QUEUE NEXT
+### 5. COMMIT & PUSH (every cycle, no batching)
+After a green review, commit immediately — never stack uncommitted cycles:
+1. `git status` first: only intended files (build output, `node_modules`, snapshots stay ignored).
+2. Message: `Stage N: <feature>` + one body line of what landed and the test result.
+3. Push to the tracked upstream and verify a clean tree after.
+4. Red review = fix and re-run first. Never commit failing code.
+
+### 6. QUEUE NEXT
 End each cycle with the ordered backlog and the proposed next single feature. Never start it without a new PLAN phase.

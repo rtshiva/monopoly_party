@@ -1,9 +1,16 @@
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { Landing } from './pages/Landing';
 import { HostScreen } from './pages/HostScreen';
 import { PlayScreen } from './pages/PlayScreen';
 
 export function App() {
+  const [swUpdate, setSwUpdate] = useState(false);
+  useEffect(() => {
+    const onUpdate = () => setSwUpdate(true);
+    window.addEventListener('sw-updated', onUpdate);
+    return () => window.removeEventListener('sw-updated', onUpdate);
+  }, []);
   return (
     <BrowserRouter>
       <nav className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
@@ -17,6 +24,13 @@ export function App() {
         <Route path="*" element={<div className="p-10 text-center">Not found — <Link className="underline" to="/">home</Link></div>} />
       </Routes>
       <footer className="pb-8 text-center text-xs text-white/40">Rooms live in server memory · refresh keeps your seat via saved player id</footer>
+      {swUpdate && (
+        <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-amber-300/40 bg-[#141b33]/95 px-4 py-3 shadow-xl backdrop-blur">
+          <span className="text-sm font-bold">✨ Game updated!</span>
+          <button onClick={() => window.location.reload()} className="btn-gold rounded-xl px-3 py-1.5 text-sm">Refresh</button>
+          <button onClick={() => setSwUpdate(false)} className="rounded-xl bg-white/10 px-3 py-1.5 text-sm">Later</button>
+        </div>
+      )}
     </BrowserRouter>
   );
 }

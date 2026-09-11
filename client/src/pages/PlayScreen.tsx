@@ -5,6 +5,7 @@ import type { Socket } from 'socket.io-client';
 import { freshSocket } from '../socket';
 import { mePlayer, loadControl, useGame } from '../store';
 import { SwitchTab } from '../components/SwitchTab';
+import { ConnPill } from '../components/ConnPill';
 import { TradeTab } from '../components/TradeTab';
 import { TurnCountdown } from '../components/TurnCountdown';
 import { isMuted, setMuted, sndBuy, sndCash, sndError, sndRoll, sndWin } from '../sound';
@@ -22,6 +23,7 @@ export function PlayScreen() {
   const prevCash = useRef<number | null>(null);
   const wonRef = useRef(false);
   const sockRef = useRef<Socket | null>(null);
+  const [sockState, setSockState] = useState<Socket | null>(null);
 
   const upCode = code.toUpperCase();
   // State (freshly switched seats) wins over the URL, which goes stale after a switch.
@@ -31,6 +33,7 @@ export function PlayScreen() {
   useEffect(() => {
     const s = freshSocket();
     sockRef.current = s;
+    setSockState(s);
     let alive = true;
     if (pid) {
       s.emit('rejoin', { code: upCode, playerId: pid, key: controlKey || loadControl(pid) }, (res: { ok: boolean; error?: string; room: never }) => {
@@ -52,7 +55,7 @@ export function PlayScreen() {
       setErr('🔀 Another device took over this seat. Reclaim it in 🔀 Switch with the TV PIN.');
       setTab('switch');
     });
-    return () => { alive = false; s.disconnect(); sockRef.current = null; };
+    return () => { alive = false; s.disconnect(); sockRef.current = null; setSockState(null); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [upCode, pid]);
 
@@ -118,6 +121,7 @@ export function PlayScreen() {
       </div>
 
       {/* turn banner */}
+      <ConnPill sock={sockState} />
       <AnimatePresence>
         {room.status === 'lobby' && <Banner key="lobby" text="⏳ Waiting for host to start… show this screen is ready!" />}
         {room.status === 'finished' && (

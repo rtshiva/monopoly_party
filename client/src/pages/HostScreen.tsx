@@ -53,6 +53,10 @@ export function HostScreen() {
       });
     }
     s.on('roomState', (r) => { if (alive) setRoom(r); });
+    s.on('evicted', () => {
+      if (!alive) return;
+      setErr('🔀 Control of this screen’s seat moved to another device — reclaim it in 🔑 Host login below.');
+    });
     return () => { alive = false; s.disconnect(); setSockState(null); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [upCode]);
@@ -175,6 +179,14 @@ export function HostScreen() {
               ))}
             </div>
           </div>
+          {(room.status === 'playing' || room.status === 'paused') && (
+            <div className="glass rounded-2xl p-4 text-center">
+              <div className="font-display text-sm font-bold">📱 Join / reclaim a seat</div>
+              <div className="mx-auto mt-2 w-fit rounded-xl bg-white p-2"><QRCodeSVG value={joinURL} size={90} /></div>
+              <div className="mt-1 break-all font-mono text-xs text-amber-200">{joinURL}</div>
+              <div className="mt-1 text-xs text-white/50">New phone — even the host's? Scan to open the table, then claim your seat with its PIN.</div>
+            </div>
+          )}
           <div className="glass rounded-2xl p-4">
             <div className="font-display font-bold">📜 Live feed</div>
             <div className="mt-2 max-h-72 space-y-1 overflow-y-auto text-sm">

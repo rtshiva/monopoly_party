@@ -57,7 +57,7 @@ export function ClaimPanel({ room, seats, title, onClaimed, emit }: Props) {
             <div className="flex items-center gap-2">
               <span className="text-2xl">{TOKENS[seat.token]}</span>
               <div className="flex-1">
-                <div className="font-bold">{seat.name}</div>
+                <div className="font-bold">{seat.isHost ? '👑 ' : ''}{seat.name}{seat.isHost ? ' (host)' : ''}</div>
                 <div className="text-xs text-white/60">
                   {seat.connected && seat.controllerLabel ? `📱 ${seat.controllerLabel}` : '📴 no live controller'} · PIN <span className="font-mono text-amber-200">{seat.seatPin}</span>
                 </div>

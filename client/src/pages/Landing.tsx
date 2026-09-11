@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { emitWithAck } from '../socket';
 import { saveControl, useGame } from '../store';
-import type { TokenKind } from '@monopoly/shared';
+import { ClaimPanel, type ClaimEmit } from '../components/ClaimPanel';
+import type { RoomState, TokenKind } from '@monopoly/shared';
 import { TOKENS } from '@monopoly/shared';
 
 const tokenList = Object.keys(TOKENS) as TokenKind[];
@@ -26,6 +27,8 @@ export function Landing() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [tables, setTables] = useState<OpenRoom[]>([]);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [roomCache, setRoomCache] = useState<Record<string, RoomState>>({});
 
   // Live lobby browser: poll the server for open tables (stateless, cheap).
   useEffect(() => {
@@ -46,6 +49,40 @@ export function Landing() {
       localStorage.setItem('monopoly.name', name);
       localStorage.setItem('monopoly.token', token);
     } catch { /* noop */ }
+  }
+
+  // Expand a table row into an inline seat-login panel (no navigation needed).
+  async function toggleSeats(code: string) {
+    if (expanded === code) { setExpanded(null); return; }
+    setExpanded(code);
+    if (roomCache[code]) return;
+    try {
+      const res = await emitWithAck<{ ok: boolean; room: RoomState }>('watchRoom', { code });
+      if (res?.ok) setRoomCache((m) => ({ ...m, [code]: res.room }));
+    } catch { /* offline: panel shows a loading note */ }
+  }
+
+  function claimEmit(code: string): ClaimEmit {
+    return (ev, extra, onOk) => {
+      emitWithAck<{ ok: boolean; error?: string; controlKey?: string }>(ev, { code, ...extra })
+        .then((res) => {
+          if (!res?.ok) setErr(res?.error === 'BAD_PIN' ? `Wrong PIN for ${code} — check the TV board.` : 'Login failed.');
+          onOk?.(res);
+        })
+        .catch(() => setErr('Server not responding — is it running?'));
+    };
+  }
+
+  function afterClaim(code: string, newPid: string, newKey: string) {
+    saveControl(newPid, newKey);
+    try {
+      localStorage.setItem('monopoly.pid', newPid);
+      localStorage.setItem('monopoly.code', code);
+    } catch { /* noop */ }
+    setControlKey(newKey);
+    setPlayerId(newPid);
+    setRoom(roomCache[code] ?? null);
+    nav(`/play/${code}?pid=${newPid}`);
   }
 
   async function host() {
@@ -163,7 +200,7 @@ export function Landing() {
       {(lastGame || waiting.length > 0 || live.length > 0) && (
         <div className="glass mt-4 rounded-3xl p-6">
           <h2 className="font-display text-xl font-bold">🎪 Open tables <span className="text-sm font-normal text-white/50">— no code needed</span></h2>
-          <div className="mt-1 text-xs text-white/50">Join takes a fresh seat. Already playing on another browser? Open the table, then reclaim your seat with its TV PIN.</div>
+          <div className="mt-1 text-xs text-white/50">Join takes a fresh seat · <b>Login ›</b> signs in as an existing seat with its TV PIN — same device or another browser.</div>
           {lastGame && (
             <button disabled={busy} onClick={() => nav(`/play/${lastGame.code}?pid=${lastGame.pid}`)}
               className="btn-gold mt-3 w-full rounded-2xl px-4 py-3 disabled:opacity-50">↩️ Rejoin last game ({lastGame.code})</button>
@@ -173,13 +210,22 @@ export function Landing() {
               <div className="text-sm font-bold text-white/70">⏳ Waiting to start</div>
               <div className="mt-1 space-y-2">
                 {waiting.map((t) => (
-                  <div key={t.code} className="flex items-center gap-2 rounded-2xl bg-white/5 px-3 py-2">
-                    <div className="flex-1"><span className="font-mono font-bold">{t.code}</span> <span className="text-sm text-white/60">· {t.hostName}'s table · {t.players}/{t.max}</span></div>
-                    <button onClick={() => nav(`/play/${t.code}`)}
-                      className="rounded-xl bg-white/10 px-3 py-2 text-xs font-bold" title="Open without joining — claim an existing seat inside">Open ›</button>
-                    <button disabled={busy} onClick={() => doJoin(t.code)}
-                      className="rounded-xl bg-emerald-300 px-4 py-2 text-sm font-extrabold text-emerald-950 disabled:opacity-50">Join</button>
-                  </div>
+                  <TableRow
+                    key={t.code}
+                    t={t}
+                    expanded={expanded === t.code}
+                    onToggle={() => toggleSeats(t.code)}
+                    action={(
+                      <button disabled={busy} onClick={() => doJoin(t.code)}
+                        className="rounded-xl bg-emerald-300 px-4 py-2 text-sm font-extrabold text-emerald-950 disabled:opacity-50">Join</button>
+                    )}
+                  >
+                    {roomCache[t.code] ? (
+                      <ClaimPanel room={roomCache[t.code]} emit={claimEmit(t.code)} onClaimed={(pid, key) => afterClaim(t.code, pid, key)} />
+                    ) : (
+                      <div className="py-2 text-center text-sm text-white/50">Loading seats…</div>
+                    )}
+                  </TableRow>
                 ))}
               </div>
             </div>
@@ -189,11 +235,22 @@ export function Landing() {
               <div className="text-sm font-bold text-white/70">🔴 Live now (spectate)</div>
               <div className="mt-1 space-y-2">
                 {live.map((t) => (
-                  <div key={t.code} className="flex items-center gap-2 rounded-2xl bg-white/5 px-3 py-2">
-                    <div className="flex-1"><span className="font-mono font-bold">{t.code}</span> <span className="text-sm text-white/60">· {t.hostName}'s table · {t.players}/{t.max}</span></div>
-                    <button onClick={() => nav(`/host/${t.code}`)}
-                      className="rounded-xl bg-white/15 px-4 py-2 text-sm font-bold">Watch</button>
-                  </div>
+                  <TableRow
+                    key={t.code}
+                    t={t}
+                    expanded={expanded === t.code}
+                    onToggle={() => toggleSeats(t.code)}
+                    action={(
+                      <button onClick={() => nav(`/host/${t.code}`)}
+                        className="rounded-xl bg-white/15 px-4 py-2 text-sm font-bold">Watch</button>
+                    )}
+                  >
+                    {roomCache[t.code] ? (
+                      <ClaimPanel room={roomCache[t.code]} emit={claimEmit(t.code)} onClaimed={(pid, key) => afterClaim(t.code, pid, key)} />
+                    ) : (
+                      <div className="py-2 text-center text-sm text-white/50">Loading seats…</div>
+                    )}
+                  </TableRow>
                 ))}
               </div>
             </div>
@@ -212,6 +269,24 @@ export function Landing() {
           <div key={h} className="glass rounded-2xl p-4"><div className="font-bold">{h}</div><div className="mt-1 text-white/60">{b}</div></div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** One open-table row: Join/Watch for fresh entry, expandable inline seat login. */
+function TableRow({ t, action, expanded, onToggle, children }: {
+  t: OpenRoom; action: ReactNode; expanded: boolean; onToggle: () => void; children?: ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl bg-white/5 px-3 py-2">
+      <div className="flex items-center gap-2">
+        <div className="flex-1"><span className="font-mono font-bold">{t.code}</span> <span className="text-sm text-white/60">· {t.hostName}'s table · {t.players}/{t.max}</span></div>
+        <button onClick={onToggle} title="Log in as an existing seat with its TV PIN"
+          className={`rounded-xl px-3 py-2 text-xs font-bold ${expanded ? 'bg-amber-300 text-black' : 'bg-white/10'}`}>
+          {expanded ? 'Hide ^' : 'Login ›'}</button>
+        {action}
+      </div>
+      {expanded && <div className="mt-2 border-t border-white/10 pt-1">{children}</div>}
     </div>
   );
 }

@@ -1,11 +1,11 @@
-import { BOARD, COLOR_HEX, TOKENS } from '@monopoly/shared';
+import { BOARD, COLOR_HEX, TOKENS, tileCell, tileRect } from '@monopoly/shared';
 import type { RoomState } from '@monopoly/shared';
 import { BOARD_THEMES, type BoardTheme } from './boardThemes';
-import { BOARD_SKINS, tileCell, tileRect } from './boardSkins';
+import { BOARD_SKINS } from './boardSkins';
 import { ThemeArt, TitleBadge } from './ThemeArt';
 import { StageBar } from './StageBar';
 
-/** Classic 11x11 perimeter: index 0 (GO) bottom-right, clockwise. */
+/** Classic 11x11 perimeter: index 0 (GO) top-left, clockwise. */
 function tileToRC(i: number): [number, number] {
   const { col, row } = tileCell(i);
   return [row, col];
@@ -145,7 +145,7 @@ export function ThemedBoard({ room }: { room: RoomState }) {
       <div className="relative aspect-square w-full overflow-hidden rounded-3xl shadow-xl">
         <img src={skin.image} alt={`${theme.name} board`} className="absolute inset-0 h-full w-full object-cover" draggable={false} />
         {BOARD.map((_, i) => {
-          const rect = tileRect(i, skin.grid);
+            const rect = tileRect(i, skin.bounds);
           const isPending = room.pendingBuy === i;
           const isCurrentTurn = room.status === 'playing' && room.players[room.turnIndex % room.players.length]?.position === i;
           const { col, row } = tileCell(i);

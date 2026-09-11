@@ -11,6 +11,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { io } from 'socket.io-client';
 import { drawChance, drawChest } from '@monopoly/shared';
+import { DEFAULT_BOUNDS, GRANDPRIX_BOUNDS, tileCell, tileRect } from '@monopoly/shared';
 import { applyTradeSwap, doRoll, removeSeat } from '../dist/helpers.js';
 const PORT = 3123;
 const BASE = `http://localhost:${PORT}`;
@@ -149,6 +150,27 @@ try {
   check('chance awards jail card', sawChanceCard);
   check('chest awards jail card', sawChestCard);
   check('card draws keep cash finite', cashFinite);
+  // Rotated board geometry: GO top-left, clockwise; measured art bounds sane
+  const c0 = tileCell(0), c10 = tileCell(10), c20 = tileCell(20), c30 = tileCell(30);
+  check('GO top-left, Jail top-right', c0.col === 0 && c0.row === 0 && c10.col === 10 && c10.row === 0);
+  check('Parking bottom-right, GoToJail bottom-left', c20.col === 10 && c20.row === 10 && c30.col === 0 && c30.row === 10);
+  const seen = new Set();
+  let okAdj = true, prev = null;
+  for (let i = 0; i < 40; i++) {
+    const { col, row } = tileCell(i);
+    seen.add(`${col},${row}`);
+    if (prev && Math.abs(col - prev.col) + Math.abs(row - prev.row) !== 1) okAdj = false;
+    prev = { col, row };
+  }
+  check('mapping covers 40 unique cells', seen.size === 40);
+  check('mapping path contiguous', okAdj);
+  const mono = (a) => a.every((v, k) => k === 0 || v > a[k - 1]) && a[0] >= 0 && a[11] <= 1;
+  check('art bounds monotonic in range', mono(GRANDPRIX_BOUNDS.cols) && mono(GRANDPRIX_BOUNDS.rows));
+  check('art corners wider than middles', (GRANDPRIX_BOUNDS.cols[1] - GRANDPRIX_BOUNDS.cols[0]) > 0.11 && (GRANDPRIX_BOUNDS.cols[11] - GRANDPRIX_BOUNDS.cols[10]) > 0.11);
+  const r0 = tileRect(0, GRANDPRIX_BOUNDS);
+  check('GO rect top-left', parseFloat(r0.left) < 2 && parseFloat(r0.top) < 2);
+  const r10 = tileRect(10, DEFAULT_BOUNDS);
+  check('default rect math sane', r10.left === `${(10 / 11) * 100}%` && r10.top === '0%');
   const mkJail = () => ({
     room: { dice: [1, 1], lastRoll: null, pendingBuy: null, log: [], players: [] },
     me: { id: 't', name: 'T', cash: 1500, position: 20, properties: [], mortgaged: [], inJail: true, jailTurns: 0, jailCards: 0, doubles: 0, bankrupt: false, hasRolled: false },

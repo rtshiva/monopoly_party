@@ -46,7 +46,11 @@ function TileFace({ i, room, theme, onArt }: { i: number; room: RoomState; theme
         {color && <div className="mb-[1px] h-[5px] rounded-sm" style={{ background: color }} />}
         <div className="truncate rounded bg-black/55 px-1 text-[10px] font-bold text-white lg:text-[11px]">{t.name}</div>
         <div className="mt-[1px] inline-block rounded bg-black/55 px-1 text-[10px] text-amber-200">{sub}</div>
-        {level > 0 && <div>{level === 5 ? '🏨' : '🏠'.repeat(Math.min(level, 4))}</div>}
+        {level > 0 && (
+          <div className="mt-[1px] inline-block rounded-full bg-emerald-950/70 px-1.5 py-0.5 text-[11px] shadow-[0_0_10px_rgba(52,211,153,0.45)] ring-1 ring-emerald-300/50">
+            {level === 5 ? '🏨' : '🏠'.repeat(Math.min(level, 4))}
+          </div>
+        )}
         {here.length > 0 && (
           <div className="mt-[1px] inline-flex flex-wrap items-center gap-[2px] rounded-full bg-black/65 px-1.5 py-0.5 text-[13px] shadow-[0_0_10px_rgba(255,255,255,0.4)] ring-1 ring-white/40">
             {here.slice(0, 4).map((p) => (
@@ -73,7 +77,11 @@ function TileFace({ i, room, theme, onArt }: { i: number; room: RoomState; theme
       {corner && <div className="absolute right-[1px] top-[1px] text-[11px]">{corner.icon}</div>}
       <div className="mt-[4px] truncate font-bold">{t.name}</div>
       <div style={{ color: theme.subInk }}>{sub}</div>
-      {level > 0 && <div>{level === 5 ? '🏨' : '🏠'.repeat(Math.min(level, 4))}</div>}
+      {level > 0 && (
+        <div className="mt-[1px] inline-block rounded-full bg-emerald-950/70 px-1.5 py-0.5 text-[11px] text-white shadow-[0_0_10px_rgba(52,211,153,0.45)] ring-1 ring-emerald-300/50">
+          {level === 5 ? '🏨' : '🏠'.repeat(Math.min(level, 4))}
+        </div>
+      )}
       {here.length > 0 && (
         <div className="flex flex-wrap gap-[1px] text-[11px]">
           {here.slice(0, 4).map((p) => (

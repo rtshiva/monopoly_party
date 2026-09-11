@@ -11,7 +11,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { io } from 'socket.io-client';
 import { drawChance, drawChest } from '@monopoly/shared';
-import { DEFAULT_BOUNDS, GRANDPRIX_BOUNDS, tileCell, tileRect } from '@monopoly/shared';
+import { tileCell } from '@monopoly/shared';
 import { applyTradeSwap, doRoll, removeSeat } from '../dist/helpers.js';
 const PORT = 3123;
 const BASE = `http://localhost:${PORT}`;
@@ -164,13 +164,6 @@ try {
   }
   check('mapping covers 40 unique cells', seen.size === 40);
   check('mapping path contiguous', okAdj);
-  const mono = (a) => a.every((v, k) => k === 0 || v > a[k - 1]) && a[0] >= 0 && a[11] <= 1;
-  check('art bounds monotonic in range', mono(GRANDPRIX_BOUNDS.cols) && mono(GRANDPRIX_BOUNDS.rows));
-  check('art corners wider than middles', (GRANDPRIX_BOUNDS.cols[1] - GRANDPRIX_BOUNDS.cols[0]) > 0.11 && (GRANDPRIX_BOUNDS.cols[11] - GRANDPRIX_BOUNDS.cols[10]) > 0.11);
-  const r0 = tileRect(0, GRANDPRIX_BOUNDS);
-  check('GO rect top-left', parseFloat(r0.left) < 2 && parseFloat(r0.top) < 2);
-  const r10 = tileRect(10, DEFAULT_BOUNDS);
-  check('default rect math sane', r10.left === `${(10 / 11) * 100}%` && r10.top === '0%');
   const mkJail = () => ({
     room: { dice: [1, 1], lastRoll: null, pendingBuy: null, log: [], players: [] },
     me: { id: 't', name: 'T', cash: 1500, position: 20, properties: [], mortgaged: [], inJail: true, jailTurns: 0, jailCards: 0, doubles: 0, bankrupt: false, hasRolled: false },

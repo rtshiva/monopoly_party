@@ -1,125 +1,98 @@
-# Board background images — approved spec
+# Board artwork — spec (cells-as-backgrounds)
 
-Drop one file per theme in THIS folder (`client/public/themes/`):
+The board is a uniform 11×11 HTML grid — geometry can never drift. Generated
+art appears only as **cell backgrounds** (one center image + one 4-corner
+sheet per theme). Everything else (edge tiles, text, markers) stays HTML.
 
-| Theme      | File              | Status         |
-|------------|-------------------|----------------|
-| Grand Prix | `grandprix.png`   | ✅ live (1254², calibrated) |
-| City       | `city.webp`       | pending        |
-| Coastal    | `coastal.webp`    | pending        |
-| Mountain   | `mountain.webp`   | pending        |
+Drop files in THIS folder (`client/public/themes/`), then set their paths in
+`client/src/components/boardThemes.ts` (`artImage`, `cornerSheet`). Until
+then the built-in SVG scenes show. Recommended order: Grand Prix first.
 
-Then set `image: '/themes/<name>.<ext>'` on that theme in
-`client/src/components/boardSkins.ts`. Until then the classic light tiles +
-SVG center show. Recommended order: **Grand Prix first** (done), then City,
-Coastal, Mountain.
+## Files per theme (2 max)
 
-## 1. Core principle
+| Asset  | File                          | Size (px, square) |
+|--------|-------------------------------|-------------------|
+| Center | `<theme>-center.webp`         | 1600 (min 1024)   |
+| Corners| `<theme>-corners.webp`        | 1024 (min 512)    |
 
-The image is a **pure visual layer**. It must contain no game-state
-information, and the game never inspects its pixels:
+Example: `coastal-center.webp`, `coastal-corners.webp`.
 
-- Image draws: scenery, roads/tracks, buildings, landscape, empty property
-  boxes, decorative details.
-- HTML draws (always, on top): tile names, prices, color bands, tile borders
-  and highlights, owner chips, player tokens, houses/hotels, auction/trade
-  markers, title badge.
+WebP quality ~80; center under ~600 KB, corners sheet under ~300 KB.
 
-## 2. Canvas
+## Center image
 
-- **2048 × 2048 px**, exactly square (minimum 1024 × 1024 fallback).
-- WebP quality ~80, target under ~800 KB (PNG accepted for calibration
-  rounds; convert before game night).
-- Board artwork extends **edge to edge**: no outer margin, no title area, no
-  legend, no explanatory text.
+The theme's hero scenery (Grand Prix: circuit/curbs/pit lane/grandstand;
+City: towers/bridges/parks; Coastal: road/marina/lighthouse/cliffs/boats;
+Mountain: switchbacks/tunnel/forest/lake). Rich is good — it must NOT read
+as a second playable path (no shortcuts, branches, or arrows). **No text of
+any kind**: the red title badge renders as HTML on top.
 
-## 3. Grid contract (do not break this)
+Displayed up to ~900 px + retina, hence 1600 px. `object-fit: cover` into a
+square panel; keep 5% bleed free of anything critical.
 
-The board is an **11 × 11 logical grid**. Index 0 (GO) sits **top-left**
-(start/finish corner) and play proceeds **clockwise**. Corners read:
-GO top-left · Jail top-right · Free Parking bottom-right · Go To Jail
-bottom-left (a 180° rotation of the classic layout; rules and order are
-unchanged, only the start corner moved).
+## Corners sheet (the quadrant contract)
 
-**Top row** (row 0, left → right): 0 GO (green corner, Collect $200) ·
-1 Med Ave (brown $60) · 2 Chest · 3 Baltic Ave (brown $60) · 4 Income Tax
-($100) · 5 Reading RR ($200) · 6 Oriental Ave (light blue $100) · 7 Chance ·
-8 Vermont Ave (light blue $100) · 9 Conn Ave (light blue $120) ·
-10 Jail / Just Visiting (orange corner)
+One square image, four vignettes in a **2×2 collage** — the app crops each
+quadrant into its corner cell with pure CSS (`background-size: 200%`), so
+one file can never misalign:
 
-**Right column** (col 10, top → bottom): 11 St Charles (pink $140) ·
-12 Electric Co ($150) · 13 States Ave (pink $140) · 14 Virginia Ave (pink
-$160) · 15 Penn RR ($200) · 16 St James (orange $180) · 17 Chest ·
-18 Tennessee (orange $180) · 19 New York Ave (orange $200) · 20 Free Parking
-(corner)
+| Quadrant (in the sheet) | Corner cell (on the board) | Motif |
+|-------------------------|----------------------------|-------|
+| Top-left | GO (top-left) | start/finish celebration |
+| Top-right | Jail (top-right) | confinement / barrier |
+| Bottom-left | Go To Jail (bottom-left) | enforcement / siren |
+| Bottom-right | Free Parking (bottom-right) | open restful scene |
 
-**Bottom row** (row 10, right → left): 21 Kentucky (red $220) · 22 Chance ·
+Each vignette should read at ~90–180 px display size: one bold motif per
+quadrant, **no text, numbers, or logos**, middle kept calm for the overlaid
+name/token chips (dark pills + scrim guarantee readability on any art).
+
+## Grid contract (fixed, no calibration)
+
+Index 0 (GO) sits **top-left**, play proceeds **clockwise**: top row 0–10,
+right column 11–20, bottom row 21–30, left column 31–39. Corners read GO
+top-left · Jail top-right · Free Parking bottom-right · Go To Jail
+bottom-left. Rules and order never change — only art swaps.
+
+Tile order around the perimeter:
+
+**Top row** (left → right): 0 GO · 1 Med Ave (brown $60) · 2 Chest ·
+3 Baltic Ave (brown $60) · 4 Income Tax ($100) · 5 Reading RR ($200) ·
+6 Oriental Ave (light blue $100) · 7 Chance · 8 Vermont Ave (light blue
+$100) · 9 Conn Ave (light blue $120) · 10 Jail
+
+**Right column** (top → bottom): 11 St Charles (pink $140) · 12 Electric Co
+($150) · 13 States Ave (pink $140) · 14 Virginia Ave (pink $160) ·
+15 Penn RR ($200) · 16 St James (orange $180) · 17 Chest · 18 Tennessee
+(orange $180) · 19 New York Ave (orange $200) · 20 Free Parking
+
+**Bottom row** (right → left): 21 Kentucky (red $220) · 22 Chance ·
 23 Indiana Ave (red $220) · 24 Illinois Ave (red $240) · 25 B&O RR ($200) ·
 26 Atlantic Ave (yellow $260) · 27 Ventnor Ave (yellow $260) ·
 28 Water Works ($150) · 29 Marvin Gardens (yellow $280) · 30 Go To Jail
-(corner)
 
-**Left column** (col 0, bottom → top): 31 Pacific Ave (green $300) ·
+**Left column** (bottom → top): 31 Pacific Ave (green $300) ·
 32 N Carolina (green $300) · 33 Chest · 34 Penn Ave (green $320) ·
 35 Short Line ($200) · 36 Chance · 37 Park Place (blue $350) ·
 38 Luxury Tax ($150) · 39 Boardwalk (blue $400)
 
-Generated grids are never perfectly uniform (wide corners, AI wobble), so
-tiles map through **explicit boundary arrays** (`cols[12]`, `rows[12]` as
-fractions in `shared/src/boardLayout.ts`, e.g. `GRANDPRIX_BOUNDS`), measured
-from the art with pixel line detection. Overlay chips are small and centered,
-so residuals ≤ ~20 px are invisible. Never re-export art for alignment.
+## Art direction per file
 
-## 4. Center 9 × 9: the theme lives here
+- **Center:** the theme's hero scenery (Grand Prix: circuit/curbs/pit lane/
+  grandstand; City: towers/bridges/parks; Coastal: road/marina/lighthouse/
+  cliffs/boats; Mountain: switchbacks/tunnel/forest/lake). Rich is good —
+  it must NOT read as a second playable path (no shortcuts, branches, or
+  arrows). No text of any kind (the title badge renders as HTML on top).
+- **Corners** (one motif each): `go` = start/finish celebration ·
+  `jail` = confinement/barrier · `parking` = open restful scene ·
+  `gotojail` = enforcement/siren. Keep the middle calm for the name + token
+  chips the app overlays; no text, numbers, logos, or signs anywhere.
+- **Edge tiles:** no art needed — HTML draws them (names, prices, color
+  bands, highlights all stay exact).
 
-The middle 9 × 9 region is the primary visual identity — make it rich
-(Grand Prix: flowing circuit with curbs, pit lane, grandstand, paddock;
-City: street circuit, towers, bridges, parks; Coastal: coastal road, marina,
-lighthouse, cliffs, boats; Mountain: switchbacks, tunnel, bridge, forest,
-lake). It must NOT read as a second playable path: no shortcuts, branches,
-or arrows suggesting alternate movement. The logical game path stays the
-single perimeter lap.
+## Style + acceptance
 
-## 5. Property boxes: calm, empty, unbanded
-
-- Each perimeter box keeps its **lower ~60% visually calm** (subtle texture
-  ok): no busy buildings, high-contrast patterns, roads, characters, cars,
-  or shadows behind the expected HTML text/chips/tokens/houses.
-- Do **NOT** bake property color bands — the app draws them as HTML (exact
-  colors, exact geometry). Keep box tops neutral.
-- Prefer simple, consistent box frames; the app renders outlines, hover,
-  ownership and active-turn highlights itself.
-
-## 6. No generated text or logos, ever
-
-No property names, prices, numbers, Chance/Chest/GO/Jail text, Monopoly logo,
-theme titles, slogans, legends, fake brands, ads, or legible signs. All text
-is crisp HTML on top — this also guarantees visuals always match game state.
-
-## 7. Style
-
-Premium modern board-game artwork: clean, colorful, slightly illustrated,
-strong center composition, restrained perimeter, consistent language across
-themes. Avoid photorealistic clutter, tiny details, text-heavy environments,
-fake ads, and heavy 3D perspective. Must read well at ~900 px display width.
-
-## 8. Calibration workflow (when a file lands)
-
-1. Drop the file in this folder, set its `image` path in `boardSkins.ts`.
-2. Open `/host/<code>?calibrate=1` — red outlines show where the app places
-   each box (`#index col,row`).
-3. If boxes drift, measure grid lines (see `gridscan.mjs` pattern: PNG
-   decode + darkness profiles per side) and update that theme's bounds in
-   `shared/src/boardLayout.ts` (suite guards monotonicity). No art changes
-   needed for alignment, ever.
-
-## 9. Acceptance checklist
-
-- [ ] Exactly 2048 × 2048, square, board reaches all four edges
-- [ ] 11 × 11 geometry compatible; 40 perimeter spaces clearly separated
-- [ ] GO top-left with start/finish character; corners read correctly
-- [ ] Rich center, clean perimeter, single-lap reading preserved
-- [ ] Zero generated text/numbers/logos/titles/slogans
-- [ ] Lower ~60% of boxes calm; chips, tokens, houses readable
-- [ ] No baked color bands; no text where HTML overlays sit
-- [ ] WebP ~80, under ~800 KB; good at ~900 px
+Premium modern board-game look: clean, colorful, slightly illustrated,
+consistent across themes; no photorealistic clutter, fake ads, or heavy 3D.
+Readable at ~900 px display width. Checklist per file: square, right content,
+zero generated text/logos, calm chip zones, correct filenames.

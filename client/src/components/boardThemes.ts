@@ -15,11 +15,19 @@ export interface BoardTheme {
   /** Secondary tile text. */
   subInk: string;
   /**
-   * Optional generated center art, e.g. '/themes/coastal.webp'.
+   * Optional generated center art, e.g. '/themes/coastal-center.webp'.
    * Drop the file in client/public/themes/ — SVG scene is the fallback.
-   * Must be square (see client/public/themes/README.md for the spec).
+   * Square; no text (the title badge renders as HTML on top).
    */
   artImage?: string;
+  /**
+   * Optional corner vignette sheet, e.g. '/themes/coastal-corners.webp': a
+   * square 2x2 collage (TL=go, TR=jail, BL=gotojail, BR=parking, each >=512px
+   * inside a >=1024px sheet). The app crops each quadrant into its corner
+   * cell with pure CSS — no per-corner files, no alignment to tune.
+   * No text; keep each vignette's middle calm for the overlaid chips.
+   */
+  cornerSheet?: string;
 }
 
 /** Four track-inspired skins. Rules and streets never change — only the look. */

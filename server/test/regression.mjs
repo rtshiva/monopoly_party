@@ -90,6 +90,11 @@ try {
   check('lastCard starts null', room.lastCard == null);
   const listed2 = await emit(s2, 'listRooms', {});
   check('listRooms shows live game', listed2.ok === true && listed2.rooms.some((r) => r.code === code && r.status === 'playing'));
+  await sleep(15); // distinct activity timestamps for ordering
+  const c2 = await emit(s3, 'createRoom', { playerName: 'Zed', token: 'robot', deviceLabel: 'Suite-E' });
+  const listed3 = await emit(s2, 'listRooms', {});
+  const order = listed3.rooms.map((r) => r.code);
+  check('listRooms newest first', order[0] === c2.code, order.slice(0, 3).join(','));
   check('seat PINs + labels visible (TV transparency)', room.players.every((p) => /^\d{4}$/.test(p.seatPin) && !!p.controllerLabel));
 
   const curId = room.players[room.turnIndex % room.players.length].id;

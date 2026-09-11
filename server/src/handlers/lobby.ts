@@ -71,12 +71,14 @@ export function registerLobbyHandlers(socket: Socket) {
     cb?.({ ok: true, room });
   });
 
-  // Public lobby browser: waiting + live rooms. No secrets here by design
+  // Public lobby browser: waiting + live rooms, newest activity first so the
+  // latest table tops the list. No secrets here by design
   // (codes are already shareable; keys/PINs/labels never leave roomState).
   socket.on('listRooms', (_payload: unknown, cb) => {
     const list = [...rooms.values()]
       .filter((r) => r.status === 'lobby' || r.status === 'playing')
-      .slice(-20)
+      .sort((a, b) => (b.lastActivity ?? 0) - (a.lastActivity ?? 0))
+      .slice(0, 20)
       .map((r) => ({
         code: r.code,
         status: r.status,

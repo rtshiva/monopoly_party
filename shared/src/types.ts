@@ -30,6 +30,7 @@ export interface Player {
   mortgaged: number[];
   inJail: boolean;
   jailTurns: number;
+  jailCards: number; // Get-Out-of-Jail-Free inventory (kept, played via useJailCard)
   doubles: number;
   bankrupt: boolean;
   connected: boolean;
@@ -41,7 +42,7 @@ export interface Player {
 
 export interface LogEntry { id: string; text: string; at: number; tone?: 'info' | 'good' | 'bad' | 'money' }
 
-export type RoomStatus = 'lobby' | 'playing' | 'finished';
+export type RoomStatus = 'lobby' | 'playing' | 'paused' | 'finished';
 
 export interface TradeOffer {
   id: string;
@@ -79,6 +80,7 @@ export interface RoomState {
   turnDeadline: number | null; // ms timestamp when the current turn auto-resolves
   auctionQueue: number[]; // bank-owned deeds waiting for auction (bankruptcies)
   lastActivity: number; // ms timestamp of last state change (expiry + persistence)
+  pausedAt: number | null; // when the current pause began (to shift auction clocks on resume)
   log: LogEntry[];
   winnerId: string | null;
   turnCount: number;

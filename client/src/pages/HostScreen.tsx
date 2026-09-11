@@ -58,14 +58,39 @@ export function HostScreen() {
   }
 
   const sorted = [...room.players].sort((a, b) => b.cash - a.cash);
+  const hostSeat = room.players.find((p) => p.isHost);
+  const amHost = !!hostSeat && hostSeat.id === pid;
+  const roomCode: string = room.code;
+
+  async function hostAction(ev: 'pauseGame' | 'resumeGame' | 'kickPlayer', extra: Record<string, unknown> = {}) {
+    if (!pid) { setErr('Host seat not held on this screen.'); return; }
+    try {
+      const res = await emitWithAck<{ ok: boolean; error?: string }>(ev, { code: roomCode, playerId: pid, key: loadControl(pid), ...extra });
+      if (!res?.ok) setErr(res?.error === 'NOT_HOST' ? 'Only the host device can do that.' : 'Host action failed.');
+    } catch {
+      setErr('Server not responding — is it running?');
+    }
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-3 py-4 lg:px-6">
       <div className="flex flex-wrap items-center gap-3">
         <div className="font-display text-xl font-bold">🎲 MONOPOLY PARTY <span className="ml-2 rounded-lg bg-amber-300 px-2 py-1 font-mono text-black">{room.code}</span></div>
         <button onClick={() => navigator.clipboard?.writeText(joinURL)} className="rounded-xl bg-white/10 px-3 py-2 text-sm hover:bg-white/20">📋 Copy invite link</button>
-        <div className="ml-auto text-sm text-white/60">{room.status === 'lobby' ? '🟡 Lobby — waiting for players' : room.status === 'playing' ? '🟢 Playing' : '🏁 Finished'}</div>
+        <div className="ml-auto text-sm text-white/60">{room.status === 'lobby' ? '🟡 Lobby — waiting for players' : room.status === 'playing' ? '🟢 Playing' : room.status === 'paused' ? '⏸ Paused' : '🏁 Finished'}</div>
       </div>
+
+      {amHost && (room.status === 'playing' || room.status === 'paused') && (
+        <div className="glass mt-3 flex items-center gap-3 rounded-2xl p-3">
+          <span className="font-bold">🔧 Host</span>
+          {room.status === 'playing' ? (
+            <button onClick={() => hostAction('pauseGame')} className="rounded-xl bg-white/15 px-4 py-2 text-sm font-bold">⏸ Pause game</button>
+          ) : (
+            <button onClick={() => hostAction('resumeGame')} className="btn-gold rounded-xl px-4 py-2 text-sm">▶️ Resume game</button>
+          )}
+          <span className="text-xs text-white/50">Pause freezes turns, auctions and the clock.</span>
+        </div>
+      )}
 
       {room.auction && <AuctionPanel room={room} />}
 
@@ -111,6 +136,11 @@ export function HostScreen() {
                   <span className="flex-1 truncate font-semibold">{p.name} {p.bankrupt ? '(💀)' : ''} {!p.connected ? '(📴)' : p.controllerLabel ? `📱${p.controllerLabel}` : ''}</span>
                   {!p.bankrupt && <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[11px] text-amber-200" title="Seat takeover PIN">PIN {p.seatPin}</span>}
                   <span className={`font-mono font-bold ${p.cash < 0 ? 'text-rose-300' : 'text-emerald-300'}`}>${p.cash}</span>
+                  {amHost && hostSeat && p.id !== hostSeat.id && !p.bankrupt && (
+                    <button title={`Remove ${p.name} (deeds go to auction)`} onClick={() => {
+                      if (window.confirm(`Remove ${p.name} from the game? Their deeds go to bank auction.`)) hostAction('kickPlayer', { targetId: p.id });
+                    }} className="rounded-lg bg-rose-500/20 px-2 py-0.5 text-xs font-bold text-rose-200">✕</button>
+                  )}
                 </div>
               ))}
             </div>

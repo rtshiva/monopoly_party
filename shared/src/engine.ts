@@ -55,6 +55,7 @@ export function drawChance(state: RoomState, pid: string): string {
     () => { p.position = 0; p.cash += GO_SALARY; return `Chance: Take a trip to GO (+$${GO_SALARY})`; },
     () => { p.position = 10; p.inJail = true; p.jailTurns = 0; return 'Chance: Go to Jail'; },
     () => { p.cash += 50; return 'Chance: You win $50 lottery'; },
+    () => { p.jailCards++; return 'Chance: Get Out of Jail Free — kept! (play it from your phone)'; },
   ];
   const fn = cards[Math.floor(Math.random() * cards.length)];
   return fn();
@@ -68,6 +69,7 @@ export function drawChest(state: RoomState, pid: string): string {
     () => { p.cash += 200; return 'Chest: Tax refund $200'; },
     () => { p.cash -= 100; return 'Chest: School fee $100'; },
     () => { p.cash += 50; return 'Chest: Beauty contest $50'; },
+    () => { p.jailCards++; return 'Chest: Get Out of Jail Free — kept! (play it from your phone)'; },
   ];
   const fn = cards[Math.floor(Math.random() * cards.length)];
   return fn();

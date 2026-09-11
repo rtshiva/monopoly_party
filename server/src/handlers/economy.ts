@@ -40,6 +40,21 @@ export function registerEconomyHandlers(socket: Socket) {
     emit(room);
   });
 
+  socket.on('useJailCard', ({ code, playerId, key }: { code: string; playerId: string; key: unknown }, cb) => {
+    const room = rooms.get(code);
+    if (!room) return cb?.({ ok: false });
+    const me = requireControl(room, playerId, key);
+    if (!me) return cb?.({ ok: false, error: 'NO_CONTROL' });
+    if (room.status !== 'playing' || me.bankrupt) return cb?.({ ok: false });
+    if (!me.inJail || me.jailCards <= 0) return cb?.({ ok: false, error: 'NO_CARD' });
+    me.jailCards--;
+    me.inJail = false;
+    me.jailTurns = 0;
+    log(room, `🃏 ${me.name} played a Get-Out-of-Jail-Free card`, 'good');
+    cb?.({ ok: true, cards: me.jailCards });
+    emit(room);
+  });
+
   socket.on('buyHouse', ({ code, playerId, key, tile }: { code: string; playerId: string; key: unknown; tile: number }, cb) => {
     const room = rooms.get(code);
     if (!room) return cb?.({ ok: false });

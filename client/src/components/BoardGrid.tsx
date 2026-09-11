@@ -24,6 +24,10 @@ export function BoardGrid({ room }: { room: RoomState }) {
           const owner = room.players.find((p) => p.properties.includes(i));
           const isPending = room.pendingBuy === i;
           const color = t.kind === 'property' ? COLOR_HEX[(t as { color: string }).color] : undefined;
+          const level = room.buildings[i] ?? 0;
+          const mortgaged = !!owner && owner.mortgaged.includes(i);
+          const inTrade = room.trades.some((o) => o.giveTiles.includes(i) || o.wantTiles.includes(i));
+          const inAuction = room.auction?.tile === i;
           return (
             <div
               key={i}
@@ -37,9 +41,13 @@ export function BoardGrid({ room }: { room: RoomState }) {
                 {t.kind === 'property' || t.kind === 'railroad' || t.kind === 'utility'
                   ? `$${(t as { price: number }).price}` : t.kind === 'tax' ? `-$${(t as { amount: number }).amount}` : t.kind === 'go' ? '+$200' : ''}
               </div>
+              {level > 0 && <div className="text-[10px] leading-tight">{level === 5 ? '🏨' : '🏠'.repeat(Math.min(level, 4))}</div>}
+              {(inAuction || inTrade) && (
+                <div className="absolute right-[2px] top-[2px] text-[10px]">{inAuction ? '🔨' : '🤝'}</div>
+              )}
               {owner && (
-                <div className="absolute bottom-[2px] right-[2px] rounded-full bg-amber-300 px-1 text-[8px] font-extrabold text-black">
-                  {owner.name.slice(0, 3)}
+                <div className={`absolute bottom-[2px] right-[2px] rounded-full px-1 text-[8px] font-extrabold ${mortgaged ? 'bg-zinc-500 text-white' : 'bg-amber-300 text-black'}`}>
+                  {mortgaged ? 'M' : owner.name.slice(0, 3)}
                 </div>
               )}
               {here.length > 0 && (
@@ -74,9 +82,21 @@ export function BoardGrid({ room }: { room: RoomState }) {
               {' '}<TurnCountdown deadline={room.turnDeadline} className="ml-1 rounded-full bg-amber-300/20 px-2 py-0.5 font-mono text-amber-200" />
             </div>
           )}
+          {room.status === 'playing' && (room.auction || room.trades.length > 0) && (
+            <div className="mt-1 max-w-full truncate text-xs text-white/60">
+              {room.auction && <>🔨 {BOARD[room.auction.tile]?.name} ({room.auction.bids.length} bid{room.auction.bids.length === 1 ? '' : 's'})</>}
+              {room.auction && room.trades.length > 0 && ' · '}
+              {room.trades.length > 0 && <>🤝 {room.trades.length} open</>}
+            </div>
+          )}
           {room.status === 'finished' && (
             <div className="mt-2 rounded-full bg-amber-300 px-4 py-1 text-sm font-extrabold text-black">
               🏆 {room.players.find((p) => p.id === room.winnerId)?.name} wins!
+            </div>
+          )}
+          {room.status === 'paused' && (
+            <div className="mt-2 rounded-full bg-white/15 px-4 py-1 text-sm font-bold">
+              ⏸ Paused by host — nothing moves until resume
             </div>
           )}
         </div>

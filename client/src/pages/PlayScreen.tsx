@@ -130,6 +130,9 @@ export function PlayScreen() {
         {room.status === 'playing' && !isMyTurn && (
           <Banner key="wait" text={`⏳ ${room.players[room.turnIndex % room.players.length]?.name}'s turn — watch the TV`} />
         )}
+        {room.status === 'paused' && (
+          <Banner key="paused" text="⏸ Paused by host — hang tight, nothing moves until resume" />
+        )}
       </AnimatePresence>
 
       {room.lastRoll && <div className="mt-2 text-center text-sm text-amber-200">🎲 {room.lastRoll}</div>}
@@ -162,6 +165,9 @@ export function PlayScreen() {
           )}
           {me.inJail && (
             <button onClick={() => emit('payJail')} className="w-full rounded-2xl bg-orange-300 py-3 font-extrabold text-orange-950">🔓 Pay $50 to leave jail</button>
+          )}
+          {me.inJail && me.jailCards > 0 && (
+            <button onClick={() => emit('useJailCard')} className="w-full rounded-2xl bg-emerald-300 py-3 font-extrabold text-emerald-950">🃏 Use Get-Out-of-Jail-Free ({me.jailCards})</button>
           )}
           {me.cash < 0 && (
             <button onClick={() => { if (window.confirm('Declare bankruptcy and leave the game?')) emit('bankrupt'); }}
@@ -286,6 +292,7 @@ function friendlyError(code?: string): string {
     case 'MAX_HOUSES': return 'Already a hotel here';
     case 'EVEN_BUILD': return 'Build evenly across the set';
     case 'MORTGAGED': return 'Unmortgage the set first';
+    case 'NO_CARD': return 'No Get-Out-of-Jail-Free card — draw one from Chance/Chest';
     case 'BAD_PIN': return 'Wrong seat PIN — check the TV board';
     case 'NO_CONTROL': return 'This device no longer controls that seat — reclaim it in 🔀 Switch';
     case 'NOT_HOST': return 'Only the host device can do that';

@@ -136,28 +136,36 @@ export function resolveTurnTimeout(code: string, turnCount: number) {
 
 /** Applies a full dice roll + move + tile resolution. No socket I/O inside. */
 export function doRoll(room: RoomState, me: Player): 'rolled' | 'jailed' | 'advance' {
-  // Jail handling: must pay or wait (simplified: auto prompt via client; here just move if pays separately)
+  // One dice source for every roll: jail rolls first, doubles walk out free
+  // (no extra roll granted for the escape itself).
+  let d1 = rollD6(); let d2 = rollD6();
+  room.dice = [d1, d2];
+  let justReleased = false;
   if (me.inJail) {
-    me.jailTurns++;
-    if (me.jailTurns >= 2) {
-      if (me.cash < JAIL_FINE) {
-        // Can't afford auto-release: stay in jail, must mortgage/trade or go bankrupt.
-        me.hasRolled = true;
-        log(room, `🔒 ${me.name} can't afford the $${JAIL_FINE} jail fine ($${me.cash}). Mortgage or go bankrupt!`, 'bad');
+    if (d1 === d2) {
+      me.inJail = false; me.jailTurns = 0; me.doubles = 0;
+      justReleased = true;
+      log(room, `🎲 ${me.name} rolled doubles ${d1}+${d2} — out of jail!`, 'good');
+    } else {
+      me.jailTurns++;
+      me.hasRolled = true;
+      room.lastRoll = `${me.name} rolled ${d1}+${d2} (still in jail)`;
+      if (me.jailTurns >= 2) {
+        if (me.cash < JAIL_FINE) {
+          // Can't afford auto-release: stay in jail, must mortgage/trade or go bankrupt.
+          log(room, `🔒 ${me.name} can't afford the $${JAIL_FINE} jail fine ($${me.cash}). Mortgage, play a card, or go bankrupt!`, 'bad');
+          return 'jailed';
+        }
+        me.cash -= JAIL_FINE;
+        me.inJail = false; me.jailTurns = 0;
+        log(room, `🔓 ${me.name} served time & paid $${JAIL_FINE}`, 'info');
+      } else {
+        log(room, `🔒 ${me.name} is in jail (turn ${me.jailTurns}/2). Roll doubles, pay $50, or play a card.`, 'bad');
         return 'jailed';
       }
-      me.cash -= JAIL_FINE;
-      me.inJail = false; me.jailTurns = 0;
-      log(room, `🔓 ${me.name} served time & paid $${JAIL_FINE}`, 'info');
-    } else {
-      me.hasRolled = true;
-      log(room, `🔒 ${me.name} is in jail (turn ${me.jailTurns}/2). Pay $50 to get out.`, 'bad');
-      return 'jailed';
     }
   }
 
-  const d1 = rollD6(); const d2 = rollD6();
-  room.dice = [d1, d2];
   const sum = d1 + d2;
   const isDouble = d1 === d2;
   room.lastRoll = `${me.name} rolled ${d1}+${d2}=${sum}${isDouble ? ' (doubles!)' : ''}`;
@@ -214,13 +222,36 @@ export function doRoll(room: RoomState, me: Player): 'rolled' | 'jailed' | 'adva
     me.hasRolled = true;
   }
 
-  if (isDouble && !me.inJail && me.doubles > 0) {
-    me.hasRolled = false; // roll again, same player
+  if (isDouble && !me.inJail && me.doubles > 0 && !justReleased) {
+    me.hasRolled = false; // roll again, same player (never for a jail escape)
     log(room, `✨ Doubles! ${me.name} rolls again`, 'good');
   }
 
   if (me.cash < 0) log(room, `⚠️ ${me.name} is broke ($${me.cash}). Mortgage or go bankrupt!`, 'bad');
   return 'rolled';
+}
+
+// ---------- seat removal (host kick; deeds go to bank auction) ----------
+
+export function removeSeat(room: RoomState, target: Player) {
+  const deeds = [...target.properties];
+  for (const t of deeds) delete room.buildings[t];
+  removePlayerTrades(room, target.id);
+  dropControl(room.code, target.id);
+  if (deeds.length > 0) room.auctionQueue.push(...deeds);
+  const idx = room.players.findIndex((p) => p.id === target.id);
+  if (idx === -1) return;
+  room.players.splice(idx, 1);
+  if (room.players.length === 0) return;
+  if (idx < room.turnIndex) room.turnIndex--;
+  room.turnIndex = room.turnIndex % room.players.length;
+  const cp = current(room);
+  cp.hasRolled = false;
+  cp.doubles = 0;
+  room.pendingBuy = null;
+  armTurnTimer(room);
+  checkWin(room);
+  if (room.status === 'playing' && !room.auction) openNextQueuedAuction(room);
 }
 
 // ---------- bankruptcy (shared by the bankrupt handler and the turn timer) ----------
@@ -230,6 +261,7 @@ export function bankruptPlayer(room: RoomState, me: Player) {
   const deeds = [...me.properties];
   for (const t of deeds) delete room.buildings[t];
   me.properties = []; me.mortgaged = [];
+  me.jailCards = 0;
   me.controllerLabel = null;
   dropControl(room.code, me.id);
   removePlayerTrades(room, me.id);

@@ -24,6 +24,31 @@ Modern, beautiful Monopoly web app. TV/laptop shows the board, phones are privat
 - Prod single-port: `npm run build` then `npm run start` → everything on `:3001`
   (`http://<YOUR-LAN-IP>:3001/`). QR codes adapt automatically.
 
+## Run it for game night (LAN)
+
+```bash
+npm run build
+npm run start        # single port :3001 — project this on the TV
+```
+
+Phones on the same Wi-Fi open `http://<YOUR-LAN-IP>:3001/` (find it with
+`ipconfig`). No code needed: open tables are listed on the home page, or scan
+the TV's QR. Allow Node through the firewall when asked.
+
+Snapshots live in `server/data/` (survives restarts). Override with env:
+`PORT=8080`, `ROOMS_FILE=D:\backup\rooms.json`.
+
+## Run with Docker
+
+```bash
+docker build -t monopoly-party .
+docker run --rm -p 3001:3001 -v monopoly-data:/app/server/data monopoly-party
+```
+
+Then open `http://<YOUR-LAN-IP>:3001/`. The named volume keeps game snapshots
+across container restarts. (No Docker daemon on this dev machine, so the image
+is reviewed but not yet build-verified — run the build once where Docker exists.)
+
 ## Scripts
 | cmd | what |
 |-----|------|

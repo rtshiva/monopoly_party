@@ -10,23 +10,30 @@ import { StageBar } from './StageBar';
  */
 export function MazeBoard({ room }: { room: RoomState }) {
   const cells = serpentineOrder(40, 8);
-  // Snake path through every cell center: drawn as a track behind the cards
-  // so the rows read as one connected maze instead of a plain table.
+  // Fixed row geometry so the track SVG lines up exactly with the cards:
+  // 112px rows, 28px gaps (the breathing room between snake rows).
+  const ROW_H = 112;
+  const ROW_GAP = 28;
+  const PITCH = ROW_H + ROW_GAP;
+  // Snake path through every cell center: one bordered ribbon per row plus
+  // the U-turn connectors, with background slits between rows.
   const track = cells
-    .map((c) => `${((c.col + 0.5) * 100).toFixed(1)},${((c.row + 0.5) * 100).toFixed(1)}`)
+    .map((c) => `${((c.col + 0.5) * 100).toFixed(1)},${(c.row * PITCH + ROW_H / 2).toFixed(1)}`)
     .join(' ');
+  const VIEW_H = 5 * ROW_H + 4 * ROW_GAP;
   return (
     <div className="select-none">
       <StageBar room={room} />
 
       {/* the maze: 8 wide, 5 tall, every cell a big tile */}
       <div className="overflow-x-auto">
-        <div className="relative grid min-w-[760px] grid-cols-8 gap-2">
-          <svg viewBox="0 0 800 500" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full">
-            {/* Wide ribbons wrap each row of cards (and round the U-turns),
-                so the snake reads as one bordered track, not a table. */}
-            <polyline points={track} fill="none" stroke="#0d1330" strokeWidth={136} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-            <polyline points={track} fill="none" stroke="#2f3c66" strokeWidth={120} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+        <div className="relative grid min-w-[760px] grid-cols-8 gap-x-2 gap-y-7">
+          <svg viewBox={`0 0 800 ${VIEW_H}`} preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full">
+            {/* Ribbon slightly wider than the cards: bordered rows with
+                background slits + rounded U-turns between them. Strokes scale
+                with the drawing (no vector-effect) so proportions hold. */}
+            <polyline points={track} fill="none" stroke="#0d1330" strokeWidth={ROW_H + 16} strokeLinejoin="round" strokeLinecap="round" />
+            <polyline points={track} fill="none" stroke="#2f3c66" strokeWidth={ROW_H + 8} strokeLinejoin="round" strokeLinecap="round" />
           </svg>
           {cells.map((c) => {
             const t = BOARD[c.tile];
@@ -43,7 +50,7 @@ export function MazeBoard({ room }: { room: RoomState }) {
               <div
                 key={c.tile}
                 style={{ gridRow: c.row + 1, gridColumn: c.col + 1 }}
-                className={`glass relative overflow-hidden rounded-xl p-2 ${isPending ? 'ring-2 ring-amber-300 animate-pulse' : ''} ${isCurrentTurn ? 'ring-1 ring-sky-300/70' : ''} ${t.kind === 'go' ? 'bg-emerald-400/10' : ''} ${t.kind === 'gotojail' ? 'bg-rose-400/10' : ''}`}
+                className={`glass relative h-[112px] overflow-hidden rounded-xl p-2 ${isPending ? 'ring-2 ring-amber-300 animate-pulse' : ''} ${isCurrentTurn ? 'ring-1 ring-sky-300/70' : ''} ${t.kind === 'go' ? 'bg-emerald-400/10' : ''} ${t.kind === 'gotojail' ? 'bg-rose-400/10' : ''}`}
                 title={`#${c.tile} ${t.name}`}
               >
                 {color && <div className="absolute inset-x-0 top-0 h-[6px]" style={{ background: color }} />}

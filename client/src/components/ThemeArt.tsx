@@ -1,7 +1,7 @@
 import type { BoardTheme } from './boardThemes';
 
 /** Shared title badge drawn over every center scene (HTML = always crisp). */
-function TitleBadge({ name, tagline }: { name: string; tagline: string }) {
+export function TitleBadge({ name, tagline }: { name: string; tagline: string }) {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-3 flex flex-col items-center gap-1">
       <div className="rounded-lg bg-[#c0272d] px-4 py-1 text-xl font-extrabold tracking-wide text-white shadow-lg" style={{ fontFamily: 'Inter, sans-serif' }}>

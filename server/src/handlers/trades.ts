@@ -1,11 +1,11 @@
 import type { Socket } from 'socket.io';
 import type { TradeOffer } from '@monopoly/shared';
 import { rooms, uid } from '../store.js';
-import { describeTrade, emit, isTileLocked, log, normCash, normTiles, pruneTrades, requireControl } from '../helpers.js';
+import { applyTradeSwap, describeTrade, emit, isTileLocked, log, normCards, normCash, normTiles, pruneTrades, requireControl } from '../helpers.js';
 
 export function registerTradeHandlers(socket: Socket) {
-  socket.on('tradeOffer', ({ code, playerId, key, to, giveTiles, giveCash, wantTiles, wantCash }: {
-    code: string; playerId: string; key: unknown; to: string; giveTiles: unknown; giveCash: unknown; wantTiles: unknown; wantCash: unknown;
+  socket.on('tradeOffer', ({ code, playerId, key, to, giveTiles, giveCash, giveCards, wantTiles, wantCash, wantCards }: {
+    code: string; playerId: string; key: unknown; to: string; giveTiles: unknown; giveCash: unknown; giveCards: unknown; wantTiles: unknown; wantCash: unknown; wantCards: unknown;
   }, cb) => {
     const room = rooms.get(code);
     if (!room) return cb?.({ ok: false });
@@ -19,8 +19,10 @@ export function registerTradeHandlers(socket: Socket) {
     const wT = normTiles(wantTiles);
     const gC = normCash(giveCash);
     const wC = normCash(wantCash);
-    if (gT === null || wT === null || gC === null || wC === null) return cb?.({ ok: false, error: 'BAD_TRADE' });
-    if (gT.length === 0 && wT.length === 0 && gC === 0 && wC === 0) return cb?.({ ok: false, error: 'BAD_TRADE' });
+    const gK = normCards(giveCards);
+    const wK = normCards(wantCards);
+    if (gT === null || wT === null || gC === null || wC === null || gK === null || wK === null) return cb?.({ ok: false, error: 'BAD_TRADE' });
+    if (gT.length === 0 && wT.length === 0 && gC === 0 && wC === 0 && gK === 0 && wK === 0) return cb?.({ ok: false, error: 'BAD_TRADE' });
     if (new Set([...gT, ...wT]).size !== gT.length + wT.length) return cb?.({ ok: false, error: 'BAD_TRADE' });
     for (const t of gT) {
       if ((room.buildings[t] ?? 0) > 0) return cb?.({ ok: false, error: 'HAS_HOUSES' });
@@ -31,10 +33,11 @@ export function registerTradeHandlers(socket: Socket) {
       if (!target.properties.includes(t) || target.mortgaged.includes(t) || isTileLocked(room, t)) return cb?.({ ok: false, error: 'TILE_LOCKED' });
     }
     if (me.cash < gC || target.cash < wC) return cb?.({ ok: false, error: 'NO_CASH' });
+    if (me.jailCards < gK || target.jailCards < wK) return cb?.({ ok: false, error: 'NO_CARDS' });
     if (room.trades.length >= 10) return cb?.({ ok: false, error: 'BAD_TRADE' });
     const offer: TradeOffer = {
       id: uid('t'), fromId: me.id, toId: target.id,
-      giveTiles: gT, giveCash: gC, wantTiles: wT, wantCash: wC,
+      giveTiles: gT, giveCash: gC, giveCards: gK, wantTiles: wT, wantCash: wC, wantCards: wK,
       createdAt: Date.now(), expiresAt: Date.now() + 60000,
     };
     room.trades.push(offer);
@@ -107,13 +110,15 @@ export function registerTradeHandlers(socket: Socket) {
       emit(room);
       return;
     }
+    if (from.jailCards < (offer.giveCards ?? 0) || me.jailCards < (offer.wantCards ?? 0)) {
+      room.trades.splice(idx, 1);
+      log(room, `⌛ Trade ${from.name} ↔ ${me.name} fell through (card spent elsewhere)`, 'bad');
+      cb?.({ ok: false, error: 'NO_CARDS' });
+      emit(room);
+      return;
+    }
     // Atomic swap.
-    from.properties = from.properties.filter((t) => !offer.giveTiles.includes(t));
-    me.properties = me.properties.filter((t) => !offer.wantTiles.includes(t));
-    from.properties.push(...offer.wantTiles);
-    me.properties.push(...offer.giveTiles);
-    from.cash += offer.wantCash - offer.giveCash;
-    me.cash += offer.giveCash - offer.wantCash;
+    applyTradeSwap(from, me, offer);
     room.trades.splice(idx, 1);
     log(room, `✅ ${from.name} ↔ ${me.name} traded: ${describeTrade(offer)}`, 'good');
     cb?.({ ok: true });

@@ -50,6 +50,11 @@ for (const room of loadRooms()) {
   room.buildings ??= {};
   room.auctionQueue ??= [];
   room.lastActivity ??= Date.now();
+  // Normalize pre-card-era offers so old snapshots can't NaN the swap math.
+  for (const t of room.trades) {
+    t.giveCards ??= 0;
+    t.wantCards ??= 0;
+  }
   room.players.forEach((p) => { p.connected = false; });
   if (room.auction) {
     room.auctionQueue.unshift(room.auction.tile);

@@ -295,6 +295,18 @@ export function colorSetTiles(tile: number): number[] {
 
 // ---------- trades ----------
 
+/** Atomic asset swap for an accepted offer. Pure mutation, no I/O. */
+export function applyTradeSwap(from: Player, me: Player, offer: TradeOffer) {
+  from.properties = from.properties.filter((t) => !offer.giveTiles.includes(t));
+  me.properties = me.properties.filter((t) => !offer.wantTiles.includes(t));
+  from.properties.push(...offer.wantTiles);
+  me.properties.push(...offer.giveTiles);
+  from.cash += (offer.wantCash ?? 0) - (offer.giveCash ?? 0);
+  me.cash += (offer.giveCash ?? 0) - (offer.wantCash ?? 0);
+  from.jailCards += (offer.wantCards ?? 0) - (offer.giveCards ?? 0);
+  me.jailCards += (offer.giveCards ?? 0) - (offer.wantCards ?? 0);
+}
+
 export function pruneTrades(room: RoomState) {
   const now = Date.now();
   if (room.trades.some((t) => t.expiresAt <= now)) {
@@ -328,13 +340,20 @@ export function normCash(v: unknown): number | null {
   return v;
 }
 
+export function normCards(v: unknown): number | null {
+  if (typeof v !== 'number' || !Number.isInteger(v) || v < 0 || v > 20) return null;
+  return v;
+}
+
 export function describeTrade(offer: TradeOffer): string {
   const bits: string[] = [];
   if (offer.giveTiles.length) bits.push(offer.giveTiles.map((t) => BOARD[t].name).join(', '));
   if (offer.giveCash) bits.push(`$${offer.giveCash}`);
+  if (offer.giveCards) bits.push(`🃏×${offer.giveCards}`);
   const want: string[] = [];
   if (offer.wantTiles.length) want.push(offer.wantTiles.map((t) => BOARD[t].name).join(', '));
   if (offer.wantCash) want.push(`$${offer.wantCash}`);
+  if (offer.wantCards) want.push(`🃏×${offer.wantCards}`);
   return `${bits.join(' + ') || 'nothing'} for ${want.join(' + ') || 'nothing'}`;
 }
 

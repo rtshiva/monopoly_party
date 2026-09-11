@@ -50,8 +50,10 @@ export interface TradeOffer {
   toId: string;
   giveTiles: number[]; // owned by fromId
   giveCash: number; // paid by fromId to toId
+  giveCards: number; // Get-Out-of-Jail-Free cards from fromId to toId
   wantTiles: number[]; // owned by toId
   wantCash: number; // paid by toId to fromId
+  wantCards: number; // Get-Out-of-Jail-Free cards from toId to fromId
   createdAt: number;
   expiresAt: number;
 }

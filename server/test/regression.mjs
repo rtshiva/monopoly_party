@@ -11,8 +11,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { io } from 'socket.io-client';
 import { drawChance, drawChest } from '@monopoly/shared';
-import { doRoll, removeSeat } from '../dist/helpers.js';
-
+import { applyTradeSwap, doRoll, removeSeat } from '../dist/helpers.js';
 const PORT = 3123;
 const BASE = `http://localhost:${PORT}`;
 const ROOMS_FILE = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'monopoly-test-')), 'rooms.json');
@@ -110,6 +109,16 @@ try {
   check('buyHouse BAD_TILE', (await emit(s1, 'buyHouse', { code, playerId: idA, key: keyA, tile: 0 })).error === 'BAD_TILE');
   check('payJail refused', (await emit(s1, 'payJail', { code, playerId: idA, key: keyA })).ok === false);
   check('useJailCard without card', (await emit(s1, 'useJailCard', { code, playerId: idA, key: keyA })).error === 'NO_CARD');
+  check('card offer beyond holdings', (await emit(s1, 'tradeOffer', { code, playerId: idA, key: keyA, to: idB, giveTiles: [], giveCash: 0, giveCards: 20, wantTiles: [], wantCash: 0, wantCards: 0 })).error === 'NO_CARDS');
+  check('fractional cards rejected', (await emit(s1, 'tradeOffer', { code, playerId: idA, key: keyA, to: idB, giveTiles: [], giveCash: 0, giveCards: 1.5, wantTiles: [], wantCash: 0, wantCards: 0 })).error === 'BAD_TRADE');
+
+  // Swap math, deterministic: tiles + cash + cards move atomically both ways
+  const sFrom = { id: 'f', properties: [1, 3], mortgaged: [], cash: 500, jailCards: 2 };
+  const sTo = { id: 't', properties: [6], mortgaged: [], cash: 900, jailCards: 0 };
+  applyTradeSwap(sFrom, sTo, { giveTiles: [1], giveCash: 100, giveCards: 1, wantTiles: [6], wantCash: 50, wantCards: 0 });
+  check('swap moves tiles', sFrom.properties.join(',') === '3,6' && sTo.properties.join(',') === '1');
+  check('swap moves cash', sFrom.cash === 450 && sTo.cash === 950);
+  check('swap moves cards', sFrom.jailCards === 1 && sTo.jailCards === 1);
 
   // S10 engine: card pools award keepable cards; doubles escape jail with no free re-roll
   const mkP = () => ({ players: [{ id: 't', name: 'T', properties: [], mortgaged: [], cash: 1500, jailCards: 0, position: 0, inJail: false, jailTurns: 0, doubles: 0, bankrupt: false, hasRolled: false }], buildings: {}, log: [] });
@@ -172,6 +181,29 @@ try {
     if (du2.cash < 0) break;
   }
   check('jail card live use', true, sawCardUse ? 'observed live' : 'SKIP — jail+card not attained in 25 turns');
+
+  // Card trade live (opportunistic): anyone holding a card sells it for $10
+  const cardHolder = room.players.find((p) => !p.bankrupt && p.jailCards > 0);
+  const cardBuyer = cardHolder && room.players.find((p) => !p.bankrupt && p.id !== cardHolder.id && p.cash >= 10);
+  if (cardHolder && cardBuyer) {
+    const hk = cardHolder.id === idA ? keyA : keyB;
+    const hs = cardHolder.id === idA ? s1 : s2;
+    const ok = cardBuyer.id === idA ? keyA : keyB;
+    const os = cardBuyer.id === idA ? s1 : s2;
+    const c0 = cardHolder.jailCards;
+    const off = await emit(hs, 'tradeOffer', { code, playerId: cardHolder.id, key: hk, to: cardBuyer.id, giveTiles: [], giveCash: 0, giveCards: 1, wantTiles: [], wantCash: 10, wantCards: 0 });
+    check('card offer created', off.ok === true, JSON.stringify(off));
+    if (off.ok) {
+      await sleep(150);
+      const acc = await emit(os, 'tradeRespond', { code, playerId: cardBuyer.id, key: ok, tradeId: off.tradeId, accept: true });
+      await sleep(150);
+      const nc = room.players.find((p) => p.id === cardHolder.id).jailCards;
+      const no = room.players.find((p) => p.id === cardBuyer.id).jailCards;
+      check('card swap atomic', acc.ok === true && nc === c0 - 1 && no === 1, `${c0}->${nc} holder, ${no} buyer`);
+    }
+  } else {
+    check('card trade live', true, 'SKIP — no funded card holder after drive');
+  }
 
   // seat takeover: s5 claims B's seat with the TV PIN; s2 must hear evicted
   const pinB = room.players.find((p) => p.id === idB).seatPin;

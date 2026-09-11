@@ -310,6 +310,7 @@ function friendlyError(code?: string): string {
     case 'MAX_HOUSES': return 'Already a hotel here';
     case 'EVEN_BUILD': return 'Build evenly across the set';
     case 'MORTGAGED': return 'Unmortgage the set first';
+    case 'NO_CARDS': return 'Not enough Get-Out-of-Jail-Free cards';
     case 'NO_CARD': return 'No Get-Out-of-Jail-Free card — draw one from Chance/Chest';
     case 'BAD_PIN': return 'Wrong seat PIN — check the TV board';
     case 'NO_CONTROL': return 'This device no longer controls that seat — reclaim it in 🔀 Switch';

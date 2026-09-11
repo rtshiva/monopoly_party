@@ -67,7 +67,17 @@ try {
   const j = await emit(s2, 'joinRoom', { code, playerName: 'Anu', token: 'dog', deviceLabel: 'Suite-B' });
   check('joinRoom', j.ok === true && !!j.controlKey);
   const idB = j.playerId; const keyB = j.controlKey;
+  // Real clients rejoin on mount to attach as live controllers — mirror that.
+  await emit(s1, 'rejoin', { code, playerId: idA, key: keyA });
+  await emit(s2, 'rejoin', { code, playerId: idB, key: keyB });
   check('watchRoom', (await emit(s2, 'watchRoom', { code })).ok === true);
+  // Pure spectators must never disturb seat presence (dashboard separation)
+  const sW = await connect();
+  await emit(sW, 'watchRoom', { code });
+  const connBefore = room.players.find((p) => p.id === idA).connected;
+  sW.disconnect();
+  await sleep(300);
+  check('watcher disconnect disturbs nothing', room.players.find((p) => p.id === idA).connected === connBefore);
   const listed = await emit(s2, 'listRooms', {});
   check('listRooms shows lobby', listed.ok === true && listed.rooms.some((r) => r.code === code && r.status === 'lobby' && !('seatPin' in r) && !('controlKey' in r)));
   const s3 = await connect();

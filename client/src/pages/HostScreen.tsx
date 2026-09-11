@@ -32,31 +32,15 @@ export function HostScreen() {
     const s = freshSocket();
     setSockState(s);
     let alive = true;
-    // Re-attach as player when we have a seat, otherwise spectate.
-    if (pid) {
-      s.emit('rejoin', { code: upCode, playerId: pid, key: loadControl(pid) }, (res: { ok: boolean; room: RoomState }) => {
-        if (!alive) return;
-        if (res?.ok) setRoom(res.room);
-        else {
-          s.emit('watchRoom', { code: upCode }, (w: { ok: boolean; room: RoomState }) => {
-            if (!alive) return;
-            if (w?.ok) setRoom(w.room);
-            else setErr('Room not found. Create one from the home page.');
-          });
-        }
-      });
-    } else {
-      s.emit('watchRoom', { code: upCode }, (res: { ok: boolean; room: RoomState }) => {
-        if (!alive) return;
-        if (res?.ok) setRoom(res.room);
-        else setErr('Room not found. Create one from the home page.');
-      });
-    }
-    s.on('roomState', (r) => { if (alive) setRoom(r); });
-    s.on('evicted', () => {
+    // The dashboard is a pure spectator view: it never takes a seat, so a
+    // takeover elsewhere can never "evict" this screen. Host powers below
+    // work whenever this browser holds the host key.
+    s.emit('watchRoom', { code: upCode }, (res: { ok: boolean; room: RoomState }) => {
       if (!alive) return;
-      setErr('🔀 Control of this screen’s seat moved to another device — reclaim it in 🔑 Host login below.');
+      if (res?.ok) setRoom(res.room);
+      else setErr('Room not found. Create one from the home page.');
     });
+    s.on('roomState', (r) => { if (alive) setRoom(r); });
     return () => { alive = false; s.disconnect(); setSockState(null); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [upCode]);
@@ -69,13 +53,22 @@ export function HostScreen() {
   const sorted = [...room.players].sort((a, b) => b.cash - a.cash);
   const hostSeat = room.players.find((p) => p.isHost);
   const amHost = !!hostSeat && hostSeat.id === pid;
+  // Shown when this browser doesn't hold the host key (fresh window, or the
+  // key moved elsewhere). The board itself always works — only the buttons
+  // below need the key.
+  const [needLogin, setNeedLogin] = useState(false);
   const roomCode: string = room.code;
 
   async function hostAction(ev: 'pauseGame' | 'resumeGame' | 'kickPlayer', extra: Record<string, unknown> = {}) {
     if (!pid) { setErr('Host seat not held on this screen.'); return; }
     try {
       const res = await emitWithAck<{ ok: boolean; error?: string }>(ev, { code: roomCode, playerId: pid, key: loadControl(pid), ...extra });
-      if (!res?.ok) setErr(res?.error === 'NOT_HOST' ? 'Only the host device can do that.' : 'Host action failed.');
+      if (!res?.ok) {
+        if (res?.error === 'NOT_HOST') {
+          setNeedLogin(true);
+          setErr('Host controls moved to another device — reclaim them in 🔑 Host login below.');
+        } else setErr('Host action failed.');
+      } else setNeedLogin(false);
     } catch {
       setErr('Server not responding — is it running?');
     }
@@ -104,10 +97,13 @@ export function HostScreen() {
       {room.auction && <AuctionPanel room={room} />}
       <ConnPill sock={sockState} />
 
-      {!amHost && (
+      {(!amHost || needLogin) && (
         <div className="glass mt-3 rounded-3xl p-5">
           <div className="font-display text-lg font-bold">🔑 Host login</div>
-          <div className="mt-1 text-sm text-white/60">On another browser? Claim the host seat with its TV PIN to run this screen. Takeovers are announced everywhere.</div>
+          <div className="mt-1 text-sm text-white/60">
+            On another browser? Claim the host seat with its TV PIN to run this screen. Takeovers are announced everywhere.
+            {hostSeat?.controllerLabel && <> Currently held by <b>📱{hostSeat.controllerLabel}</b> — the board above keeps working regardless.</>}
+          </div>
           <ClaimPanel
             room={room}
             seats={room.players.filter((p) => p.isHost)}
@@ -123,6 +119,7 @@ export function HostScreen() {
               saveControl(newPid, newKey);
               try { localStorage.setItem('monopoly.pid', newPid); } catch { /* noop */ }
               setPid(newPid);
+              setNeedLogin(false);
             }}
           />
         </div>

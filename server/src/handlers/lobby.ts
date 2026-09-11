@@ -27,7 +27,6 @@ export function registerLobbyHandlers(socket: Socket) {
       dice: [1, 1], lastRoll: null, lastCard: null, pendingBuy: null, trades: [], auction: null, buildings: {}, turnDeadline: null, auctionQueue: [], lastActivity: Date.now(), pausedAt: null, log: [], winnerId: null, turnCount: 0,
     };
     const controlKey = issueControl(code, player.id);
-    setControllerSocket(code, player.id, socket.id);
     log(room, `🎉 Room ${code} created by ${player.name}`);
     rooms.set(code, room);
     socket.join(code);
@@ -55,7 +54,6 @@ export function registerLobbyHandlers(socket: Socket) {
       seatPin: genPin(), controllerLabel: label,
     };
     const controlKey = issueControl(code, player.id);
-    setControllerSocket(code, player.id, socket.id);
     room.players.push(player);
     log(room, `📱 ${name} joined (${room.players.length}/${MAX_PLAYERS})`, 'good');
     socket.join(code);
@@ -228,7 +226,10 @@ export function registerLobbyHandlers(socket: Socket) {
     const { pid, code } = socket.data as SessionData;
     if (!pid || !code) return;
     // Only the live controller socket takes the seat offline; a stale tab
-    // closing must not knock out the device actually playing.
+    // closing must not knock out the device actually playing. Mappings are
+    // set only by rejoin/claim (persistent controllers) — never by
+    // create/join/watch (throwaway or spectator sockets) — so dashboards and
+    // one-shot calls can never disturb seat presence.
     if (controllerSocketOf(code, pid) !== socket.id) return;
     const room = rooms.get(code);
     const p = room?.players.find((x) => x.id === pid);

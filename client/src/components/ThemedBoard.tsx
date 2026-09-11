@@ -48,10 +48,11 @@ function TileFace({ i, room, theme, onArt }: { i: number; room: RoomState; theme
         <div className="mt-[1px] inline-block rounded bg-black/55 px-1 text-[10px] text-amber-200">{sub}</div>
         {level > 0 && <div>{level === 5 ? '🏨' : '🏠'.repeat(Math.min(level, 4))}</div>}
         {here.length > 0 && (
-          <div className="flex flex-wrap gap-[1px] text-[11px]">
+          <div className="mt-[1px] inline-flex flex-wrap items-center gap-[2px] rounded-full bg-black/65 px-1.5 py-0.5 text-[13px] shadow-[0_0_10px_rgba(255,255,255,0.4)] ring-1 ring-white/40">
             {here.slice(0, 4).map((p) => (
-              <span key={p.id} title={p.name}>{TOKENS[p.token]}</span>
+              <span key={p.id} title={p.name} className="drop-shadow-[0_0_3px_rgba(255,255,255,0.9)]">{TOKENS[p.token]}</span>
             ))}
+            {here.length > 4 && <span className="text-[9px] font-bold text-white">+{here.length - 4}</span>}
           </div>
         )}
         <div className="mt-[1px] flex items-center gap-1">
@@ -107,6 +108,7 @@ export function ThemedBoard({ room }: { room: RoomState }) {
           {BOARD.map((t, i) => {
             const [r, c] = tileToRC(i);
             const isPending = room.pendingBuy === i;
+            const occupied = room.players.some((p) => !p.bankrupt && p.position === i);
             const isCurrentTurn = room.status === 'playing' && room.players[room.turnIndex % room.players.length]?.position === i;
             const corner = isCornerKind(t.kind) ? CORNER_STYLE[t.kind] : null;
             // Every tile kind can carry art: streets by color, everything else by kind.
@@ -124,7 +126,7 @@ export function ThemedBoard({ room }: { room: RoomState }) {
                   color: theme.ink,
                   ...(art ? { backgroundImage: `url("${art}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}),
                 }}
-                className={`relative overflow-hidden rounded-[7px] p-[3px] text-[10px] leading-tight lg:text-[11px] ${isPending ? 'ring-2 ring-amber-500 animate-pulse' : ''} ${isCurrentTurn ? 'ring-2 ring-sky-500' : ''}`}
+                className={`relative overflow-hidden rounded-[7px] p-[3px] text-[10px] leading-tight lg:text-[11px] ${isPending ? 'ring-2 ring-amber-500 animate-pulse' : ''} ${isCurrentTurn ? 'ring-2 ring-sky-500' : ''} ${occupied && !isCurrentTurn ? 'shadow-[0_0_14px_rgba(186,230,253,0.55)]' : ''}`}
                 title={t.name}
               >
                 {art && <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30" />}

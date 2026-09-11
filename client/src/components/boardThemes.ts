@@ -49,6 +49,18 @@ export const BOARD_THEMES: Record<BoardStyle, BoardTheme> = {
     id: 'city', name: 'City Street Circuit', short: 'City', icon: '🌆',
     tagline: 'EXPLORE · INVEST · BUILD. OWN THE CITY.',
     boardBg: '#dfe7ef', tileBg: '#fbfdff', ink: '#1e293b', subInk: '#64748b',
+    artImage: '/themes/city/city-center.webp',
+    cornerSheet: '/themes/city/city-corners.png',
+    tileArt: {
+      brown: '/themes/city/city-tile-brown.webp',
+      lightblue: '/themes/city/city-tile-lightblue.webp',
+      pink: '/themes/city/city-tile-pink.webp',
+      orange: '/themes/city/city-tile-orange.webp',
+      red: '/themes/city/city-tile-red.webp',
+      yellow: '/themes/city/city-tile-yellow.webp',
+      green: '/themes/city/city-tile-green.webp',
+      blue: '/themes/city/city-tile-blue.webp',
+    },
   },
   coastal: {
     id: 'coastal', name: 'Coastal Cruise', short: 'Coastal', icon: '🌊',

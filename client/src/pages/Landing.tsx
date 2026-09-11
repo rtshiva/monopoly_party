@@ -163,6 +163,7 @@ export function Landing() {
       {(lastGame || waiting.length > 0 || live.length > 0) && (
         <div className="glass mt-4 rounded-3xl p-6">
           <h2 className="font-display text-xl font-bold">🎪 Open tables <span className="text-sm font-normal text-white/50">— no code needed</span></h2>
+          <div className="mt-1 text-xs text-white/50">Join takes a fresh seat. Already playing on another browser? Open the table, then reclaim your seat with its TV PIN.</div>
           {lastGame && (
             <button disabled={busy} onClick={() => nav(`/play/${lastGame.code}?pid=${lastGame.pid}`)}
               className="btn-gold mt-3 w-full rounded-2xl px-4 py-3 disabled:opacity-50">↩️ Rejoin last game ({lastGame.code})</button>
@@ -174,6 +175,8 @@ export function Landing() {
                 {waiting.map((t) => (
                   <div key={t.code} className="flex items-center gap-2 rounded-2xl bg-white/5 px-3 py-2">
                     <div className="flex-1"><span className="font-mono font-bold">{t.code}</span> <span className="text-sm text-white/60">· {t.hostName}'s table · {t.players}/{t.max}</span></div>
+                    <button onClick={() => nav(`/play/${t.code}`)}
+                      className="rounded-xl bg-white/10 px-3 py-2 text-xs font-bold" title="Open without joining — claim an existing seat inside">Open ›</button>
                     <button disabled={busy} onClick={() => doJoin(t.code)}
                       className="rounded-xl bg-emerald-300 px-4 py-2 text-sm font-extrabold text-emerald-950 disabled:opacity-50">Join</button>
                   </div>

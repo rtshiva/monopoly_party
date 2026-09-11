@@ -4,8 +4,9 @@ import { QRCodeSVG } from 'qrcode.react';
 import { motion } from 'framer-motion';
 import type { Socket } from 'socket.io-client';
 import { emitWithAck, freshSocket } from '../socket';
-import { loadControl, useGame } from '../store';
+import { loadControl, saveControl, useGame } from '../store';
 import { BoardGrid } from '../components/BoardGrid';
+import { ClaimPanel } from '../components/ClaimPanel';
 import { ConnPill } from '../components/ConnPill';
 import { BOARD, TOKENS } from '@monopoly/shared';
 
@@ -15,7 +16,7 @@ export function HostScreen() {
   const { room, setRoom } = useGame();
   const [err, setErr] = useState('');
   const upCode = code.toUpperCase();
-  const pid = sp.get('pid') || localStorage.getItem('monopoly.pid') || '';
+  const [pid, setPid] = useState(() => sp.get('pid') || localStorage.getItem('monopoly.pid') || '');
   const [sockState, setSockState] = useState<Socket | null>(null);
 
   const joinURL = useMemo(() => {
@@ -98,6 +99,30 @@ export function HostScreen() {
 
       {room.auction && <AuctionPanel room={room} />}
       <ConnPill sock={sockState} />
+
+      {!amHost && (
+        <div className="glass mt-3 rounded-3xl p-5">
+          <div className="font-display text-lg font-bold">🔑 Host login</div>
+          <div className="mt-1 text-sm text-white/60">On another browser? Claim the host seat with its TV PIN to run this screen. Takeovers are announced everywhere.</div>
+          <ClaimPanel
+            room={room}
+            seats={room.players.filter((p) => p.isHost)}
+            emit={(ev, extra, onOk) => {
+              emitWithAck<{ ok: boolean; error?: string; controlKey?: string }>(ev, { code: upCode, ...extra })
+                .then((res) => {
+                  if (!res?.ok) setErr(res?.error === 'BAD_PIN' ? 'Wrong seat PIN — check the TV board.' : 'Claim failed.');
+                  onOk?.(res);
+                })
+                .catch(() => setErr('Server not responding — is it running?'));
+            }}
+            onClaimed={(newPid, newKey) => {
+              saveControl(newPid, newKey);
+              try { localStorage.setItem('monopoly.pid', newPid); } catch { /* noop */ }
+              setPid(newPid);
+            }}
+          />
+        </div>
+      )}
 
       {room.status === 'lobby' && (
         <div className="glass mt-3 flex flex-col items-center gap-4 rounded-3xl p-5 md:flex-row">

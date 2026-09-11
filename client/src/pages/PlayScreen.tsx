@@ -3,7 +3,8 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Socket } from 'socket.io-client';
 import { freshSocket } from '../socket';
-import { mePlayer, loadControl, useGame } from '../store';
+import { mePlayer, loadControl, saveControl, useGame } from '../store';
+import { ClaimPanel } from '../components/ClaimPanel';
 import { SwitchTab } from '../components/SwitchTab';
 import { DicePair } from '../components/DiceFace';
 import { ConnPill } from '../components/ConnPill';
@@ -16,7 +17,7 @@ import type { Player, RoomState } from '@monopoly/shared';
 export function PlayScreen() {
   const { code = '' } = useParams();
   const [sp] = useSearchParams();
-  const { room, setRoom, playerId, setPlayerId, controlKey } = useGame();
+  const { room, setRoom, playerId, setPlayerId, controlKey, setControlKey } = useGame();
   const [rolling, setRolling] = useState(false);
   const [err, setErr] = useState('');
   const [tab, setTab] = useState<'props' | 'log' | 'trade' | 'switch'>('props');
@@ -97,7 +98,30 @@ export function PlayScreen() {
   const hasControl = !!key;
 
   if (!room || room.code !== upCode) return <div className="p-8 text-center text-white/60">Connecting to {upCode}…<br /><Link className="underline" to="/">← home</Link></div>;
-  if (!me) return <div className="mx-auto max-w-md p-8 text-center"><div className="text-rose-200">{err || 'Not seated in this room.'}</div><Link to="/" className="mt-4 inline-block rounded-xl bg-white/10 px-4 py-2">Join with code {upCode}</Link></div>;
+  if (!me) return (
+    <div className="mx-auto max-w-md px-3 pb-16 pt-4">
+      <div className="glass rounded-2xl p-4 text-center">
+        <div className="text-3xl">🎪</div>
+        <div className="font-display mt-1 text-lg font-bold">No seat on this device yet</div>
+        <div className="mt-1 text-sm text-white/60">
+          New here? <Link to="/" className="underline">Join with the TV code</Link> for a fresh seat.
+          Returning on another browser? Claim your seat below with its TV PIN.
+        </div>
+      </div>
+      {err && <div className="mt-2 rounded-xl bg-rose-500/20 px-3 py-2 text-center text-sm text-rose-200">{err}</div>}
+      <ClaimPanel
+        room={room}
+        emit={emit}
+        onClaimed={(newPid, newKey) => {
+          saveControl(newPid, newKey);
+          try { localStorage.setItem('monopoly.pid', newPid); } catch { /* noop */ }
+          setControlKey(newKey);
+          setPlayerId(newPid);
+        }}
+      />
+      <div className="mt-3 text-center"><Link to="/" className="rounded-full bg-white/10 px-4 py-2 text-sm backdrop-blur">🏠 Home</Link></div>
+    </div>
+  );
 
   const myTile = BOARD[me.position];
   const pending = room.pendingBuy != null ? { i: room.pendingBuy, t: BOARD[room.pendingBuy] } : null;

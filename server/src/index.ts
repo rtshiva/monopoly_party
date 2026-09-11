@@ -50,6 +50,7 @@ for (const room of loadRooms()) {
   room.buildings ??= {};
   room.auctionQueue ??= [];
   room.lastActivity ??= Date.now();
+  room.boardStyle ??= 'maze';
   // Normalize pre-card-era offers so old snapshots can't NaN the swap math.
   for (const t of room.trades) {
     t.giveCards ??= 0;

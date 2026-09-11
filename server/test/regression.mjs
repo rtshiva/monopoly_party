@@ -10,8 +10,7 @@ import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { io } from 'socket.io-client';
-import { drawChance, drawChest } from '@monopoly/shared';
-import { serpentineOrder } from '@monopoly/shared';
+import { circuitLayout, drawChance, drawChest, serpentineOrder } from '@monopoly/shared';
 import { applyTradeSwap, doRoll, removeSeat } from '../dist/helpers.js';
 const PORT = 3123;
 const BASE = `http://localhost:${PORT}`;
@@ -88,6 +87,7 @@ try {
   check('startGame by host', (await emit(s1, 'startGame', { code, playerId: idA, key: keyA })).ok === true);
   await sleep(300);
   check('deadline armed', typeof room.turnDeadline === 'number' && room.turnDeadline > Date.now());
+  check('default board is maze', room.boardStyle === 'maze');
   check('lastCard starts null', room.lastCard == null);
   const listed2 = await emit(s2, 'listRooms', {});
   check('listRooms shows live game', listed2.ok === true && listed2.rooms.some((r) => r.code === code && r.status === 'playing'));
@@ -160,6 +160,18 @@ try {
   }
   check('maze path is contiguous', adjacent);
   check('maze endpoints correct', pos.get(0).row === 0 && pos.get(0).col === 0 && pos.get(39).row === 4 && pos.get(39).col === 7 && pos.get(39).next === 'end');
+  // Circuit loop: 40 unique points, closed, in bounds, even spacing, starts top
+  const cp = circuitLayout(40);
+  check('circuit has 40 points', cp.length === 40 && new Set(cp.map((p) => p.tile)).size === 40);
+  const gaps = [];
+  for (let i = 0; i < 40; i++) {
+    const a = cp[i], b = cp[(i + 1) % 40];
+    gaps.push(Math.hypot(a.x - b.x, a.y - b.y));
+  }
+  const gmax = Math.max(...gaps), gmin = Math.min(...gaps);
+  check('circuit loop is even', gmax / gmin < 1.6, `${gmin.toFixed(2)}-${gmax.toFixed(2)}`);
+  check('circuit in bounds', cp.every((p) => p.x >= 0 && p.x <= 100 && p.y >= 0 && p.y <= 62.5));
+  check('circuit starts top straight', cp[0].y < 20 && Math.abs(cp[0].x - 50) < 15);
   const mkJail = () => ({
     room: { dice: [1, 1], lastRoll: null, pendingBuy: null, log: [], players: [] },
     me: { id: 't', name: 'T', cash: 1500, position: 20, properties: [], mortgaged: [], inJail: true, jailTurns: 0, jailCards: 0, doubles: 0, bankrupt: false, hasRolled: false },
@@ -304,6 +316,12 @@ try {
   check('resume works', (await emit(s1, 'resumeGame', { code, playerId: idA, key: keyA2 })).ok === true);
   await sleep(150);
   check('deadline re-armed on resume', room.turnDeadline > Date.now());
+  check('setBoardStyle bad value', (await emit(s1, 'setBoardStyle', { code, playerId: idA, key: keyA2, style: 'oval' })).error === 'BAD_STYLE');
+  check('non-host setBoardStyle rejected', (await emit(sC, 'setBoardStyle', { code, playerId: idC, key: keyC, style: 'circuit' })).error === 'NOT_HOST');
+  check('host sets circuit', (await emit(s1, 'setBoardStyle', { code, playerId: idA, key: keyA2, style: 'circuit' })).ok === true);
+  await sleep(150);
+  check('board style broadcast', room.boardStyle === 'circuit');
+  check('host restores maze', (await emit(s1, 'setBoardStyle', { code, playerId: idA, key: keyA2, style: 'maze' })).ok === true);
   check('self-kick rejected', (await emit(s1, 'kickPlayer', { code, playerId: idA, key: keyA2, targetId: idA })).error === 'BAD_SEAT');
   check('non-host kick rejected', (await emit(sC, 'kickPlayer', { code, playerId: idC, key: keyC, targetId: idA })).error === 'NOT_HOST');
   check('host kicks C', (await emit(s1, 'kickPlayer', { code, playerId: idA, key: keyA2, targetId: idC })).ok === true);

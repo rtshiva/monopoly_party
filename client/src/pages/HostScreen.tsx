@@ -6,6 +6,7 @@ import type { Socket } from 'socket.io-client';
 import { emitWithAck, freshSocket } from '../socket';
 import { loadControl, saveControl, useGame } from '../store';
 import { MazeBoard } from '../components/MazeBoard';
+import { CircuitBoard } from '../components/CircuitBoard';
 import { ClaimPanel } from '../components/ClaimPanel';
 import { ConnPill } from '../components/ConnPill';
 import { BOARD, TOKENS } from '@monopoly/shared';
@@ -59,7 +60,7 @@ export function HostScreen() {
   const [needLogin, setNeedLogin] = useState(false);
   const roomCode: string = room.code;
 
-  async function hostAction(ev: 'pauseGame' | 'resumeGame' | 'kickPlayer', extra: Record<string, unknown> = {}) {
+  async function hostAction(ev: 'pauseGame' | 'resumeGame' | 'kickPlayer' | 'setBoardStyle', extra: Record<string, unknown> = {}) {
     if (!pid) { setErr('Host seat not held on this screen.'); return; }
     try {
       const res = await emitWithAck<{ ok: boolean; error?: string }>(ev, { code: roomCode, playerId: pid, key: loadControl(pid), ...extra });
@@ -91,6 +92,22 @@ export function HostScreen() {
             <button onClick={() => hostAction('resumeGame')} className="btn-gold rounded-xl px-4 py-2 text-sm">▶️ Resume game</button>
           )}
           <span className="text-xs text-white/50">Pause freezes turns, auctions and the clock.</span>
+        </div>
+      )}
+
+      {amHost && (
+        <div className="glass mt-3 flex items-center gap-2 rounded-2xl p-3">
+          <span className="font-bold">🎨 Board</span>
+          {(['maze', 'circuit'] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => hostAction('setBoardStyle', { style: s })}
+              className={`rounded-xl px-3 py-2 text-sm font-bold ${room.boardStyle === s ? 'bg-amber-300 text-black' : 'bg-white/10'}`}
+            >
+              {s === 'maze' ? '🌀 Maze' : '🏁 Circuit'}
+            </button>
+          ))}
+          <span className="text-xs text-white/50">Switches live on every screen.</span>
         </div>
       )}
 
@@ -154,7 +171,7 @@ export function HostScreen() {
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_320px]">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-          <MazeBoard room={room} />
+          {room.boardStyle === 'circuit' ? <CircuitBoard room={room} /> : <MazeBoard room={room} />}
         </motion.div>
         <div className="flex flex-col gap-3">
           <div className="glass rounded-2xl p-4">

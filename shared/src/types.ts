@@ -84,6 +84,7 @@ export interface RoomState {
   auctionQueue: number[]; // bank-owned deeds waiting for auction (bankruptcies)
   lastActivity: number; // ms timestamp of last state change (expiry + persistence)
   pausedAt: number | null; // when the current pause began (to shift auction clocks on resume)
+  boardStyle: 'maze' | 'circuit'; // TV board skin, picked by the host
   log: LogEntry[];
   winnerId: string | null;
   turnCount: number;

@@ -24,7 +24,7 @@ export function registerLobbyHandlers(socket: Socket) {
     };
     const room: RoomState = {
       code, status: 'lobby', players: [player], turnIndex: 0,
-      dice: [1, 1], lastRoll: null, lastCard: null, pendingBuy: null, trades: [], auction: null, buildings: {}, turnDeadline: null, auctionQueue: [], lastActivity: Date.now(), pausedAt: null, log: [], winnerId: null, turnCount: 0,
+      dice: [1, 1], lastRoll: null, lastCard: null, pendingBuy: null, trades: [], auction: null, buildings: {}, turnDeadline: null, auctionQueue: [], lastActivity: Date.now(), pausedAt: null, boardStyle: 'maze', log: [], winnerId: null, turnCount: 0,
     };
     const controlKey = issueControl(code, player.id);
     log(room, `🎉 Room ${code} created by ${player.name}`);
@@ -220,6 +220,21 @@ export function registerLobbyHandlers(socket: Socket) {
     if (!target || target.id === me.id || target.bankrupt) return cb?.({ ok: false, error: 'BAD_SEAT' });
     removeSeat(room, target);
     log(room, `👢 ${me.name} (host) removed ${target.name} — deeds go to bank auction`, 'bad');
+    cb?.({ ok: true });
+    emit(room);
+  });
+
+  socket.on('setBoardStyle', ({ code, playerId, key, style }: {
+    code: string; playerId: string; key: unknown; style: unknown;
+  }, cb) => {
+    const room = rooms.get(code);
+    if (!room) return cb?.({ ok: false });
+    const me = requireControl(room, playerId, key);
+    if (!me) return cb?.({ ok: false, error: 'NO_CONTROL' });
+    if (!me.isHost) return cb?.({ ok: false, error: 'NOT_HOST' });
+    if (style !== 'maze' && style !== 'circuit') return cb?.({ ok: false, error: 'BAD_STYLE' });
+    room.boardStyle = style;
+    log(room, `🎨 ${me.name} (host) switched the board to ${style === 'circuit' ? 'Grand Prix circuit' : 'maze'}`, 'info');
     cb?.({ ok: true });
     emit(room);
   });

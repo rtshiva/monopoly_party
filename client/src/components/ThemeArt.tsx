@@ -1,19 +1,16 @@
 import type { BoardTheme } from './boardThemes';
 
-/** Shared title badge drawn inside every center scene. */
-function Badge({ name, tagline }: { name: string; tagline: string }) {
-  const upper = name.toUpperCase();
+/** Shared title badge drawn over every center scene (HTML = always crisp). */
+function TitleBadge({ name, tagline }: { name: string; tagline: string }) {
   return (
-    <g>
-      <rect x={200 - upper.length * 9.5} y={128} width={upper.length * 19} height={34} rx={6} fill="#c0272d" />
-      <text x={200} y={152} textAnchor="middle" fontSize={22} fontWeight={800} fill="#ffffff" fontFamily="Inter, sans-serif">
-        {upper}
-      </text>
-      <rect x={200 - tagline.length * 4.6} y={166} width={tagline.length * 9.2} height={20} rx={4} fill="#1e293b" />
-      <text x={200} y={180} textAnchor="middle" fontSize={11} fontWeight={700} fill="#f5c518" fontFamily="Inter, sans-serif">
+    <div className="pointer-events-none absolute inset-x-0 bottom-3 flex flex-col items-center gap-1">
+      <div className="rounded-lg bg-[#c0272d] px-4 py-1 text-xl font-extrabold tracking-wide text-white shadow-lg" style={{ fontFamily: 'Inter, sans-serif' }}>
+        {name.toUpperCase()}
+      </div>
+      <div className="rounded bg-[#1e293b] px-3 py-0.5 text-[11px] font-bold text-[#f5c518] shadow">
         {tagline}
-      </text>
-    </g>
+      </div>
+    </div>
   );
 }
 
@@ -133,13 +130,20 @@ const SCENES: Record<string, () => React.JSX.Element> = {
   mountain: Mountain,
 };
 
-/** Center-panel illustration for a board theme (pure SVG, no assets). */
+/** Center-panel illustration for a board theme: generated photo art when the
+ *  file exists, otherwise the built-in SVG scene. Title is always HTML. */
 export function ThemeArt({ theme }: { theme: BoardTheme }) {
   const Scene = SCENES[theme.id] ?? GrandPrix;
   return (
-    <svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" className="h-full w-full">
-      <Scene />
-      <Badge name={theme.name} tagline={theme.tagline} />
-    </svg>
+    <div className="relative h-full w-full">
+      {theme.artImage ? (
+        <img src={theme.artImage} alt={theme.name} className="h-full w-full object-cover" draggable={false} />
+      ) : (
+        <svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" className="h-full w-full">
+          <Scene />
+        </svg>
+      )}
+      <TitleBadge name={theme.name} tagline={theme.tagline} />
+    </div>
   );
 }

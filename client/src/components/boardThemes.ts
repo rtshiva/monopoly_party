@@ -14,6 +14,12 @@ export interface BoardTheme {
   ink: string;
   /** Secondary tile text. */
   subInk: string;
+  /**
+   * Optional generated center art, e.g. '/themes/coastal.webp'.
+   * Drop the file in client/public/themes/ — SVG scene is the fallback.
+   * Must be square (see client/public/themes/README.md for the spec).
+   */
+  artImage?: string;
 }
 
 /** Four track-inspired skins. Rules and streets never change — only the look. */

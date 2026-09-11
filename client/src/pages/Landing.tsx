@@ -161,29 +161,35 @@ export function Landing() {
         <span className="rounded-full bg-white/10 px-3 py-1">3 · Roll on phone</span>
       </div>
 
-      <div className="mt-8 grid gap-4 md:grid-cols-2">
-        <div className="glass rounded-3xl p-6">
-          <h2 className="font-display text-xl font-bold">📺 Host on this screen</h2>
-          <p className="mt-1 text-sm text-white/60">Use a laptop / TV browser. You'll get a QR for phones.</p>
-          <label className="mt-4 block text-sm">Your name
+      <div className="glass mt-8 rounded-3xl p-6">
+        <h2 className="font-display text-xl font-bold">🧑 Your player identity <span className="text-sm font-normal text-white/50">— used whether you host or join</span></h2>
+        <div className="mt-3 grid gap-4 md:grid-cols-[1fr_auto] md:items-center">
+          <label className="block text-sm">Your name
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Siva" maxLength={16}
               className="mt-1 w-full rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-lg outline-none focus:border-amber-300" />
           </label>
-          <div className="mt-3 text-sm">Pick token
-            <div className="mt-2 grid grid-cols-8 gap-2">
+          <div className="text-sm">Pick token
+            <div className="mt-1 grid grid-cols-8 gap-2">
               {tokenList.map((t) => (
                 <button key={t} type="button" onClick={() => setToken(t)}
                   className={`rounded-xl border p-2 text-2xl ${token === t ? 'border-amber-300 bg-amber-300/20' : 'border-white/10 bg-white/5'}`}>{TOKENS[t]}</button>
               ))}
             </div>
           </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <div className="glass rounded-3xl p-6">
+          <h2 className="font-display text-xl font-bold">📺 Host on this screen</h2>
+          <p className="mt-1 text-sm text-white/60">Use a laptop / TV browser. You'll get a QR for phones.</p>
           <button disabled={busy} onClick={host}
             className="btn-gold mt-5 w-full rounded-2xl px-4 py-4 text-lg disabled:opacity-50">{busy ? 'Creating…' : 'Create room + show board'}</button>
         </div>
 
         <div className="glass rounded-3xl p-6">
           <h2 className="font-display text-xl font-bold">📱 Join from phone</h2>
-          <p className="mt-1 text-sm text-white/60">Enter the 6-letter code shown on the TV.</p>
+          <p className="mt-1 text-sm text-white/60">Enter the 6-letter code shown on the TV. You'll join as <b>{name || 'Player'}</b> {TOKENS[token]}.</p>
           <form onSubmit={join}>
             <label className="mt-4 block text-sm">Room code
               <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} placeholder="K7Q2XD" maxLength={6}
@@ -200,7 +206,7 @@ export function Landing() {
       {(lastGame || waiting.length > 0 || live.length > 0) && (
         <div className="glass mt-4 rounded-3xl p-6">
           <h2 className="font-display text-xl font-bold">🎪 Open tables <span className="text-sm font-normal text-white/50">— no code needed</span></h2>
-          <div className="mt-1 text-xs text-white/50">Join takes a fresh seat · <b>Login ›</b> signs in as an existing seat with its TV PIN — same device or another browser.</div>
+          <div className="mt-1 text-xs text-white/50">Join takes a fresh seat as <b>{name || 'Player'}</b> {TOKENS[token]} (set above) · <b>Login ›</b> signs in as an existing seat with its TV PIN — same device or another browser.</div>
           {lastGame && (
             <button disabled={busy} onClick={() => nav(`/play/${lastGame.code}?pid=${lastGame.pid}`)}
               className="btn-gold mt-3 w-full rounded-2xl px-4 py-3 disabled:opacity-50">↩️ Rejoin last game ({lastGame.code})</button>

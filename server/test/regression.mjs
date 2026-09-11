@@ -11,6 +11,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { io } from 'socket.io-client';
 import { drawChance, drawChest } from '@monopoly/shared';
+import { serpentineOrder } from '@monopoly/shared';
 import { applyTradeSwap, doRoll, removeSeat } from '../dist/helpers.js';
 const PORT = 3123;
 const BASE = `http://localhost:${PORT}`;
@@ -148,6 +149,17 @@ try {
   check('chance awards jail card', sawChanceCard);
   check('chest awards jail card', sawChestCard);
   check('card draws keep cash finite', cashFinite);
+  // Maze layout: 40 unique tiles, contiguous snake, GO top-left, end bottom-right
+  const cells = serpentineOrder(40, 8);
+  check('maze covers 40 tiles once', new Set(cells.map((c) => c.tile)).size === 40);
+  const pos = new Map(cells.map((c) => [c.tile, c]));
+  let adjacent = true;
+  for (let i = 0; i < 39; i++) {
+    const a = pos.get(i), b = pos.get(i + 1);
+    if (Math.abs(a.row - b.row) + Math.abs(a.col - b.col) !== 1) adjacent = false;
+  }
+  check('maze path is contiguous', adjacent);
+  check('maze endpoints correct', pos.get(0).row === 0 && pos.get(0).col === 0 && pos.get(39).row === 4 && pos.get(39).col === 7 && pos.get(39).next === 'end');
   const mkJail = () => ({
     room: { dice: [1, 1], lastRoll: null, pendingBuy: null, log: [], players: [] },
     me: { id: 't', name: 'T', cash: 1500, position: 20, properties: [], mortgaged: [], inJail: true, jailTurns: 0, jailCards: 0, doubles: 0, bankrupt: false, hasRolled: false },
@@ -206,6 +218,7 @@ try {
     const ok = cardBuyer.id === idA ? keyA : keyB;
     const os = cardBuyer.id === idA ? s1 : s2;
     const c0 = cardHolder.jailCards;
+    const b0 = cardBuyer.jailCards;
     const off = await emit(hs, 'tradeOffer', { code, playerId: cardHolder.id, key: hk, to: cardBuyer.id, giveTiles: [], giveCash: 0, giveCards: 1, wantTiles: [], wantCash: 10, wantCards: 0 });
     check('card offer created', off.ok === true, JSON.stringify(off));
     if (off.ok) {
@@ -214,7 +227,7 @@ try {
       await sleep(150);
       const nc = room.players.find((p) => p.id === cardHolder.id).jailCards;
       const no = room.players.find((p) => p.id === cardBuyer.id).jailCards;
-      check('card swap atomic', acc.ok === true && nc === c0 - 1 && no === 1, `${c0}->${nc} holder, ${no} buyer`);
+      check('card swap atomic', acc.ok === true && nc === c0 - 1 && no === b0 + 1, `${c0}->${nc} holder, ${b0}->${no} buyer`);
     }
   } else {
     check('card trade live', true, 'SKIP — no funded card holder after drive');

@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import type { Socket } from 'socket.io-client';
 import { emitWithAck, freshSocket } from '../socket';
 import { loadControl, saveControl, useGame } from '../store';
-import { BoardGrid } from '../components/BoardGrid';
+import { MazeBoard } from '../components/MazeBoard';
 import { ClaimPanel } from '../components/ClaimPanel';
 import { ConnPill } from '../components/ConnPill';
 import { BOARD, TOKENS } from '@monopoly/shared';
@@ -154,7 +154,7 @@ export function HostScreen() {
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_320px]">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-          <BoardGrid room={room} />
+          <MazeBoard room={room} />
         </motion.div>
         <div className="flex flex-col gap-3">
           <div className="glass rounded-2xl p-4">

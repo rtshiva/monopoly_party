@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { freshSocket } from '../socket';
-import { useGame } from '../store';
+import { emitWithAck } from '../socket';
+import { saveControl, useGame } from '../store';
 import type { TokenKind } from '@monopoly/shared';
 import { TOKENS } from '@monopoly/shared';
 
@@ -10,56 +10,55 @@ const tokenList = Object.keys(TOKENS) as TokenKind[];
 
 export function Landing() {
   const nav = useNavigate();
-  const { setRoom, setPlayerId } = useGame();
+  const { setRoom, setPlayerId, setControlKey, deviceLabel } = useGame();
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [token, setToken] = useState<TokenKind>('car');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
-  function withTimeout(ms: number, onTimeout: () => void) {
-    return setTimeout(onTimeout, ms);
-  }
-
   async function host() {
     setBusy(true); setErr('');
-    const s = freshSocket();
-    let finished = false;
-    const finish = (ok: boolean) => { if (!finished) { finished = true; clearTimeout(timer); s.disconnect(); setBusy(false); if (!ok) setErr('Could not create room (is server running on :3001?)'); } };
-    const timer = withTimeout(8000, () => finish(false));
-    s.emit('createRoom', { playerName: name || 'Host', token }, (res: { ok: boolean; code: string; playerId: string; room: never }) => {
+    try {
+      const res = await emitWithAck<{ ok: boolean; code: string; playerId: string; controlKey: string; room: never }>(
+        'createRoom', { playerName: name || 'Host', token, deviceLabel });
       if (res?.ok) {
-        finished = true; clearTimeout(timer);
         localStorage.setItem('monopoly.pid', res.playerId);
         localStorage.setItem('monopoly.code', res.code);
+        saveControl(res.playerId, res.controlKey);
+        setControlKey(res.controlKey);
         setPlayerId(res.playerId); setRoom(res.room as never);
-        s.disconnect(); setBusy(false);
         nav(`/host/${res.code}?pid=${res.playerId}`);
-      } else finish(false);
-    });
+      } else {
+        setErr('Could not create room (is server running on :3001?)');
+      }
+    } catch {
+      setErr('Could not create room (is server running on :3001?)');
+    }
+    setBusy(false);
   }
 
   async function join(e?: React.FormEvent) {
     e?.preventDefault();
     if (!code.trim()) { setErr('Enter a room code'); return; }
     setBusy(true); setErr('');
-    const s = freshSocket();
-    let finished = false;
-    const timer = withTimeout(8000, () => { if (!finished) { finished = true; s.disconnect(); setBusy(false); setErr('Server not responding — is it running on :3001?'); } });
-    s.emit('joinRoom', { code: code.toUpperCase().trim(), playerName: name || 'Player', token }, (res: { ok: boolean; error?: string; code: string; playerId: string; room: never }) => {
-      if (finished) return;
-      finished = true; clearTimeout(timer);
+    try {
+      const res = await emitWithAck<{ ok: boolean; error?: string; code: string; playerId: string; controlKey: string; room: never }>(
+        'joinRoom', { code: code.toUpperCase().trim(), playerName: name || 'Player', token, deviceLabel });
       if (res?.ok) {
         localStorage.setItem('monopoly.pid', res.playerId);
         localStorage.setItem('monopoly.code', res.code);
+        saveControl(res.playerId, res.controlKey);
+        setControlKey(res.controlKey);
         setPlayerId(res.playerId); setRoom(res.room as never);
-        s.disconnect(); setBusy(false);
         nav(`/play/${res.code}?pid=${res.playerId}`);
       } else {
-        s.disconnect(); setBusy(false);
         setErr(res?.error === 'NO_ROOM' ? 'Room not found. Check the code.' : res?.error === 'ROOM_FULL' ? 'Room is full (8 max).' : res?.error === 'GAME_OVER' ? 'That game already finished — ask host for a new room.' : 'Join failed — is server running?');
       }
-    });
+    } catch {
+      setErr('Server not responding — is it running on :3001?');
+    }
+    setBusy(false);
   }
 
   return (

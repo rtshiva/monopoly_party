@@ -1,8 +1,40 @@
 import { BOARD, drawChance, drawChest, ownerOf, rentFor, rollD6 } from '@monopoly/shared';
 import { AUCTION_DURATION_MS, GO_SALARY, JAIL_FINE, OFFLINE_TURN_MS, TURN_MS } from '@monopoly/shared';
 import type { Auction, Player, RoomState, TradeOffer } from '@monopoly/shared';
-import { auctionTimers, getIo, rooms, turnTimers, uid } from './store.js';
+import { auctionTimers, clearControllerSocket, dropControl, genPin, getIo, issueControl, rooms, seatKeys, seatSockets, turnTimers, uid } from './store.js';
 import { saveRooms } from './persist.js';
+
+// ---------- seat control (identity vs capability) ----------
+// player.id is public (display). Acting requires the seat's secret key,
+// which is issued only to the controlling device and never broadcast.
+
+export function requireControl(room: RoomState, playerId: unknown, key: unknown): Player | null {
+  if (typeof playerId !== 'string' || typeof key !== 'string' || !key) return null;
+  const me = room.players.find((p) => p.id === playerId);
+  if (!me || me.bankrupt) return null;
+  return seatKeys.get(room.code)?.get(me.id) === key ? me : null;
+}
+
+export function controllerSocketOf(code: string, playerId: string): string | undefined {
+  return seatSockets.get(code)?.get(playerId);
+}
+
+export function setControllerSocket(code: string, playerId: string, socketId: string) {
+  let m = seatSockets.get(code);
+  if (!m) { m = new Map(); seatSockets.set(code, m); }
+  m.set(playerId, socketId);
+}
+
+/** Evict the previous controller socket when it isn't the new one. */
+export function evictPreviousController(code: string, playerId: string, socketId: string, byLabel: string) {
+  const prev = controllerSocketOf(code, playerId);
+  if (prev && prev !== socketId) {
+    getIo().to(prev).emit('evicted', { seatId: playerId, by: byLabel });
+  }
+  setControllerSocket(code, playerId, socketId);
+}
+
+export { clearControllerSocket, dropControl, genPin, issueControl };
 
 // ---------- rooms / players ----------
 
@@ -198,6 +230,8 @@ export function bankruptPlayer(room: RoomState, me: Player) {
   const deeds = [...me.properties];
   for (const t of deeds) delete room.buildings[t];
   me.properties = []; me.mortgaged = [];
+  me.controllerLabel = null;
+  dropControl(room.code, me.id);
   removePlayerTrades(room, me.id);
   if (deeds.length > 0) {
     room.auctionQueue.push(...deeds);

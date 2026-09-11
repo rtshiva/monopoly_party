@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { motion } from 'framer-motion';
-import { freshSocket } from '../socket';
-import { useGame } from '../store';
+import { emitWithAck, freshSocket } from '../socket';
+import { loadControl, useGame } from '../store';
 import { BoardGrid } from '../components/BoardGrid';
 import { BOARD, TOKENS } from '@monopoly/shared';
 
@@ -29,7 +29,7 @@ export function HostScreen() {
     let alive = true;
     // Re-attach as player when we have a seat, otherwise spectate.
     if (pid) {
-      s.emit('rejoin', { code: upCode, playerId: pid }, (res: { ok: boolean; room: RoomState }) => {
+      s.emit('rejoin', { code: upCode, playerId: pid, key: loadControl(pid) }, (res: { ok: boolean; room: RoomState }) => {
         if (!alive) return;
         if (res?.ok) setRoom(res.room);
         else {
@@ -81,7 +81,7 @@ export function HostScreen() {
                 <span key={p.id} className="rounded-full bg-white/10 px-3 py-1 text-sm">{TOKENS[p.token]} {p.name}</span>
               ))}
             </div>
-            <StartButton code={room.code} count={room.players.length} />
+            <StartButton code={room.code} count={room.players.length} hostId={pid} hostKey={loadControl(pid)} />
           </div>
         </div>
       )}
@@ -92,7 +92,7 @@ export function HostScreen() {
             <div className="font-display text-lg font-bold">🏆 {room.players.find((p) => p.id === room.winnerId)?.name} wins the game!</div>
             <div className="text-sm text-white/60">Same players, fresh $1500, shuffled order.</div>
           </div>
-          <RematchButton code={room.code} count={room.players.length} />
+          <RematchButton code={room.code} count={room.players.length} hostId={pid} hostKey={loadControl(pid)} />
         </div>
       )}
 
@@ -108,7 +108,8 @@ export function HostScreen() {
                 <div key={p.id} className={`flex items-center gap-2 rounded-xl px-3 py-2 ${p.bankrupt ? 'bg-white/5 opacity-50' : 'bg-white/10'}`}>
                   <span className="w-6 font-bold">{i + 1}</span>
                   <span className="text-xl">{TOKENS[p.token]}</span>
-                  <span className="flex-1 truncate font-semibold">{p.name} {p.bankrupt ? '(💀)' : ''} {!p.connected ? '(📴)' : ''}</span>
+                  <span className="flex-1 truncate font-semibold">{p.name} {p.bankrupt ? '(💀)' : ''} {!p.connected ? '(📴)' : p.controllerLabel ? `📱${p.controllerLabel}` : ''}</span>
+                  {!p.bankrupt && <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[11px] text-amber-200" title="Seat takeover PIN">PIN {p.seatPin}</span>}
                   <span className={`font-mono font-bold ${p.cash < 0 ? 'text-rose-300' : 'text-emerald-300'}`}>${p.cash}</span>
                 </div>
               ))}
@@ -150,23 +151,23 @@ function AuctionPanel({ room }: { room: RoomState }) {
   );
 }
 
-function RematchButton({ code, count }: { code: string; count: number }) {
+function RematchButton({ code, count, hostId, hostKey }: { code: string; count: number; hostId: string; hostKey: string | null }) {
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   return (
     <div>
       <button
         disabled={busy}
-        onClick={() => {
+        onClick={async () => {
           setBusy(true); setMsg('');
-          const s = freshSocket();
-          const done = () => { setBusy(false); s.disconnect(); };
-          const timer = setTimeout(() => { setMsg('Server not responding — is it running?'); done(); }, 8000);
-          s.emit('startGame', { code }, (res: { ok: boolean; error?: string }) => {
-            clearTimeout(timer);
-            if (!res?.ok) setMsg('Could not restart (need 2+ players)');
-            done();
-          });
+          if (!hostId || !hostKey) { setMsg('Host seat not held on this screen — reclaim it from a phone with the TV PIN.'); setBusy(false); return; }
+          try {
+            const res = await emitWithAck<{ ok: boolean; error?: string }>('startGame', { code, playerId: hostId, key: hostKey });
+            if (!res?.ok) setMsg(res?.error === 'NOT_HOST' ? 'This screen no longer holds the host seat.' : 'Could not restart (need 2+ players)');
+          } catch {
+            setMsg('Server not responding — is it running?');
+          }
+          setBusy(false);
         }}
         className="btn-gold rounded-2xl px-6 py-3 text-lg disabled:opacity-40"
       >
@@ -177,23 +178,23 @@ function RematchButton({ code, count }: { code: string; count: number }) {
   );
 }
 
-function StartButton({ code, count }: { code: string; count: number }) {
+function StartButton({ code, count, hostId, hostKey }: { code: string; count: number; hostId: string; hostKey: string | null }) {
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   return (
     <div className="mt-3">
       <button
         disabled={count < 2 || busy}
-        onClick={() => {
+        onClick={async () => {
           setBusy(true); setMsg('');
-          const s = freshSocket();
-          const done = () => { setBusy(false); s.disconnect(); };
-          const timer = setTimeout(() => { setMsg('Server not responding — is it running?'); done(); }, 8000);
-          s.emit('startGame', { code }, (res: { ok: boolean; error?: string }) => {
-            clearTimeout(timer);
-            if (!res?.ok) setMsg(res?.error === 'NEED_2' ? 'Need at least 2 players to start' : 'Could not start game');
-            done();
-          });
+          if (!hostId || !hostKey) { setMsg('Host seat not held on this screen — reclaim it from a phone with the TV PIN.'); setBusy(false); return; }
+          try {
+            const res = await emitWithAck<{ ok: boolean; error?: string }>('startGame', { code, playerId: hostId, key: hostKey });
+            if (!res?.ok) setMsg(res?.error === 'NEED_2' ? 'Need at least 2 players to start' : res?.error === 'NOT_HOST' ? 'This screen no longer holds the host seat.' : 'Could not start game');
+          } catch {
+            setMsg('Server not responding — is it running?');
+          }
+          setBusy(false);
         }}
         className="btn-gold rounded-2xl px-6 py-3 text-lg disabled:opacity-40"
       >

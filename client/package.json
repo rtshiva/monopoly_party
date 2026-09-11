@@ -1,6 +1,7 @@
 {
   "name": "@monopoly/client",
   "version": "0.1.0",
+  "engines": { "node": ">=20" },
   "type": "module",
   "scripts": {
     "dev": "vite --port 5173 --host",

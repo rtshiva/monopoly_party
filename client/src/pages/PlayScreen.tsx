@@ -3,7 +3,8 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Socket } from 'socket.io-client';
 import { freshSocket } from '../socket';
-import { mePlayer, useGame } from '../store';
+import { mePlayer, loadControl, useGame } from '../store';
+import { SwitchTab } from '../components/SwitchTab';
 import { TradeTab } from '../components/TradeTab';
 import { TurnCountdown } from '../components/TurnCountdown';
 import { isMuted, setMuted, sndBuy, sndCash, sndError, sndRoll, sndWin } from '../sound';
@@ -13,26 +14,29 @@ import type { Player, RoomState } from '@monopoly/shared';
 export function PlayScreen() {
   const { code = '' } = useParams();
   const [sp] = useSearchParams();
-  const { room, setRoom, playerId, setPlayerId } = useGame();
+  const { room, setRoom, playerId, setPlayerId, controlKey } = useGame();
   const [rolling, setRolling] = useState(false);
   const [err, setErr] = useState('');
-  const [tab, setTab] = useState<'props' | 'log' | 'trade'>('props');
+  const [tab, setTab] = useState<'props' | 'log' | 'trade' | 'switch'>('props');
   const [mutedUi, setMutedUi] = useState(isMuted());
   const prevCash = useRef<number | null>(null);
   const wonRef = useRef(false);
   const sockRef = useRef<Socket | null>(null);
 
   const upCode = code.toUpperCase();
-  const pid = sp.get('pid') || playerId || localStorage.getItem('monopoly.pid') || '';
+  // State (freshly switched seats) wins over the URL, which goes stale after a switch.
+  const pid = playerId || sp.get('pid') || localStorage.getItem('monopoly.pid') || '';
+  const key = controlKey || loadControl(pid);
 
   useEffect(() => {
     const s = freshSocket();
     sockRef.current = s;
     let alive = true;
     if (pid) {
-      s.emit('rejoin', { code: upCode, playerId: pid }, (res: { ok: boolean; room: never }) => {
+      s.emit('rejoin', { code: upCode, playerId: pid, key: controlKey || loadControl(pid) }, (res: { ok: boolean; error?: string; room: never }) => {
         if (!alive) return;
         if (res?.ok) { setRoom(res.room as never); setPlayerId(pid); localStorage.setItem('monopoly.pid', pid); }
+        else if (res?.error === 'NO_CONTROL') setErr('🔀 This device no longer controls that seat — reclaim it in 🔀 Switch with the TV PIN.');
         else setErr('Session expired — rejoin from home with your code.');
       });
     } else {
@@ -43,6 +47,11 @@ export function PlayScreen() {
       setErr('No player session on this phone. Join from home first.');
     }
     s.on('roomState', (r) => { if (!alive) return; setRoom(r); setRolling(false); });
+    s.on('evicted', () => {
+      if (!alive) return;
+      setErr('🔀 Another device took over this seat. Reclaim it in 🔀 Switch with the TV PIN.');
+      setTab('switch');
+    });
     return () => { alive = false; s.disconnect(); sockRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [upCode, pid]);
@@ -70,17 +79,18 @@ export function PlayScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.status, room?.winnerId]);
 
-  function emit(ev: string, extra: Record<string, unknown> = {}, onOk?: () => void) {
+  function emit(ev: string, extra: Record<string, unknown> = {}, onOk?: (res: { ok: boolean; error?: string; controlKey?: string }) => void) {
     const s = sockRef.current;
     if (!s) return;
     setErr('');
     const timer = setTimeout(() => setErr('Server not responding — check connection'), 8000);
-    s.emit(ev, { code: upCode, playerId: pid, ...extra }, (res: { ok: boolean; error?: string }) => {
+    s.emit(ev, { code: upCode, playerId: pid, key, ...extra }, (res: { ok: boolean; error?: string; controlKey?: string }) => {
       clearTimeout(timer);
       if (!res?.ok) { setErr(friendlyError(res?.error)); sndError(); }
-      else onOk?.();
+      else onOk?.(res);
     });
   }
+  const hasControl = !!key;
 
   if (!room || room.code !== upCode) return <div className="p-8 text-center text-white/60">Connecting to {upCode}…<br /><Link className="underline" to="/">← home</Link></div>;
   if (!me) return <div className="mx-auto max-w-md p-8 text-center"><div className="text-rose-200">{err || 'Not seated in this room.'}</div><Link to="/" className="mt-4 inline-block rounded-xl bg-white/10 px-4 py-2">Join with code {upCode}</Link></div>;
@@ -98,8 +108,8 @@ export function PlayScreen() {
       <div className="glass flex items-center gap-3 rounded-2xl p-3">
         <div className="text-3xl">{TOKENS[me.token]}</div>
         <div className="flex-1">
-          <div className="font-bold">{me.name} <span className="ml-1 rounded bg-white/10 px-1 font-mono text-xs">{room.code}</span></div>
-          <div className="text-xs text-white/60">📍 {myTile.name} · {me.inJail ? '🔒 In jail' : 'Free'}</div>
+          <div className="font-bold">🎮 {me.name} <span className="ml-1 rounded bg-white/10 px-1 font-mono text-xs">{room.code}</span></div>
+          <div className="text-xs text-white/60">📍 {myTile.name} · {me.inJail ? '🔒 In jail' : 'Free'} · {hasControl ? 'controlling' : 'NOT controlling'}</div>
         </div>
         <div className={`font-mono text-xl font-extrabold ${me.cash < 0 ? 'text-rose-300' : 'text-emerald-300'}`}>${me.cash}</div>
         <button type="button" title={mutedUi ? 'Unmute sounds' : 'Mute sounds'}
@@ -174,9 +184,14 @@ export function PlayScreen() {
         <button type="button" onClick={() => setTab('log')}
           className={`flex-1 rounded-xl py-2 text-sm font-bold ${tab === 'log' ? 'bg-amber-300 text-black' : 'bg-white/10'}`}>
           📜 Feed</button>
+        <button type="button" onClick={() => setTab('switch')}
+          className={`flex-1 rounded-xl py-2 text-sm font-bold ${tab === 'switch' ? 'bg-amber-300 text-black' : 'bg-white/10'}`}>
+          🔀 Switch</button>
       </div>
 
-      {tab === 'trade' ? (
+      {tab === 'switch' ? (
+        <SwitchTab room={room} me={me} pid={pid} hasControl={hasControl} emit={emit} />
+      ) : tab === 'trade' ? (
         <TradeTab room={room} me={me} emit={emit} />
       ) : tab === 'props' ? (
         <div className="mt-2 space-y-2">
@@ -271,11 +286,15 @@ function friendlyError(code?: string): string {
     case 'MAX_HOUSES': return 'Already a hotel here';
     case 'EVEN_BUILD': return 'Build evenly across the set';
     case 'MORTGAGED': return 'Unmortgage the set first';
+    case 'BAD_PIN': return 'Wrong seat PIN — check the TV board';
+    case 'NO_CONTROL': return 'This device no longer controls that seat — reclaim it in 🔀 Switch';
+    case 'NOT_HOST': return 'Only the host device can do that';
+    case 'BAD_SEAT': return 'That seat is unavailable';
     default: return code || 'Action failed';
   }
 }
 
-function AuctionCard({ room, me, emit }: { room: RoomState; me: Player; emit: (ev: string, extra?: Record<string, unknown>) => void }) {
+function AuctionCard({ room, me, emit }: { room: RoomState; me: Player; emit: (ev: string, extra?: Record<string, unknown>, onOk?: (res: { ok: boolean; error?: string; controlKey?: string }) => void) => void }) {
   const [amount, setAmount] = useState('');
   const a = room.auction!;
   const top = [...a.bids].sort((x, y) => y.amount - x.amount)[0];

@@ -35,6 +35,8 @@ export interface Player {
   connected: boolean;
   isHost: boolean;
   hasRolled: boolean;
+  seatPin: string; // 4-digit takeover PIN, public to the room (shown on TV)
+  controllerLabel: string | null; // human label of the device currently controlling this seat
 }
 
 export interface LogEntry { id: string; text: string; at: number; tone?: 'info' | 'good' | 'bad' | 'money' }

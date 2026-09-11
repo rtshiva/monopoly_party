@@ -1,6 +1,7 @@
-// Fast regression suite. Self-contained: boots the built server on PORT 3123
-// with an isolated snapshot file, runs every socket event's wiring, proves
-// restart recovery, then tears everything down.
+// Fast regression + security suite. Self-contained: boots the built server on
+// PORT 3123 with an isolated snapshot file, runs every socket event's wiring,
+// proves seat-control auth (keys/PINs/takeover), proves restart recovery,
+// then tears everything down.
 // Run: npm test --workspace=@monopoly/server   (or npm test from repo root)
 import { once } from 'events';
 import { spawn } from 'child_process';
@@ -55,54 +56,87 @@ try {
   let room = null;
   s1.on('roomState', (r) => { room = r; });
 
-  const c = await emit(s1, 'createRoom', { playerName: 'Host', token: 'car' });
-  check('createRoom', c.ok === true);
-  const code = c.code; const idA = c.playerId;
+  const c = await emit(s1, 'createRoom', { playerName: 'Host', token: 'car', deviceLabel: 'Suite-A' });
+  check('createRoom', c.ok === true && !!c.controlKey);
+  const code = c.code; const idA = c.playerId; const keyA = c.controlKey;
   await sleep(500);
   let snapDiag = '';
   try { snapDiag = `dir=[${fs.readdirSync(path.dirname(ROOMS_FILE)).join(',')}]`; } catch (e) { snapDiag = `readdir fail: ${e.message}`; }
   check('snapshot written', fs.existsSync(ROOMS_FILE), `${ROOMS_FILE} ${snapDiag}`);
-  const j = await emit(s2, 'joinRoom', { code, playerName: 'Anu', token: 'dog' });
-  check('joinRoom', j.ok === true);
-  const idB = j.playerId;
+  const j = await emit(s2, 'joinRoom', { code, playerName: 'Anu', token: 'dog', deviceLabel: 'Suite-B' });
+  check('joinRoom', j.ok === true && !!j.controlKey);
+  const idB = j.playerId; const keyB = j.controlKey;
   check('watchRoom', (await emit(s2, 'watchRoom', { code })).ok === true);
   const s3 = await connect();
-  check('rejoin', (await emit(s3, 'rejoin', { code, playerId: idA })).ok === true);
-  check('startGame', (await emit(s1, 'startGame', { code })).ok === true);
+  check('rejoin with key', (await emit(s3, 'rejoin', { code, playerId: idA, key: keyA })).ok === true);
+  check('rejoin without key rejected', (await emit(s3, 'rejoin', { code, playerId: idA })).error === 'NO_CONTROL');
+  check('non-host start rejected', (await emit(s2, 'startGame', { code, playerId: idB, key: keyB })).error === 'NOT_HOST');
+  check('startGame by host', (await emit(s1, 'startGame', { code, playerId: idA, key: keyA })).ok === true);
   await sleep(300);
   check('deadline armed', typeof room.turnDeadline === 'number' && room.turnDeadline > Date.now());
+  check('seat PINs + labels visible (TV transparency)', room.players.every((p) => /^\d{4}$/.test(p.seatPin) && !!p.controllerLabel));
 
   const curId = room.players[room.turnIndex % room.players.length].id;
+  const curKey = curId === idA ? keyA : keyB;
   const otherId = curId === idA ? idB : idA;
   const otherSock = otherId === idA ? s1 : s2;
-  check('wrong-turn roll rejected', (await emit(otherSock, 'rollDice', { code, playerId: otherId })).error === 'NOT_YOUR_TURN');
+  const otherKey = otherId === idA ? keyA : keyB;
+  check('wrong-key roll rejected', (await emit(otherSock, 'rollDice', { code, playerId: otherId, key: 'bogus' })).error === 'NO_CONTROL');
+  check('wrong-turn roll rejected', (await emit(otherSock, 'rollDice', { code, playerId: otherId, key: otherKey })).error === 'NOT_YOUR_TURN');
   const curSock = curId === idA ? s1 : s2;
-  check('roll ok', (await emit(curSock, 'rollDice', { code, playerId: curId })).ok === true);
+  check('roll ok', (await emit(curSock, 'rollDice', { code, playerId: curId, key: curKey })).ok === true);
   await sleep(150);
   if (room.pendingBuy != null) {
-    const b = await emit(curSock, 'buyProperty', { code, playerId: curId });
+    const b = await emit(curSock, 'buyProperty', { code, playerId: curId, key: curKey });
     check('buy or NO_CASH', b.ok === true || b.error === 'NO_CASH', JSON.stringify(b));
     await sleep(150);
   }
   const upd = room.players.find((p) => p.id === curId);
   if (upd.hasRolled && room.pendingBuy == null && upd.cash >= 0) {
-    check('endTurn', (await emit(curSock, 'endTurn', { code, playerId: curId })).ok === true);
+    check('endTurn', (await emit(curSock, 'endTurn', { code, playerId: curId, key: curKey })).ok === true);
     await sleep(150);
   }
   check('turns advance', room.turnCount >= 1, `turns=${room.turnCount}`);
-  check('mortgage BAD_TILE', (await emit(s1, 'mortgage', { code, playerId: idA, tile: 0 })).error === 'BAD_TILE');
-  check('empty trade BAD_TRADE', (await emit(s1, 'tradeOffer', { code, playerId: idA, to: idB, giveTiles: [], giveCash: 0, wantTiles: [], wantCash: 0 })).error === 'BAD_TRADE');
-  check('auctionBid NO_AUCTION', (await emit(s1, 'auctionBid', { code, playerId: idA, amount: 50 })).error === 'NO_AUCTION');
-  check('buyHouse BAD_TILE', (await emit(s1, 'buyHouse', { code, playerId: idA, tile: 0 })).error === 'BAD_TILE');
-  check('payJail refused', (await emit(s1, 'payJail', { code, playerId: idA })).ok === false);
+  check('mortgage BAD_TILE', (await emit(s1, 'mortgage', { code, playerId: idA, key: keyA, tile: 0 })).error === 'BAD_TILE');
+  check('empty trade BAD_TRADE', (await emit(s1, 'tradeOffer', { code, playerId: idA, key: keyA, to: idB, giveTiles: [], giveCash: 0, wantTiles: [], wantCash: 0 })).error === 'BAD_TRADE');
+  check('auctionBid NO_AUCTION', (await emit(s1, 'auctionBid', { code, playerId: idA, key: keyA, amount: 50 })).error === 'NO_AUCTION');
+  check('buyHouse BAD_TILE', (await emit(s1, 'buyHouse', { code, playerId: idA, key: keyA, tile: 0 })).error === 'BAD_TILE');
+  check('payJail refused', (await emit(s1, 'payJail', { code, playerId: idA, key: keyA })).ok === false);
+
+  // seat takeover: s5 claims B's seat with the TV PIN; s2 must hear evicted
+  const pinB = room.players.find((p) => p.id === idB).seatPin;
+  check('bad PIN rejected', (await emit(s1, 'claimSeat', { code, playerId: idB, pin: '0000', deviceLabel: 'Suite-C' })).error === 'BAD_PIN');
+  const s5 = await connect();
+  let evicted = null;
+  s2.on('evicted', (e) => { evicted = e; });
+  const claim = await emit(s5, 'claimSeat', { code, playerId: idB, pin: pinB, deviceLabel: 'Suite-C' });
+  check('claim with PIN works', claim.ok === true && !!claim.controlKey && claim.controlKey !== keyB);
+  await sleep(300);
+  check('old controller evicted', !!evicted && evicted.seatId === idB, JSON.stringify(evicted));
+  check('old key dead', (await emit(s2, 'rollDice', { code, playerId: idB, key: keyB })).error === 'NO_CONTROL');
+  const keyB2 = claim.controlKey;
+  check('new key works', (await emit(s5, 'mortgage', { code, playerId: idB, key: keyB2, tile: 0 })).error === 'BAD_TILE');
+  check('release works', (await emit(s5, 'releaseSeat', { code, playerId: idB, key: keyB2 })).ok === true);
+  await sleep(150);
+  check('released key dead', (await emit(s5, 'rollDice', { code, playerId: idB, key: keyB2 })).error === 'NO_CONTROL');
+  const pinB2 = room.players.find((p) => p.id === idB).seatPin;
+  check('PIN rotated on claim', pinB2 !== pinB);
+  const reclaim = await emit(s5, 'claimSeat', { code, playerId: idB, pin: pinB2, deviceLabel: 'Suite-C' });
+  check('re-claim after release', reclaim.ok === true && !!reclaim.controlKey);
+  const keyB3 = reclaim.controlKey;
+  s5.disconnect();
 
   // bankrupt one side -> finished, then restart
   const loser = room.players.find((p) => !p.bankrupt);
   const loserSock = loser.id === idA ? s1 : s2;
-  await emit(loserSock, 'bankrupt', { code, playerId: loser.id });
+  const loserKey = loser.id === idA ? keyA : keyB3;
+  await emit(loserSock, 'bankrupt', { code, playerId: loser.id, key: loserKey });
   await sleep(200);
   check('bankrupt finishes 2p', room.status === 'finished' && !!room.winnerId);
-  check('rematch resets', (await emit(s1, 'startGame', { code })).ok === true);
+  const winnerId = room.winnerId;
+  const rKey = winnerId === idA ? keyA : keyB3;
+  const rSock = winnerId === idA ? s1 : s2;
+  check('rematch resets', (await emit(rSock, 'startGame', { code, playerId: winnerId, key: rKey })).ok === true);
   await sleep(200);
   check('fresh game playing', room.status === 'playing' && room.players.every((p) => p.cash === 1500));
   [s1, s2, s3].forEach((s) => s.disconnect());
@@ -115,9 +149,16 @@ try {
   const s4 = await connect();
   let room2 = null;
   s4.on('roomState', (r) => { room2 = r; });
-  const rj = await emit(s4, 'rejoin', { code, playerId: idA });
+  const w4 = await emit(s4, 'watchRoom', { code });
+  check('watch after restart', w4.ok === true);
+  if (w4.ok) room2 = w4.room;
+  const rj = await emit(s4, 'rejoin', { code, playerId: idA, key: keyA });
   await sleep(300);
-  check('rejoin after restart', rj.ok === true && room2?.status === 'playing');
+  check('stale key rejected after restart', rj.ok === false && rj.error === 'NO_CONTROL', 'keys are memory-only by design; PIN reclaim expected');
+  const pinA = room2?.players.find((p) => p.id === idA)?.seatPin;
+  const rec = await emit(s4, 'claimSeat', { code, playerId: idA, pin: pinA, deviceLabel: 'Suite-A2' });
+  check('PIN reclaim after restart', rec.ok === true && !!rec.controlKey);
+  await sleep(300);
   check('deadline re-armed', typeof room2?.turnDeadline === 'number' && room2.turnDeadline > Date.now());
   s4.disconnect();
 } catch (e) {

@@ -2,13 +2,14 @@ import type { Socket } from 'socket.io';
 import { BOARD } from '@monopoly/shared';
 import { MIN_BID } from '@monopoly/shared';
 import { rooms } from '../store.js';
-import { emit, log, resolveAuction } from '../helpers.js';
+import { emit, log, requireControl, resolveAuction } from '../helpers.js';
 
 export function registerAuctionHandlers(socket: Socket) {
-  socket.on('auctionBid', ({ code, playerId, amount }: { code: string; playerId: string; amount: unknown }, cb) => {
+  socket.on('auctionBid', ({ code, playerId, key, amount }: { code: string; playerId: string; key: unknown; amount: unknown }, cb) => {
     const room = rooms.get(code);
-    const me = room?.players.find((p) => p.id === playerId);
-    if (!room || !me) return cb?.({ ok: false });
+    if (!room) return cb?.({ ok: false });
+    const me = requireControl(room, playerId, key);
+    if (!me) return cb?.({ ok: false, error: 'NO_CONTROL' });
     const auction = room.auction;
     if (!auction || Date.now() >= auction.endsAt) {
       if (auction) resolveAuction(code, auction.id);

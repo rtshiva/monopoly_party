@@ -36,6 +36,13 @@ Server snapshots rooms to `server/data/` on every broadcast (restart-safe) and
 expires dead rooms on a timer. The suite uses its own port + snapshot file, so it
 is safe to run alongside dev.
 
+## Seats & switching
+Each seat has a secret control key (this device only, never broadcast) and a
+4-digit PIN shown on the TV board. Lose your phone or share a tablet? Claim any
+seat from any device with its TV PIN — takeovers rotate the key + PIN and are
+announced on every screen, and every screen always shows which device controls
+which seat. After a server restart, reclaim seats with the TV PINs.
+
 ## Roles
 - `/` — landing (Host or Join)
 - `/host/:code` — shared TV board, leaderboard, feed, QR lobby

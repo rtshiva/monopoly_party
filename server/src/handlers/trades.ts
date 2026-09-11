@@ -1,15 +1,16 @@
 import type { Socket } from 'socket.io';
 import type { TradeOffer } from '@monopoly/shared';
 import { rooms, uid } from '../store.js';
-import { describeTrade, emit, isTileLocked, log, normCash, normTiles, pruneTrades } from '../helpers.js';
+import { describeTrade, emit, isTileLocked, log, normCash, normTiles, pruneTrades, requireControl } from '../helpers.js';
 
 export function registerTradeHandlers(socket: Socket) {
-  socket.on('tradeOffer', ({ code, playerId, to, giveTiles, giveCash, wantTiles, wantCash }: {
-    code: string; playerId: string; to: string; giveTiles: unknown; giveCash: unknown; wantTiles: unknown; wantCash: unknown;
+  socket.on('tradeOffer', ({ code, playerId, key, to, giveTiles, giveCash, wantTiles, wantCash }: {
+    code: string; playerId: string; key: unknown; to: string; giveTiles: unknown; giveCash: unknown; wantTiles: unknown; wantCash: unknown;
   }, cb) => {
     const room = rooms.get(code);
-    const me = room?.players.find((p) => p.id === playerId);
-    if (!room || !me) return cb?.({ ok: false });
+    if (!room) return cb?.({ ok: false });
+    const me = requireControl(room, playerId, key);
+    if (!me) return cb?.({ ok: false, error: 'NO_CONTROL' });
     if (room.status !== 'playing') return cb?.({ ok: false, error: 'BAD_TRADE' });
     pruneTrades(room);
     const target = room.players.find((p) => p.id === to);
@@ -42,12 +43,13 @@ export function registerTradeHandlers(socket: Socket) {
     emit(room);
   });
 
-  socket.on('tradeRespond', ({ code, playerId, tradeId, accept }: {
-    code: string; playerId: string; tradeId: string; accept: boolean;
+  socket.on('tradeRespond', ({ code, playerId, key, tradeId, accept }: {
+    code: string; playerId: string; key: unknown; tradeId: string; accept: boolean;
   }, cb) => {
     const room = rooms.get(code);
-    const me = room?.players.find((p) => p.id === playerId);
-    if (!room || !me) return cb?.({ ok: false });
+    if (!room) return cb?.({ ok: false });
+    const me = requireControl(room, playerId, key);
+    if (!me) return cb?.({ ok: false, error: 'NO_CONTROL' });
     pruneTrades(room);
     const idx = room.trades.findIndex((t) => t.id === tradeId);
     if (idx === -1) return cb?.({ ok: false, error: 'NO_OFFER' });
@@ -118,12 +120,13 @@ export function registerTradeHandlers(socket: Socket) {
     emit(room);
   });
 
-  socket.on('tradeCancel', ({ code, playerId, tradeId }: {
-    code: string; playerId: string; tradeId: string;
+  socket.on('tradeCancel', ({ code, playerId, key, tradeId }: {
+    code: string; playerId: string; key: unknown; tradeId: string;
   }, cb) => {
     const room = rooms.get(code);
-    const me = room?.players.find((p) => p.id === playerId);
-    if (!room || !me) return cb?.({ ok: false });
+    if (!room) return cb?.({ ok: false });
+    const me = requireControl(room, playerId, key);
+    if (!me) return cb?.({ ok: false, error: 'NO_CONTROL' });
     const idx = room.trades.findIndex((t) => t.id === tradeId);
     if (idx === -1) return cb?.({ ok: false, error: 'NO_OFFER' });
     if (room.trades[idx].fromId !== me.id) return cb?.({ ok: false, error: 'NOT_YOUR_OFFER' });

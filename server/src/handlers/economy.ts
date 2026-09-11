@@ -1,13 +1,14 @@
 import type { Socket } from 'socket.io';
 import { BOARD } from '@monopoly/shared';
 import { rooms } from '../store.js';
-import { bankruptPlayer, colorSetTiles, emit, isBuyable, isTileLocked, log } from '../helpers.js';
+import { bankruptPlayer, colorSetTiles, emit, isBuyable, isTileLocked, log, requireControl } from '../helpers.js';
 
 export function registerEconomyHandlers(socket: Socket) {
-  socket.on('mortgage', ({ code, playerId, tile }: { code: string; playerId: string; tile: number }, cb) => {
+  socket.on('mortgage', ({ code, playerId, key, tile }: { code: string; playerId: string; key: unknown; tile: number }, cb) => {
     const room = rooms.get(code);
-    const me = room?.players.find((p) => p.id === playerId);
-    if (!room || !me) return cb?.({ ok: false });
+    if (!room) return cb?.({ ok: false });
+    const me = requireControl(room, playerId, key);
+    if (!me) return cb?.({ ok: false, error: 'NO_CONTROL' });
     if (!Number.isInteger(tile) || !isBuyable(tile)) return cb?.({ ok: false, error: 'BAD_TILE' });
     if (!me.properties.includes(tile)) return cb?.({ ok: false });
     if ((room.buildings[tile] ?? 0) > 0) return cb?.({ ok: false, error: 'HAS_HOUSES' });
@@ -29,19 +30,21 @@ export function registerEconomyHandlers(socket: Socket) {
     emit(room);
   });
 
-  socket.on('bankrupt', ({ code, playerId }: { code: string; playerId: string }, cb) => {
+  socket.on('bankrupt', ({ code, playerId, key }: { code: string; playerId: string; key: unknown }, cb) => {
     const room = rooms.get(code);
-    const me = room?.players.find((p) => p.id === playerId);
-    if (!room || !me) return cb?.({ ok: false });
+    if (!room) return cb?.({ ok: false });
+    const me = requireControl(room, playerId, key);
+    if (!me) return cb?.({ ok: false, error: 'NO_CONTROL' });
     bankruptPlayer(room, me);
     cb?.({ ok: true });
     emit(room);
   });
 
-  socket.on('buyHouse', ({ code, playerId, tile }: { code: string; playerId: string; tile: number }, cb) => {
+  socket.on('buyHouse', ({ code, playerId, key, tile }: { code: string; playerId: string; key: unknown; tile: number }, cb) => {
     const room = rooms.get(code);
-    const me = room?.players.find((p) => p.id === playerId);
-    if (!room || !me) return cb?.({ ok: false });
+    if (!room) return cb?.({ ok: false });
+    const me = requireControl(room, playerId, key);
+    if (!me) return cb?.({ ok: false, error: 'NO_CONTROL' });
     if (room.status !== 'playing' || me.bankrupt) return cb?.({ ok: false });
     const t = BOARD[tile];
     if (!t || t.kind !== 'property') return cb?.({ ok: false, error: 'BAD_TILE' });
@@ -62,10 +65,11 @@ export function registerEconomyHandlers(socket: Socket) {
     emit(room);
   });
 
-  socket.on('sellHouse', ({ code, playerId, tile }: { code: string; playerId: string; tile: number }, cb) => {
+  socket.on('sellHouse', ({ code, playerId, key, tile }: { code: string; playerId: string; key: unknown; tile: number }, cb) => {
     const room = rooms.get(code);
-    const me = room?.players.find((p) => p.id === playerId);
-    if (!room || !me) return cb?.({ ok: false });
+    if (!room) return cb?.({ ok: false });
+    const me = requireControl(room, playerId, key);
+    if (!me) return cb?.({ ok: false, error: 'NO_CONTROL' });
     if (room.status !== 'playing' || me.bankrupt) return cb?.({ ok: false });
     const t = BOARD[tile];
     if (!t || t.kind !== 'property') return cb?.({ ok: false, error: 'BAD_TILE' });

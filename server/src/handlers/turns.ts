@@ -3,13 +3,14 @@ import { BOARD } from '@monopoly/shared';
 import { ownerOf } from '@monopoly/shared';
 import { JAIL_FINE } from '@monopoly/shared';
 import { rooms } from '../store.js';
-import { advanceTurn, current, doRoll, emit, isBuyable, log, openAuction } from '../helpers.js';
+import { advanceTurn, current, doRoll, emit, isBuyable, log, openAuction, requireControl } from '../helpers.js';
 
 export function registerTurnHandlers(socket: Socket) {
-  socket.on('rollDice', ({ code, playerId }: { code: string; playerId: string }, cb) => {
+  socket.on('rollDice', ({ code, playerId, key }: { code: string; playerId: string; key: unknown }, cb) => {
     const room = rooms.get(code);
     if (!room || room.status !== 'playing') return cb?.({ ok: false });
-    const me = room.players.find((p) => p.id === playerId);
+    const me = requireControl(room, playerId, key);
+    if (!me) return cb?.({ ok: false, error: 'NO_CONTROL' });
     const cp = current(room);
     if (!me || me.id !== cp.id || me.bankrupt) return cb?.({ ok: false, error: 'NOT_YOUR_TURN' });
     if (me.hasRolled && me.doubles === 0) return cb?.({ ok: false, error: 'ALREADY_ROLLED' });
@@ -27,10 +28,12 @@ export function registerTurnHandlers(socket: Socket) {
     emit(room);
   });
 
-  socket.on('buyProperty', ({ code, playerId }: { code: string; playerId: string }, cb) => {
+  socket.on('buyProperty', ({ code, playerId, key }: { code: string; playerId: string; key: unknown }, cb) => {
     const room = rooms.get(code);
-    const me = room?.players.find((p) => p.id === playerId);
-    if (!room || !me || room.pendingBuy == null) return cb?.({ ok: false });
+    if (!room) return cb?.({ ok: false });
+    const me = requireControl(room, playerId, key);
+    if (!me) return cb?.({ ok: false, error: 'NO_CONTROL' });
+    if (room.pendingBuy == null) return cb?.({ ok: false });
     if (room.status !== 'playing') return cb?.({ ok: false });
     if (current(room).id !== me.id) return cb?.({ ok: false, error: 'NOT_YOUR_TURN' });
     const idx = room.pendingBuy;
@@ -46,10 +49,11 @@ export function registerTurnHandlers(socket: Socket) {
     emit(room);
   });
 
-  socket.on('passProperty', ({ code, playerId }: { code: string; playerId: string }, cb) => {
+  socket.on('passProperty', ({ code, playerId, key }: { code: string; playerId: string; key: unknown }, cb) => {
     const room = rooms.get(code);
-    const me = room?.players.find((p) => p.id === playerId);
-    if (!room || !me) return cb?.({ ok: false });
+    if (!room) return cb?.({ ok: false });
+    const me = requireControl(room, playerId, key);
+    if (!me) return cb?.({ ok: false, error: 'NO_CONTROL' });
     if (room.status !== 'playing') return cb?.({ ok: false });
     if (current(room).id !== me.id) return cb?.({ ok: false, error: 'NOT_YOUR_TURN' });
     if (room.pendingBuy == null) return cb?.({ ok: false, error: 'NOTHING_TO_PASS' });
@@ -63,10 +67,11 @@ export function registerTurnHandlers(socket: Socket) {
     emit(room);
   });
 
-  socket.on('endTurn', ({ code, playerId }: { code: string; playerId: string }, cb) => {
+  socket.on('endTurn', ({ code, playerId, key }: { code: string; playerId: string; key: unknown }, cb) => {
     const room = rooms.get(code);
-    const me = room?.players.find((p) => p.id === playerId);
-    if (!room || !me || current(room).id !== me.id) return cb?.({ ok: false });
+    if (!room) return cb?.({ ok: false });
+    const me = requireControl(room, playerId, key);
+    if (!me || current(room).id !== me.id) return cb?.({ ok: false });
     if (room.status !== 'playing') return cb?.({ ok: false });
     if (!me.hasRolled) return cb?.({ ok: false, error: 'ROLL_FIRST' });
     if (room.pendingBuy != null) room.pendingBuy = null;
@@ -76,10 +81,11 @@ export function registerTurnHandlers(socket: Socket) {
     emit(room);
   });
 
-  socket.on('payJail', ({ code, playerId }: { code: string; playerId: string }, cb) => {
+  socket.on('payJail', ({ code, playerId, key }: { code: string; playerId: string; key: unknown }, cb) => {
     const room = rooms.get(code);
-    const me = room?.players.find((p) => p.id === playerId);
-    if (!room || !me || !me.inJail) return cb?.({ ok: false });
+    if (!room) return cb?.({ ok: false });
+    const me = requireControl(room, playerId, key);
+    if (!me || !me.inJail) return cb?.({ ok: false });
     if (me.cash < JAIL_FINE) return cb?.({ ok: false, error: 'NO_CASH' });
     me.cash -= JAIL_FINE; me.inJail = false; me.jailTurns = 0;
     log(room, `🔓 ${me.name} paid $${JAIL_FINE} to leave jail`, 'good');

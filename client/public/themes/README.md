@@ -8,16 +8,26 @@ Drop files in THIS folder (`client/public/themes/`), then set their paths in
 `client/src/components/boardThemes.ts` (`artImage`, `cornerSheet`). Until
 then the built-in SVG scenes show. Recommended order: Grand Prix first.
 
-## Files per theme (2 max)
+## Files per theme (2 + 8 street tiles)
 
-| Asset  | File                          | Size (px, square) |
-|--------|-------------------------------|-------------------|
-| Center | `<theme>-center.webp`         | 1600 (min 1024)   |
-| Corners| `<theme>-corners.webp`        | 1024 (min 512)    |
+| Asset  | File                              | Size (px, square) |
+|--------|-----------------------------------|-------------------|
+| Center | `<theme>-center.webp`             | 1600 (min 1024)   |
+| Corners| `<theme>-corners.webp`            | 1024 (min 512)    |
+| brown streets | `<theme>-tile-brown.webp`  | 512 (min 256)     |
+| lightblue streets | `<theme>-tile-lightblue.webp` | 512 (min 256) |
+| pink streets | `<theme>-tile-pink.webp`     | 512 (min 256)     |
+| orange streets | `<theme>-tile-orange.webp` | 512 (min 256)     |
+| red streets | `<theme>-tile-red.webp`        | 512 (min 256)     |
+| yellow streets | `<theme>-tile-yellow.webp`  | 512 (min 256)     |
+| green streets | `<theme>-tile-green.webp`    | 512 (min 256)     |
+| blue streets | `<theme>-tile-blue.webp`      | 512 (min 256)     |
 
-Example: `coastal-center.webp`, `coastal-corners.webp`.
+Example: `coastal-center.webp`, `coastal-corners.webp`, `coastal-tile-brown.webp`.
 
-WebP quality ~80; center under ~600 KB, corners sheet under ~300 KB.
+WebP quality ~80; center under ~600 KB, corners sheet under ~300 KB,
+street tiles under ~80 KB each. Any subset works — missing groups fall back
+to the plain tile color, so generate brown + blue first for a quick preview.
 
 ## Center image
 
@@ -89,6 +99,12 @@ $100) · 9 Conn Ave (light blue $120) · 10 Jail
   chips the app overlays; no text, numbers, logos, or signs anywhere.
 - **Edge tiles:** no art needed — HTML draws them (names, prices, color
   bands, highlights all stay exact).
+- **Street tiles** (optional, per color group): one subtle texture per group
+  in that group's color family — brown wood/street, light-blue sky, pink
+  neon, orange sunset, red brick, yellow sand, green turf, deep blue night.
+  Medium-dark overall with darker edges (vignette) so white chips pop;
+  displayed tiny (~80–180 px), so bold simple texture beats fine detail.
+  Never bake bands or text — the app adds the exact HTML color band on top.
 
 ## Style + acceptance
 

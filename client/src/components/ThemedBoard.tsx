@@ -118,24 +118,28 @@ export function ThemedBoard({ room }: { room: RoomState }) {
             const isCurrentTurn = room.status === 'playing' && room.players[room.turnIndex % room.players.length]?.position === i;
             const corner = isCornerKind(t.kind) ? CORNER_STYLE[t.kind] : null;
             const quad = isCornerKind(t.kind) && theme.cornerSheet ? CORNER_QUADRANT[t.kind] : undefined;
+            const street = !quad && t.kind === 'property' && t.color !== 'none' ? theme.tileArt?.[t.color] : undefined;
+            const onArtBg = !!(quad || street);
             return (
               <div
                 key={i}
                 style={{
                   gridRow: r + 1,
                   gridColumn: c + 1,
-                  background: quad ? undefined : corner ? corner.bg : theme.tileBg,
+                  background: onArtBg ? undefined : corner ? corner.bg : theme.tileBg,
                   color: theme.ink,
                   ...(quad && theme.cornerSheet
                     ? { backgroundImage: `url("${theme.cornerSheet}")`, backgroundSize: '200% 200%', backgroundPosition: quad }
-                    : {}),
+                    : street
+                      ? { backgroundImage: `url("${street}")`, backgroundSize: 'cover', backgroundPosition: 'center' }
+                      : {}),
                 }}
                 className={`relative overflow-hidden rounded-[7px] p-[3px] text-[10px] leading-tight lg:text-[11px] ${isPending ? 'ring-2 ring-amber-500 animate-pulse' : ''} ${isCurrentTurn ? 'ring-2 ring-sky-500' : ''}`}
                 title={t.name}
               >
-                {quad && <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30" />}
+                {onArtBg && <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30" />}
                 <div className="relative h-full">
-                  <TileFace i={i} room={room} theme={theme} onArt={!!quad} />
+                  <TileFace i={i} room={room} theme={theme} onArt={onArtBg} />
                 </div>
               </div>
             );

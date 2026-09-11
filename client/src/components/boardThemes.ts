@@ -1,4 +1,4 @@
-import type { BoardStyle } from '@monopoly/shared';
+import type { BoardStyle, TileColor } from '@monopoly/shared';
 
 export interface BoardTheme {
   id: BoardStyle;
@@ -28,6 +28,12 @@ export interface BoardTheme {
    * No text; keep each vignette's middle calm for the overlaid chips.
    */
   cornerSheet?: string;
+  /**
+   * Optional per-color street backgrounds, e.g. `tileArt: { brown: '/themes/coastal-tile-brown.webp' }`.
+   * Square (~512px min); subtle texture in the group color, darker edges,
+   * no text. Missing groups fall back to the plain tile color — mix freely.
+   */
+  tileArt?: Partial<Record<Exclude<TileColor, 'none'>, string>>;
 }
 
 /** Four track-inspired skins. Rules and streets never change — only the look. */

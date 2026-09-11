@@ -161,7 +161,7 @@ export function ThemedBoard({ room }: { room: RoomState }) {
             </div>
           );
         })}
-        <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
+        <div className="pointer-events-none absolute inset-x-0 bottom-[11%] flex justify-center">
           <TitleBadge name={theme.name} tagline={theme.tagline} />
         </div>
       </div>

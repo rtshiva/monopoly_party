@@ -180,6 +180,28 @@ export function Landing() {
         </div>
       </div>
 
+      {waiting.length === 1 && (
+        <div className="glass mt-4 rounded-3xl border-amber-300/40 p-6 text-center">
+          <div className="text-sm text-white/60">🎪 A table is waiting — no code needed</div>
+          <div className="font-display mt-1 text-2xl font-bold">{waiting[0].hostName}'s table <span className="font-mono text-lg text-amber-300">{waiting[0].code}</span></div>
+          <div className="mt-1 text-sm text-white/60">{waiting[0].players}/{waiting[0].max} seated</div>
+          {!name.trim() ? (
+            <div className="mx-auto mt-3 flex max-w-md gap-2">
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name to join" maxLength={16}
+                className="min-w-0 flex-1 rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-lg outline-none focus:border-amber-300" />
+              <button disabled={busy} onClick={() => doJoin(waiting[0].code)}
+                className="rounded-2xl bg-emerald-300 px-6 py-3 text-lg font-extrabold text-emerald-950 disabled:opacity-50">Join</button>
+            </div>
+          ) : (
+            <button disabled={busy} onClick={() => doJoin(waiting[0].code)}
+              className="mx-auto mt-3 block w-full max-w-md rounded-2xl bg-emerald-300 px-4 py-4 text-xl font-extrabold text-emerald-950 disabled:opacity-50">
+              {busy ? 'Joining…' : `Join as ${name.trim()} ${TOKENS[token]}`}
+            </button>
+          )}
+          <div className="mt-2 text-xs text-white/50">Someone else? Expand Login › on the table below.</div>
+        </div>
+      )}
+
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <div className="glass rounded-3xl p-6">
           <h2 className="font-display text-xl font-bold">📺 Host on this screen</h2>
@@ -285,11 +307,11 @@ function TableRow({ t, action, expanded, onToggle, children }: {
   t: OpenRoom; action: ReactNode; expanded: boolean; onToggle: () => void; children?: ReactNode;
 }) {
   return (
-    <div className="rounded-2xl bg-white/5 px-3 py-2">
+    <div className="rounded-2xl bg-white/5 px-4 py-3">
       <div className="flex items-center gap-2">
-        <div className="flex-1"><span className="font-mono font-bold">{t.code}</span> <span className="text-sm text-white/60">· {t.hostName}'s table · {t.players}/{t.max}</span></div>
+        <div className="flex-1"><span className="font-mono text-base font-bold">{t.code}</span> <span className="text-sm text-white/60">· {t.hostName}'s table · {t.players}/{t.max}</span></div>
         <button onClick={onToggle} title="Log in as an existing seat with its TV PIN"
-          className={`rounded-xl px-3 py-2 text-xs font-bold ${expanded ? 'bg-amber-300 text-black' : 'bg-white/10'}`}>
+          className={`rounded-xl px-4 py-2 text-sm font-bold ${expanded ? 'bg-amber-300 text-black' : 'bg-white/10'}`}>
           {expanded ? 'Hide ^' : 'Login ›'}</button>
         {action}
       </div>

@@ -99,12 +99,41 @@ $100) · 9 Conn Ave (light blue $120) · 10 Jail
   chips the app overlays; no text, numbers, logos, or signs anywhere.
 - **Edge tiles:** no art needed — HTML draws them (names, prices, color
   bands, highlights all stay exact).
-- **Street tiles** (optional, per color group): one subtle texture per group
-  in that group's color family — brown wood/street, light-blue sky, pink
-  neon, orange sunset, red brick, yellow sand, green turf, deep blue night.
-  Medium-dark overall with darker edges (vignette) so white chips pop;
-  displayed tiny (~80–180 px), so bold simple texture beats fine detail.
-  Never bake bands or text — the app adds the exact HTML color band on top.
+- **Street tiles** — generate **one set of 8 and reuse across all themes**
+  to start (copy/rename per theme; each theme maps its own 8 paths, so
+  per-theme variants can replace them later with zero code changes):
+
+  | Color group | File | Art direction |
+  |---|---|---|
+  | brown | `<theme>-tile-brown.webp` | weathered wood planks / packed dirt road, warm dark brown |
+  | lightblue | `<theme>-tile-lightblue.webp` | dusty slate-blue evening gradient, soft clouds ok |
+  | pink | `<theme>-tile-pink.webp` | magenta neon glow on dark base, dusk gradient |
+  | orange | `<theme>-tile-orange.webp` | burnt-orange sunset / desert dusk gradient |
+  | red | `<theme>-tile-red.webp` | dark red brick wall, subtle mortar lines |
+  | yellow | `<theme>-tile-yellow.webp` | golden sand dunes, shaded (not bleached) |
+  | green | `<theme>-tile-green.webp` | dark turf / grass texture |
+  | blue | `<theme>-tile-blue.webp` | deep navy night gradient, faint stars ok |
+
+  Example: generate `tile-brown.webp` … `tile-blue.webp` once, copy to
+  `grandprix-tile-brown.webp`, `city-tile-brown.webp`, etc.
+- **512 × 512 px square** (min 256). Displayed tiny (~80–180 px), so bold
+  simple texture beats fine detail. WebP ~80, each under ~80 KB.
+- Medium-dark overall with darker edges (vignette) so white chips pop.
+- **No text, numbers, bands, logos, or signs** — the app draws the exact
+  HTML color band across the top plus all names/prices/chips, so keep the
+  top edge and the middle calm.
+- Railroads, utilities, tax, Chance and Chest keep HTML styling — no art
+  needed for them.
+
+  Copy-paste generator brief per file:
+
+  ```text
+  Square 512x512 game tile background, <DIRECTION FROM TABLE>.
+  Flat subtle texture, medium-dark with darker vignette edges.
+  Absolutely no text, numbers, letters, logos, signs, people, or animals.
+  Top edge kept plain and calm (a color band overlays there).
+  Center kept calm for overlaid game chips.
+  ```
 
 ## Style + acceptance
 

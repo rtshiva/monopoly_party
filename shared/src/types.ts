@@ -44,6 +44,10 @@ export interface LogEntry { id: string; text: string; at: number; tone?: 'info' 
 
 export type RoomStatus = 'lobby' | 'playing' | 'paused' | 'finished';
 
+/** TV board skins. Old saves holding retired ids are migrated to grandprix on load. */
+export const BOARD_STYLES = ['grandprix', 'city', 'coastal', 'mountain'] as const;
+export type BoardStyle = (typeof BOARD_STYLES)[number];
+
 export interface TradeOffer {
   id: string;
   fromId: string;
@@ -84,7 +88,7 @@ export interface RoomState {
   auctionQueue: number[]; // bank-owned deeds waiting for auction (bankruptcies)
   lastActivity: number; // ms timestamp of last state change (expiry + persistence)
   pausedAt: number | null; // when the current pause began (to shift auction clocks on resume)
-  boardStyle: 'maze' | 'circuit'; // TV board skin, picked by the host
+  boardStyle: BoardStyle; // TV board skin, picked by the host
   log: LogEntry[];
   winnerId: string | null;
   turnCount: number;

@@ -5,6 +5,8 @@ import { fileURLToPath } from 'url';
 import cors from 'cors';
 import { Server } from 'socket.io';
 import { rooms, setIo } from './store.js';
+import { BOARD_STYLES } from '@monopoly/shared';
+import type { BoardStyle } from '@monopoly/shared';
 import { armTurnTimer, clearAuctionTimer, clearTurnTimer, openNextQueuedAuction } from './helpers.js';
 import { loadRooms, saveRooms } from './persist.js';
 import { registerLobbyHandlers } from './handlers/lobby.js';
@@ -50,7 +52,8 @@ for (const room of loadRooms()) {
   room.buildings ??= {};
   room.auctionQueue ??= [];
   room.lastActivity ??= Date.now();
-  room.boardStyle ??= 'maze';
+  // Retired skins (maze/circuit) migrate forward; unknown values reset.
+  if (!BOARD_STYLES.includes(room.boardStyle as BoardStyle)) room.boardStyle = 'grandprix';
   // Normalize pre-card-era offers so old snapshots can't NaN the swap math.
   for (const t of room.trades) {
     t.giveCards ??= 0;

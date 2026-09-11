@@ -1,6 +1,6 @@
 import type { Socket } from 'socket.io';
-import { MAX_PLAYERS, START_CASH } from '@monopoly/shared';
-import type { Player, RoomState } from '@monopoly/shared';
+import { BOARD_STYLES, MAX_PLAYERS, START_CASH } from '@monopoly/shared';
+import type { BoardStyle, Player, RoomState } from '@monopoly/shared';
 import { dropControl, rooms, uid, type SessionData } from '../store.js';
 import { armTurnTimer, clearAuctionTimer, clearControllerSocket, cleanToken, clearTurnTimer, controllerSocketOf, current, emit, evictPreviousController, genPin, issueControl, log, makeCode, removeSeat, requireControl, scheduleAuctionResolve, setControllerSocket } from '../helpers.js';
 
@@ -24,7 +24,7 @@ export function registerLobbyHandlers(socket: Socket) {
     };
     const room: RoomState = {
       code, status: 'lobby', players: [player], turnIndex: 0,
-      dice: [1, 1], lastRoll: null, lastCard: null, pendingBuy: null, trades: [], auction: null, buildings: {}, turnDeadline: null, auctionQueue: [], lastActivity: Date.now(), pausedAt: null, boardStyle: 'maze', log: [], winnerId: null, turnCount: 0,
+      dice: [1, 1], lastRoll: null, lastCard: null, pendingBuy: null, trades: [], auction: null, buildings: {}, turnDeadline: null, auctionQueue: [], lastActivity: Date.now(), pausedAt: null, boardStyle: 'grandprix', log: [], winnerId: null, turnCount: 0,
     };
     const controlKey = issueControl(code, player.id);
     log(room, `🎉 Room ${code} created by ${player.name}`);
@@ -232,9 +232,9 @@ export function registerLobbyHandlers(socket: Socket) {
     const me = requireControl(room, playerId, key);
     if (!me) return cb?.({ ok: false, error: 'NO_CONTROL' });
     if (!me.isHost) return cb?.({ ok: false, error: 'NOT_HOST' });
-    if (style !== 'maze' && style !== 'circuit') return cb?.({ ok: false, error: 'BAD_STYLE' });
-    room.boardStyle = style;
-    log(room, `🎨 ${me.name} (host) switched the board to ${style === 'circuit' ? 'Grand Prix circuit' : 'maze'}`, 'info');
+    if (!BOARD_STYLES.includes(style as BoardStyle)) return cb?.({ ok: false, error: 'BAD_STYLE' });
+    room.boardStyle = style as BoardStyle;
+    log(room, `🎨 ${me.name} (host) switched the board to ${style}`, 'info');
     cb?.({ ok: true });
     emit(room);
   });

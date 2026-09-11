@@ -5,8 +5,8 @@ import { motion } from 'framer-motion';
 import type { Socket } from 'socket.io-client';
 import { emitWithAck, freshSocket } from '../socket';
 import { loadControl, saveControl, useGame } from '../store';
-import { MazeBoard } from '../components/MazeBoard';
-import { CircuitBoard } from '../components/CircuitBoard';
+import { ThemedBoard } from '../components/ThemedBoard';
+import { BOARD_THEMES, type BoardTheme } from '../components/boardThemes';
 import { ClaimPanel } from '../components/ClaimPanel';
 import { ConnPill } from '../components/ConnPill';
 import { BOARD, TOKENS } from '@monopoly/shared';
@@ -98,13 +98,14 @@ export function HostScreen() {
       {amHost && (
         <div className="glass mt-3 flex items-center gap-2 rounded-2xl p-3">
           <span className="font-bold">🎨 Board</span>
-          {(['maze', 'circuit'] as const).map((s) => (
+          {(Object.values(BOARD_THEMES) as BoardTheme[]).map((t) => (
             <button
-              key={s}
-              onClick={() => hostAction('setBoardStyle', { style: s })}
-              className={`rounded-xl px-3 py-2 text-sm font-bold ${room.boardStyle === s ? 'bg-amber-300 text-black' : 'bg-white/10'}`}
+              key={t.id}
+              onClick={() => hostAction('setBoardStyle', { style: t.id })}
+              title={t.name}
+              className={`rounded-xl px-3 py-2 text-sm font-bold ${room.boardStyle === t.id ? 'bg-amber-300 text-black' : 'bg-white/10'}`}
             >
-              {s === 'maze' ? '🌀 Maze' : '🏁 Circuit'}
+              {t.icon} {t.short}
             </button>
           ))}
           <span className="text-xs text-white/50">Switches live on every screen.</span>
@@ -171,7 +172,7 @@ export function HostScreen() {
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_320px]">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-          {room.boardStyle === 'circuit' ? <CircuitBoard room={room} /> : <MazeBoard room={room} />}
+          <ThemedBoard room={room} />
         </motion.div>
         <div className="flex flex-col gap-3">
           <div className="glass rounded-2xl p-4">

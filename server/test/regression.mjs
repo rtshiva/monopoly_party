@@ -65,6 +65,10 @@ try {
   let snapDiag = '';
   try { snapDiag = `dir=[${fs.readdirSync(path.dirname(ROOMS_FILE)).join(',')}]`; } catch (e) { snapDiag = `readdir fail: ${e.message}`; }
   check('snapshot written', fs.existsSync(ROOMS_FILE), `${ROOMS_FILE} ${snapDiag}`);
+  const cHot = await emit(s1, 'createRoom', { playerName: 'Host', token: 'car', deviceLabel: 'Suite-A', style: 'city' });
+  check('createRoom with style', cHot.ok === true && cHot.room.boardStyle === 'city');
+  const cBad = await emit(s1, 'createRoom', { playerName: 'Host', token: 'car', deviceLabel: 'Suite-A', style: 'nope' });
+  check('bad style falls back', cBad.ok === true && cBad.room.boardStyle === 'grandprix');
   const j = await emit(s2, 'joinRoom', { code, playerName: 'Anu', token: 'dog', deviceLabel: 'Suite-B' });
   check('joinRoom', j.ok === true && !!j.controlKey);
   const idB = j.playerId; const keyB = j.controlKey;

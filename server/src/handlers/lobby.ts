@@ -10,11 +10,12 @@ function cleanLabel(v: unknown): string {
 }
 
 export function registerLobbyHandlers(socket: Socket) {
-  socket.on('createRoom', ({ playerName, token, deviceLabel }: {
-    playerName: string; token: Player['token']; deviceLabel?: unknown;
+  socket.on('createRoom', ({ playerName, token, deviceLabel, style }: {
+    playerName: string; token: Player['token']; deviceLabel?: unknown; style?: unknown;
   }, cb) => {
     const code = makeCode();
     const label = cleanLabel(deviceLabel);
+    const boardStyle = BOARD_STYLES.includes(style as BoardStyle) ? (style as BoardStyle) : 'grandprix';
     const player: Player = {
       id: uid('p'), name: (playerName || 'Host').slice(0, 16), token: cleanToken(token, 'car'),
       cash: START_CASH, position: 0, properties: [], mortgaged: [],
@@ -24,7 +25,7 @@ export function registerLobbyHandlers(socket: Socket) {
     };
     const room: RoomState = {
       code, status: 'lobby', players: [player], turnIndex: 0,
-      dice: [1, 1], lastRoll: null, lastCard: null, pendingBuy: null, trades: [], auction: null, buildings: {}, turnDeadline: null, auctionQueue: [], lastActivity: Date.now(), pausedAt: null, boardStyle: 'grandprix', log: [], winnerId: null, turnCount: 0,
+      dice: [1, 1], lastRoll: null, lastCard: null, pendingBuy: null, trades: [], auction: null, buildings: {}, turnDeadline: null, auctionQueue: [], lastActivity: Date.now(), pausedAt: null, boardStyle, log: [], winnerId: null, turnCount: 0,
     };
     const controlKey = issueControl(code, player.id);
     log(room, `🎉 Room ${code} created by ${player.name}`);

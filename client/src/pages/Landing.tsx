@@ -4,8 +4,9 @@ import { motion } from 'framer-motion';
 import { emitWithAck } from '../socket';
 import { saveControl, useGame } from '../store';
 import { ClaimPanel, type ClaimEmit } from '../components/ClaimPanel';
-import type { RoomState, TokenKind } from '@monopoly/shared';
-import { TOKENS } from '@monopoly/shared';
+import type { BoardStyle, RoomState, TokenKind } from '@monopoly/shared';
+import { BOARD_STYLES, TOKENS } from '@monopoly/shared';
+import { BOARD_THEMES } from '../components/boardThemes';
 
 const tokenList = Object.keys(TOKENS) as TokenKind[];
 
@@ -27,6 +28,7 @@ export function Landing() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [tables, setTables] = useState<OpenRoom[]>([]);
+  const [boardTheme, setBoardTheme] = useState<BoardStyle>('grandprix');
   const [expanded, setExpanded] = useState<string | null>(null);
   const [roomCache, setRoomCache] = useState<Record<string, RoomState>>({});
 
@@ -89,7 +91,7 @@ export function Landing() {
     setBusy(true); setErr('');
     try {
       const res = await emitWithAck<{ ok: boolean; code: string; playerId: string; controlKey: string; room: never }>(
-        'createRoom', { playerName: name || 'Host', token, deviceLabel });
+        'createRoom', { playerName: name || 'Host', token, deviceLabel, style: boardTheme });
       if (res?.ok) {
         localStorage.setItem('monopoly.pid', res.playerId);
         localStorage.setItem('monopoly.code', res.code);
@@ -206,6 +208,15 @@ export function Landing() {
         <div className="glass rounded-3xl p-6">
           <h2 className="font-display text-xl font-bold">📺 Host on this screen</h2>
           <p className="mt-1 text-sm text-white/60">Use a laptop / TV browser. You'll get a QR for phones.</p>
+          <div className="mt-3 text-sm">Board theme
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {BOARD_STYLES.map((s) => (
+                <button key={s} type="button" onClick={() => setBoardTheme(s)}
+                  className={`rounded-xl border px-2 py-2 text-sm font-bold ${boardTheme === s ? 'border-amber-300 bg-amber-300/20' : 'border-white/10 bg-white/5'}`}>
+                  {BOARD_THEMES[s].icon} {BOARD_THEMES[s].short}</button>
+              ))}
+            </div>
+          </div>
           <button disabled={busy} onClick={host}
             className="btn-gold mt-5 w-full rounded-2xl px-4 py-4 text-lg disabled:opacity-50">{busy ? 'Creating…' : 'Create room + show board'}</button>
         </div>

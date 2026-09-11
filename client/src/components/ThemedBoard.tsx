@@ -40,6 +40,8 @@ function TileFace({ i, room, theme, overlay }: { i: number; room: RoomState; the
   if (overlay) {
     return (
       <>
+        {/* Option B: color bands are always HTML (exact colors/geometry, no AI drift) */}
+        {color && <div className="mb-[1px] h-[5px] rounded-sm" style={{ background: color }} />}
         <div className="truncate rounded bg-black/55 px-1 text-[10px] font-bold text-white lg:text-[11px]">{t.name}</div>
         <div className="mt-[1px] inline-block rounded bg-black/55 px-1 text-[10px] text-amber-200">{sub}</div>
         {level > 0 && <div>{level === 5 ? '🏨' : '🏠'.repeat(Math.min(level, 4))}</div>}

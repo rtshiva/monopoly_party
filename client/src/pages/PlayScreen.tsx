@@ -5,6 +5,7 @@ import type { Socket } from 'socket.io-client';
 import { freshSocket } from '../socket';
 import { mePlayer, loadControl, useGame } from '../store';
 import { SwitchTab } from '../components/SwitchTab';
+import { DicePair } from '../components/DiceFace';
 import { ConnPill } from '../components/ConnPill';
 import { TradeTab } from '../components/TradeTab';
 import { TurnCountdown } from '../components/TurnCountdown';
@@ -140,7 +141,20 @@ export function PlayScreen() {
       </AnimatePresence>
 
       {room.lastRoll && <div className="mt-2 text-center text-sm text-amber-200">🎲 {room.lastRoll}</div>}
-      <div className="mt-1 text-center text-4xl">🎲 {room.dice[0]} · 🎲 {room.dice[1]}</div>
+      <div className="mt-2 flex justify-center"><DicePair d1={room.dice[0]} d2={room.dice[1]} rollKey={room.lastRoll} size={48} /></div>
+      <AnimatePresence>
+        {room.lastCard && (
+          <motion.div
+            key={room.lastCard.at}
+            initial={{ rotateY: 90, opacity: 0 }}
+            animate={{ rotateY: 0, opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="mx-auto mt-2 max-w-xs rounded-2xl border border-amber-300/50 bg-amber-300/10 px-3 py-2 text-center text-sm text-amber-100"
+          >
+            {room.lastCard.kind === 'chance' ? '🃏' : '🎁'} {room.lastCard.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* actions */}
       {room.status === 'playing' && !me.bankrupt && (

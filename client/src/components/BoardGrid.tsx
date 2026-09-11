@@ -1,5 +1,7 @@
 import { BOARD, COLOR_HEX, TOKENS } from '@monopoly/shared';
 import type { RoomState } from '@monopoly/shared';
+import { AnimatePresence, motion } from 'framer-motion';
+import { DicePair } from './DiceFace';
 import { TurnCountdown } from './TurnCountdown';
 
 // 11x11 grid positions for 40 tiles, index 0 = GO bottom-right, going clockwise
@@ -71,11 +73,24 @@ export function BoardGrid({ room }: { room: RoomState }) {
           <div className="mt-1 text-sm text-white/70">
             Room <span className="font-mono font-extrabold text-white">{room.code}</span> · Turn {room.turnCount} · {room.players.length} players
           </div>
-          <div className="mt-3 flex items-center gap-3 text-5xl">
-            <span>🎲 {room.dice[0]}</span>
-            <span>🎲 {room.dice[1]}</span>
+          <div className="mt-3">
+            <DicePair d1={room.dice[0]} d2={room.dice[1]} rollKey={room.lastRoll} size={52} />
           </div>
           {room.lastRoll && <div className="mt-2 text-sm text-amber-200">{room.lastRoll}</div>}
+          <AnimatePresence>
+            {room.lastCard && (
+              <motion.div
+                key={room.lastCard.at}
+                initial={{ rotateY: 90, opacity: 0, y: 8 }}
+                animate={{ rotateY: 0, opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 200, damping: 18 }}
+                className="mt-2 max-w-full rounded-xl border border-amber-300/50 bg-amber-300/10 px-3 py-1.5 text-xs text-amber-100"
+              >
+                {room.lastCard.kind === 'chance' ? '🃏' : '🎁'} {room.lastCard.text}
+              </motion.div>
+            )}
+          </AnimatePresence>
           {room.status === 'playing' && (
             <div className="mt-2 rounded-full bg-white/10 px-4 py-1 text-sm">
               👉 {room.players[room.turnIndex % room.players.length]?.name}'s turn

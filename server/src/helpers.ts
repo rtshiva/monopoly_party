@@ -140,6 +140,7 @@ export function doRoll(room: RoomState, me: Player): 'rolled' | 'jailed' | 'adva
   // (no extra roll granted for the escape itself).
   let d1 = rollD6(); let d2 = rollD6();
   room.dice = [d1, d2];
+  room.lastCard = null; // a new roll dismisses the previous card flip
   let justReleased = false;
   if (me.inJail) {
     if (d1 === d2) {
@@ -214,9 +215,11 @@ export function doRoll(room: RoomState, me: Player): 'rolled' | 'jailed' | 'adva
     log(room, `🚔 ${me.name} → JAIL`, 'bad');
   } else if (tile.kind === 'chance') {
     const msg = drawChance(room, me.id); me.hasRolled = true;
+    room.lastCard = { kind: 'chance', text: msg, at: Date.now() };
     log(room, `🃏 ${msg}`, 'info');
   } else if (tile.kind === 'chest') {
     const msg = drawChest(room, me.id); me.hasRolled = true;
+    room.lastCard = { kind: 'chest', text: msg, at: Date.now() };
     log(room, `🎁 ${msg}`, 'info');
   } else {
     me.hasRolled = true;

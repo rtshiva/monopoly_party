@@ -78,6 +78,7 @@ try {
   check('startGame by host', (await emit(s1, 'startGame', { code, playerId: idA, key: keyA })).ok === true);
   await sleep(300);
   check('deadline armed', typeof room.turnDeadline === 'number' && room.turnDeadline > Date.now());
+  check('lastCard starts null', room.lastCard == null);
   const listed2 = await emit(s2, 'listRooms', {});
   check('listRooms shows live game', listed2.ok === true && listed2.rooms.some((r) => r.code === code && r.status === 'playing'));
   check('seat PINs + labels visible (TV transparency)', room.players.every((p) => /^\d{4}$/.test(p.seatPin) && !!p.controllerLabel));
@@ -128,12 +129,16 @@ try {
     me: { id: 't', name: 'T', cash: 1500, position: 20, properties: [], mortgaged: [], inJail: true, jailTurns: 0, jailCards: 0, doubles: 0, bankrupt: false, hasRolled: false },
   });
   let escaped = false, escapeClean = false, waited = false;
-  for (let i = 0; i < 200 && !escaped; i++) {
+  for (let i = 0; i < 300 && !(escaped && waited); i++) {
     const { room: jr, me: jm } = mkJail();
     jr.players.push(jm);
     const r = doRoll(jr, jm);
     if (r === 'jailed' && jm.hasRolled) waited = true;
-    if (!jm.inJail && r === 'rolled') { escaped = true; escapeClean = jm.hasRolled === true; }
+    // A doubles release must move AND grant no extra roll (hasRolled stays true).
+    if (!jm.inJail && r === 'rolled' && jr.dice[0] === jr.dice[1]) {
+      escaped = true;
+      escapeClean = jm.hasRolled === true && jm.doubles === 1;
+    }
   }
   check('doubles escape jail', escaped);
   check('escape grants no extra roll', escapeClean);

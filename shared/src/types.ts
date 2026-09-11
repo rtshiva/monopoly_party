@@ -73,6 +73,7 @@ export interface RoomState {
   turnIndex: number;
   dice: [number, number];
   lastRoll: string | null;
+  lastCard: { kind: 'chance' | 'chest'; text: string; at: number } | null; // most recent card draw (for flip animation)
   pendingBuy: number | null; // tile index current player may buy
   trades: TradeOffer[];
   auction: Auction | null;

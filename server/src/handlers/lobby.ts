@@ -24,7 +24,7 @@ export function registerLobbyHandlers(socket: Socket) {
     };
     const room: RoomState = {
       code, status: 'lobby', players: [player], turnIndex: 0,
-      dice: [1, 1], lastRoll: null, pendingBuy: null, trades: [], auction: null, buildings: {}, turnDeadline: null, auctionQueue: [], lastActivity: Date.now(), pausedAt: null, log: [], winnerId: null, turnCount: 0,
+      dice: [1, 1], lastRoll: null, lastCard: null, pendingBuy: null, trades: [], auction: null, buildings: {}, turnDeadline: null, auctionQueue: [], lastActivity: Date.now(), pausedAt: null, log: [], winnerId: null, turnCount: 0,
     };
     const controlKey = issueControl(code, player.id);
     setControllerSocket(code, player.id, socket.id);
@@ -158,7 +158,7 @@ export function registerLobbyHandlers(socket: Socket) {
       p.inJail = false; p.jailTurns = 0; p.jailCards = 0; p.bankrupt = false; p.hasRolled = false;
     });
     room.status = 'playing'; room.turnIndex = 0; room.turnCount = 1;
-    room.dice = [1, 1]; room.lastRoll = null; room.pendingBuy = null; room.winnerId = null;
+    room.dice = [1, 1]; room.lastRoll = null; room.lastCard = null; room.pendingBuy = null; room.winnerId = null;
     room.trades = [];
     clearAuctionTimer(code);
     room.auction = null;

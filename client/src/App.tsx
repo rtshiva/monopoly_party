@@ -4,9 +4,14 @@ import { Landing } from './pages/Landing';
 import { HostScreen } from './pages/HostScreen';
 import { PlayScreen } from './pages/PlayScreen';
 import { BoardTest } from './pages/BoardTest';
+import { useGame } from './store';
 
 export function App() {
   const [swUpdate, setSwUpdate] = useState(false);
+  const room = useGame((s) => s.room);
+  // During active play the TV is all board: hide the site nav on host routes.
+  const onHostRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/host/');
+  const hideNav = onHostRoute && (room?.status === 'playing' || room?.status === 'paused');
   useEffect(() => {
     const onUpdate = () => setSwUpdate(true);
     window.addEventListener('sw-updated', onUpdate);
@@ -14,10 +19,12 @@ export function App() {
   }, []);
   return (
     <BrowserRouter>
-      <nav className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
-        <Link to="/" className="font-display font-bold">🎲 Monopoly Party</Link>
-        <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/60">TV + phones · no install</span>
-      </nav>
+      {!hideNav && (
+        <nav className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
+          <Link to="/" className="font-display font-bold">🎲 Monopoly Party</Link>
+          <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/60">TV + phones · no install</span>
+        </nav>
+      )}
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/host/:code" element={<HostScreen />} />

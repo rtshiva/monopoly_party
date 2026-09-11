@@ -19,6 +19,9 @@ export function HostScreen() {
   const upCode = code.toUpperCase();
   const [pid, setPid] = useState(() => sp.get('pid') || localStorage.getItem('monopoly.pid') || '');
   const [sockState, setSockState] = useState<Socket | null>(null);
+  // Chrome (header, pickers, host buttons, invite) auto-hides once play
+  // starts so the TV is all board; the floating button brings it back.
+  const [chromeHidden, setChromeHidden] = useState(false);
 
   const joinURL = useMemo(() => {
     // Phones need a reachable host. Preserve protocol + current port so the QR
@@ -28,6 +31,10 @@ export function HostScreen() {
     const base = port ? `${protocol}//${hostname}:${port}` : `${protocol}//${hostname}`;
     return `${base}/play/${upCode}`;
   }, [upCode]);
+
+  useEffect(() => {
+    if (room?.status === 'playing') setChromeHidden(true);
+  }, [room?.status]);
 
   useEffect(() => {
     const s = freshSocket();
@@ -54,6 +61,8 @@ export function HostScreen() {
   const sorted = [...room.players].sort((a, b) => b.cash - a.cash);
   const hostSeat = room.players.find((p) => p.isHost);
   const amHost = !!hostSeat && hostSeat.id === pid;
+  const activePlay = room.status === 'playing' || room.status === 'paused';
+  const hideChrome = chromeHidden && activePlay;
   // Shown when this browser doesn't hold the host key (fresh window, or the
   // key moved elsewhere). The board itself always works — only the buttons
   // below need the key.
@@ -77,13 +86,15 @@ export function HostScreen() {
 
   return (
     <div className="mx-auto max-w-7xl px-3 py-4 lg:px-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="font-display text-xl font-bold">🎲 MONOPOLY PARTY <span className="ml-2 rounded-lg bg-amber-300 px-2 py-1 font-mono text-black">{room.code}</span></div>
-        <button onClick={() => navigator.clipboard?.writeText(joinURL)} className="rounded-xl bg-white/10 px-3 py-2 text-sm hover:bg-white/20">📋 Copy invite link</button>
-        <div className="ml-auto text-sm text-white/60">{room.status === 'lobby' ? '🟡 Lobby — waiting for players' : room.status === 'playing' ? '🟢 Playing' : room.status === 'paused' ? '⏸ Paused' : '🏁 Finished'}</div>
-      </div>
+      {!hideChrome && (
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="font-display text-xl font-bold">🎲 MONOPOLY PARTY <span className="ml-2 rounded-lg bg-amber-300 px-2 py-1 font-mono text-black">{room.code}</span></div>
+          <button onClick={() => navigator.clipboard?.writeText(joinURL)} className="rounded-xl bg-white/10 px-3 py-2 text-sm hover:bg-white/20">📋 Copy invite link</button>
+          <div className="ml-auto text-sm text-white/60">{room.status === 'lobby' ? '🟡 Lobby — waiting for players' : room.status === 'playing' ? '🟢 Playing' : room.status === 'paused' ? '⏸ Paused' : '🏁 Finished'}</div>
+        </div>
+      )}
 
-      {amHost && (room.status === 'playing' || room.status === 'paused') && (
+      {amHost && (room.status === 'playing' || room.status === 'paused') && !hideChrome && (
         <div className="glass mt-3 flex items-center gap-3 rounded-2xl p-3">
           <span className="font-bold">🔧 Host</span>
           {room.status === 'playing' ? (
@@ -95,7 +106,7 @@ export function HostScreen() {
         </div>
       )}
 
-      {amHost && (
+      {amHost && !hideChrome && (
         <div className="glass mt-3 flex items-center gap-2 rounded-2xl p-3">
           <span className="font-bold">🎨 Board</span>
           {(Object.values(BOARD_THEMES) as BoardTheme[]).map((t) => (
@@ -194,7 +205,7 @@ export function HostScreen() {
               ))}
             </div>
           </div>
-          {(room.status === 'playing' || room.status === 'paused') && (
+          {(room.status === 'playing' || room.status === 'paused') && !hideChrome && (
             <div className="glass rounded-2xl p-4 text-center">
               <div className="font-display text-sm font-bold">📱 Join / reclaim a seat</div>
               <div className="mx-auto mt-2 w-fit rounded-xl bg-white p-2"><QRCodeSVG value={joinURL} size={90} /></div>
@@ -212,6 +223,15 @@ export function HostScreen() {
           </div>
         </div>
       </div>
+      {activePlay && (
+        <button
+          onClick={() => setChromeHidden((v) => !v)}
+          title={chromeHidden ? 'Show header and host controls' : 'Hide header and host controls'}
+          className="fixed bottom-4 right-4 z-50 rounded-full bg-white/10 px-4 py-2 text-sm backdrop-blur hover:bg-white/20"
+        >
+          {chromeHidden ? '🎛️ Show controls' : '🎛️ Hide'}
+        </button>
+      )}
     </div>
   );
 }

@@ -17,7 +17,7 @@ export interface BoardSkin {
 const FULL_BLEED: BoardGridCal = { x: 0, y: 0, w: 1, h: 1 };
 
 export const BOARD_SKINS: Record<BoardStyle, BoardSkin> = {
-  grandprix: { grid: { ...FULL_BLEED } },
+  grandprix: { image: '/themes/grandprix.png', grid: { ...FULL_BLEED } },
   city: { grid: { ...FULL_BLEED } },
   coastal: { grid: { ...FULL_BLEED } },
   mountain: { grid: { ...FULL_BLEED } },

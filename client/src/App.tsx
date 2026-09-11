@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { Landing } from './pages/Landing';
 import { HostScreen } from './pages/HostScreen';
 import { PlayScreen } from './pages/PlayScreen';
+import { BoardTest } from './pages/BoardTest';
 
 export function App() {
   const [swUpdate, setSwUpdate] = useState(false);
@@ -21,6 +22,7 @@ export function App() {
         <Route path="/" element={<Landing />} />
         <Route path="/host/:code" element={<HostScreen />} />
         <Route path="/play/:code" element={<PlayScreen />} />
+        <Route path="/board-test/:style" element={<BoardTest />} />
         <Route path="*" element={<div className="p-10 text-center">Not found — <Link className="underline" to="/">home</Link></div>} />
       </Routes>
       <footer className="pb-8 text-center text-xs text-white/40">Rooms live in server memory · refresh keeps your seat via saved player id</footer>

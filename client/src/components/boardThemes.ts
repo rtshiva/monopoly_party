@@ -36,6 +36,8 @@ export const BOARD_THEMES: Record<BoardStyle, BoardTheme> = {
     id: 'grandprix', name: 'Grand Prix Circuit', short: 'Grand', icon: '🏁',
     tagline: 'SAME GAME. A FASTER JOURNEY.',
     boardBg: '#ece1c9', tileBg: '#fffdf4', ink: '#1e293b', subInk: '#64748b',
+    artImage: '/themes/grandprix-center.png',
+    cornerSheet: '/themes/grandprix-corners.png',
   },
   city: {
     id: 'city', name: 'City Street Circuit', short: 'City', icon: '🌆',

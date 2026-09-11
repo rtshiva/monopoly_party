@@ -1,0 +1,14 @@
+{
+  "name": "Monopoly Party — TV Board + Phone Controllers",
+  "short_name": "Monopoly Party",
+  "description": "Shared TV board, phones as controllers. Roll, buy, trade, auction, build.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0B1020",
+  "theme_color": "#0B1020",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

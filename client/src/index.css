@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+:root { color-scheme: dark; }
+html, body, #root { min-height: 100%; }
+body {
+  background: radial-gradient(1200px 600px at 20% -10%, #1e2a5a 0%, transparent 60%),
+    radial-gradient(1000px 500px at 90% 10%, #4c1d95 0%, transparent 55%),
+    #0b1020;
+  color: #eef2ff;
+  font-family: Inter, system-ui, sans-serif;
+}
+.font-display { font-family: "Space Grotesk", Inter, sans-serif; }
+.glass { background: rgba(255,255,255,.06); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.12); }
+.btn-gold { background: linear-gradient(135deg,#fde68a,#f5c518 55%,#b45309); color:#1a1005; font-weight:800; }
+.board-cell { font-size: 10px; line-height: 1.1; }
+@media (min-width: 1024px){ .board-cell{ font-size: 11px; } }

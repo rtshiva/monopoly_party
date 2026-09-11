@@ -114,10 +114,11 @@ export function Landing() {
 
   async function doJoin(roomCode: string) {
     if (!roomCode) { setErr('Enter a room code'); return; }
+    if (!name.trim()) { setErr('Enter your name above first — no anonymous Players!'); return; }
     setBusy(true); setErr('');
     try {
       const res = await emitWithAck<{ ok: boolean; error?: string; code: string; playerId: string; controlKey: string; room: never }>(
-        'joinRoom', { code: roomCode.toUpperCase().trim(), playerName: name || 'Player', token, deviceLabel });
+        'joinRoom', { code: roomCode.toUpperCase().trim(), playerName: name.trim(), token, deviceLabel });
       if (res?.ok) {
         localStorage.setItem('monopoly.pid', res.playerId);
         localStorage.setItem('monopoly.code', res.code);
@@ -189,7 +190,7 @@ export function Landing() {
 
         <div className="glass rounded-3xl p-6">
           <h2 className="font-display text-xl font-bold">📱 Join from phone</h2>
-          <p className="mt-1 text-sm text-white/60">Enter the 6-letter code shown on the TV. You'll join as <b>{name || 'Player'}</b> {TOKENS[token]}.</p>
+          <p className="mt-1 text-sm text-white/60">Enter the 6-letter code shown on the TV. {name.trim() ? <>You'll join as <b>{name.trim()}</b> {TOKENS[token]}.</> : <>Set your name above first.</>}</p>
           <form onSubmit={join}>
             <label className="mt-4 block text-sm">Room code
               <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} placeholder="K7Q2XD" maxLength={6}
@@ -206,7 +207,7 @@ export function Landing() {
       {(lastGame || waiting.length > 0 || live.length > 0) && (
         <div className="glass mt-4 rounded-3xl p-6">
           <h2 className="font-display text-xl font-bold">🎪 Open tables <span className="text-sm font-normal text-white/50">— no code needed</span></h2>
-          <div className="mt-1 text-xs text-white/50">Join takes a fresh seat as <b>{name || 'Player'}</b> {TOKENS[token]} (set above) · <b>Login ›</b> signs in as an existing seat with its TV PIN — same device or another browser.</div>
+          <div className="mt-1 text-xs text-white/50">Join takes a fresh seat{name.trim() ? <> as <b>{name.trim()}</b> {TOKENS[token]}</> : ' (set your name above first)'} · <b>Login ›</b> signs in as an existing seat with its TV PIN — same device or another browser.</div>
           {lastGame && (
             <button disabled={busy} onClick={() => nav(`/play/${lastGame.code}?pid=${lastGame.pid}`)}
               className="btn-gold mt-3 w-full rounded-2xl px-4 py-3 disabled:opacity-50">↩️ Rejoin last game ({lastGame.code})</button>

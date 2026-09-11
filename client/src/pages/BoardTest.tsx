@@ -4,7 +4,7 @@ import { BOARD } from '@monopoly/shared';
 import type { BoardStyle, Player, RoomState } from '@monopoly/shared';
 import { ThemedBoard } from '../components/ThemedBoard';
 
-const STYLES: BoardStyle[] = ['grandprix', 'city', 'coastal', 'mountain'];
+const STYLES: BoardStyle[] = ['grandprix', 'city', 'coastal', 'mountain', 'dinosaur', 'space'];
 const TOKEN_ORDER: Player['token'][] = ['car', 'dog', 'hat', 'ship'];
 
 /**

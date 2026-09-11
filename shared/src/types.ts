@@ -45,7 +45,7 @@ export interface LogEntry { id: string; text: string; at: number; tone?: 'info' 
 export type RoomStatus = 'lobby' | 'playing' | 'paused' | 'finished';
 
 /** TV board skins. Old saves holding retired ids are migrated to grandprix on load. */
-export const BOARD_STYLES = ['grandprix', 'city', 'coastal', 'mountain'] as const;
+export const BOARD_STYLES = ['grandprix', 'city', 'coastal', 'mountain', 'dinosaur', 'space'] as const;
 export type BoardStyle = (typeof BOARD_STYLES)[number];
 
 export interface TradeOffer {

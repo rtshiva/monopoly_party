@@ -1,6 +1,6 @@
 import { BOARD, COLOR_HEX, TOKENS, tileCell } from '@monopoly/shared';
 import type { RoomState } from '@monopoly/shared';
-import { BOARD_THEMES, type BoardTheme } from './boardThemes';
+import { BOARD_THEMES, type BoardTheme, type TileArtKey } from './boardThemes';
 import { ThemeArt, TitleBadge } from './ThemeArt';
 import { StageBar } from './StageBar';
 
@@ -25,16 +25,8 @@ const KIND_LABEL: Record<string, string> = {
   chance: 'Chance ?', chest: 'Chest', jail: 'Just Visiting', parking: 'Free Parking', gotojail: 'Go To Jail',
 };
 
-/** Which quadrant of the corner sheet belongs in each corner cell. */
-const CORNER_QUADRANT: Record<'go' | 'jail' | 'parking' | 'gotojail', string> = {
-  go: '0% 0%',
-  jail: '100% 0%',
-  parking: '100% 100%',
-  gotojail: '0% 100%',
-};
-
 /** Shared tile content. Card mode paints the light tile; art mode paints dark
- *  chips readable over generated corner backgrounds. */
+ *  chips readable over generated backgrounds. */
 function TileFace({ i, room, theme, onArt }: { i: number; room: RoomState; theme: BoardTheme; onArt: boolean }) {
   const t = BOARD[i];
   const here = room.players.filter((p) => !p.bankrupt && p.position === i);
@@ -117,36 +109,27 @@ export function ThemedBoard({ room }: { room: RoomState }) {
             const isPending = room.pendingBuy === i;
             const isCurrentTurn = room.status === 'playing' && room.players[room.turnIndex % room.players.length]?.position === i;
             const corner = isCornerKind(t.kind) ? CORNER_STYLE[t.kind] : null;
-            const quad = isCornerKind(t.kind) && theme.cornerSheet ? CORNER_QUADRANT[t.kind] : undefined;
-            const artKey = !quad
-              ? t.kind === 'property' && t.color !== 'none'
-                ? t.color
-                : t.kind === 'railroad' || t.kind === 'utility' || t.kind === 'tax' || t.kind === 'chance' || t.kind === 'chest'
-                  ? t.kind
-                  : undefined
-              : undefined;
-            const street = artKey ? theme.tileArt?.[artKey] : undefined;
-            const onArtBg = !!(quad || street);
+            // Every tile kind can carry art: streets by color, everything else by kind.
+            const artKey: TileArtKey | undefined = t.kind === 'property'
+              ? (t.color !== 'none' ? t.color : undefined)
+              : t.kind;
+            const art = artKey ? theme.tileArt?.[artKey] : undefined;
             return (
               <div
                 key={i}
                 style={{
                   gridRow: r + 1,
                   gridColumn: c + 1,
-                  background: onArtBg ? undefined : corner ? corner.bg : theme.tileBg,
+                  background: art ? undefined : corner ? corner.bg : theme.tileBg,
                   color: theme.ink,
-                  ...(quad && theme.cornerSheet
-                    ? { backgroundImage: `url("${theme.cornerSheet}")`, backgroundSize: '200% 200%', backgroundPosition: quad }
-                    : street
-                      ? { backgroundImage: `url("${street}")`, backgroundSize: 'cover', backgroundPosition: 'center' }
-                      : {}),
+                  ...(art ? { backgroundImage: `url("${art}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}),
                 }}
                 className={`relative overflow-hidden rounded-[7px] p-[3px] text-[10px] leading-tight lg:text-[11px] ${isPending ? 'ring-2 ring-amber-500 animate-pulse' : ''} ${isCurrentTurn ? 'ring-2 ring-sky-500' : ''}`}
                 title={t.name}
               >
-                {onArtBg && <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30" />}
+                {art && <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30" />}
                 <div className="relative h-full">
-                  <TileFace i={i} room={room} theme={theme} onArt={onArtBg} />
+                  <TileFace i={i} room={room} theme={theme} onArt={!!art} />
                 </div>
               </div>
             );

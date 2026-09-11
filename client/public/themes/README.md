@@ -1,19 +1,19 @@
 # Board artwork — spec (cells-as-backgrounds)
 
 The board is a uniform 11×11 HTML grid — geometry can never drift. Generated
-art appears only as **cell backgrounds** (one center image + one 4-corner
-sheet per theme). Everything else (edge tiles, text, markers) stays HTML.
+art appears only as **cell backgrounds** (one center image, one image per
+corner, one per street color/special). Everything dynamic (names, prices,
+chips, tokens, houses, markers) stays live HTML.
 
 Drop files in THIS folder (`client/public/themes/`), then set their paths in
-`client/src/components/boardThemes.ts` (`artImage`, `cornerSheet`). Until
-then the built-in SVG scenes show. Recommended order: Grand Prix first.
+`client/src/components/boardThemes.ts` (`artImage`, `tileArt`). Until then
+the built-in SVG scenes and plain colors show.
 
-## Files per theme (2 + 8 street tiles)
+## Files per theme (center + per-tile art)
 
 | Asset  | File                              | Size (px, square) |
 |--------|-----------------------------------|-------------------|
 | Center | `<theme>-center.webp`             | 1600 (min 1024)   |
-| Corners| `<theme>-corners.webp`            | 1024 (min 512)    |
 | brown streets | `<theme>-tile-brown.webp`  | 512 (min 256)     |
 | lightblue streets | `<theme>-tile-lightblue.webp` | 512 (min 256) |
 | pink streets | `<theme>-tile-pink.webp`     | 512 (min 256)     |
@@ -27,12 +27,18 @@ then the built-in SVG scenes show. Recommended order: Grand Prix first.
 | taxes | `<theme>-tile-tax.webp`                 | 512 (min 256)     |
 | chance | `<theme>-tile-chance.webp`              | 512 (min 256)     |
 | chests | `<theme>-tile-chest.webp`               | 512 (min 256)     |
+| GO corner | `<theme>-tile-go.webp`                | 512 (min 256)     |
+| Jail corner | `<theme>-tile-jail.webp`            | 512 (min 256)     |
+| Parking corner | `<theme>-tile-free-parking.webp` | 512 (min 256)     |
+| Go-To-Jail corner | `<theme>-tile-go-to-jail.webp` | 512 (min 256)    |
 
-Example: `coastal-center.webp`, `coastal-corners.webp`, `coastal-tile-brown.webp`.
+Example: `coastal-center.webp`, `coastal-tile-brown.webp`,
+`coastal-tile-go.webp`.
 
-WebP quality ~80; center under ~600 KB, corners sheet under ~300 KB,
-street tiles under ~80 KB each. Any subset works — missing groups fall back
-to the plain tile color, so generate brown + blue first for a quick preview.
+WebP quality ~80; center under ~600 KB, tiles under ~80 KB each. Any subset
+works — missing keys fall back to plain colors, so generate brown + blue
+first for a quick preview. Corner sheets are retired: corners are ordinary
+per-corner tile files now (no quadrant cropping, nothing to misalign).
 
 ## Center image
 
@@ -45,21 +51,20 @@ any kind**: the red title badge renders as HTML on top.
 Displayed up to ~900 px + retina, hence 1600 px. `object-fit: cover` into a
 square panel; keep 5% bleed free of anything critical.
 
-## Corners sheet (the quadrant contract)
+## Corner tiles (ordinary files, one per corner)
 
-One square image, four vignettes in a **2×2 collage** — the app crops each
-quadrant into its corner cell with pure CSS (`background-size: 200%`), so
-one file can never misalign:
+Corners are plain per-corner images — same mechanism as street tiles, no
+cropping or quadrants involved (the old 2×2 sheet system is retired):
 
-| Quadrant (in the sheet) | Corner cell (on the board) | Motif |
-|-------------------------|----------------------------|-------|
-| Top-left | GO (top-left) | start/finish celebration |
-| Top-right | Jail (top-right) | confinement / barrier |
-| Bottom-left | Go To Jail (bottom-left) | enforcement / siren |
-| Bottom-right | Free Parking (bottom-right) | open restful scene |
+| Corner cell (on the board) | File | Motif |
+|----------------------------|------|-------|
+| GO (top-left) | `<theme>-tile-go.webp` | start/finish celebration |
+| Jail (top-right) | `<theme>-tile-jail.webp` | confinement / barrier |
+| Go To Jail (bottom-left) | `<theme>-tile-go-to-jail.webp` | enforcement / siren |
+| Free Parking (bottom-right) | `<theme>-tile-free-parking.webp` | open restful scene |
 
-Each vignette should read at ~90–180 px display size: one bold motif per
-quadrant, **no text, numbers, or logos**, middle kept calm for the overlaid
+Square 512 (min 256), WebP ~80, under ~80 KB each. One bold motif per
+vignette, **no text, numbers, or logos**, middle kept calm for the overlaid
 name/token chips (dark pills + scrim guarantee readability on any art).
 
 ## Grid contract (fixed, no calibration)

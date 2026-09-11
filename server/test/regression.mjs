@@ -311,7 +311,7 @@ try {
   check('setBoardStyle bad value', (await emit(s1, 'setBoardStyle', { code, playerId: idA, key: keyA2, style: 'oval' })).error === 'BAD_STYLE');
   check('retired skin rejected', (await emit(s1, 'setBoardStyle', { code, playerId: idA, key: keyA2, style: 'maze' })).error === 'BAD_STYLE');
   check('non-host setBoardStyle rejected', (await emit(sC, 'setBoardStyle', { code, playerId: idC, key: keyC, style: 'city' })).error === 'NOT_HOST');
-  for (const style of ['city', 'coastal', 'mountain', 'grandprix']) {
+  for (const style of ['city', 'coastal', 'mountain', 'grandprix', 'dinosaur', 'space']) {
     const r = await emit(s1, 'setBoardStyle', { code, playerId: idA, key: keyA2, style });
     if (!r.ok) { check(`host sets ${style}`, false, JSON.stringify(r)); break; }
     await sleep(120);

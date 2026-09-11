@@ -29,11 +29,12 @@ export interface BoardTheme {
    */
   cornerSheet?: string;
   /**
-   * Optional per-color street backgrounds, e.g. `tileArt: { brown: '/themes/coastal-tile-brown.webp' }`.
-   * Square (~512px min); subtle texture in the group color, darker edges,
-   * no text. Missing groups fall back to the plain tile color — mix freely.
+   * Optional street + special tile backgrounds. Property streets key by
+   * color (`brown` … `blue`); specials by kind (`railroad | utility | tax |
+   * chance | chest`). Square (~512px), subtle texture, no text; missing keys
+   * fall back to plain colors — mix freely.
    */
-  tileArt?: Partial<Record<Exclude<TileColor, 'none'>, string>>;
+  tileArt?: Partial<Record<Exclude<TileColor, 'none'> | 'railroad' | 'utility' | 'tax' | 'chance' | 'chest', string>>;
 }
 
 /** Four track-inspired skins. Rules and streets never change — only the look. */
@@ -42,8 +43,8 @@ export const BOARD_THEMES: Record<BoardStyle, BoardTheme> = {
     id: 'grandprix', name: 'Grand Prix Circuit', short: 'Grand', icon: '🏁',
     tagline: 'SAME GAME. A FASTER JOURNEY.',
     boardBg: '#ece1c9', tileBg: '#fffdf4', ink: '#1e293b', subInk: '#64748b',
-    artImage: '/themes/grandprix-center.png',
-    cornerSheet: '/themes/grandprix-corners.png',
+    artImage: '/themes/grandprix-center.webp',
+    cornerSheet: '/themes/grandprix-corners.webp',
   },
   city: {
     id: 'city', name: 'City Street Circuit', short: 'City', icon: '🌆',

@@ -118,7 +118,14 @@ export function ThemedBoard({ room }: { room: RoomState }) {
             const isCurrentTurn = room.status === 'playing' && room.players[room.turnIndex % room.players.length]?.position === i;
             const corner = isCornerKind(t.kind) ? CORNER_STYLE[t.kind] : null;
             const quad = isCornerKind(t.kind) && theme.cornerSheet ? CORNER_QUADRANT[t.kind] : undefined;
-            const street = !quad && t.kind === 'property' && t.color !== 'none' ? theme.tileArt?.[t.color] : undefined;
+            const artKey = !quad
+              ? t.kind === 'property' && t.color !== 'none'
+                ? t.color
+                : t.kind === 'railroad' || t.kind === 'utility' || t.kind === 'tax' || t.kind === 'chance' || t.kind === 'chest'
+                  ? t.kind
+                  : undefined
+              : undefined;
+            const street = artKey ? theme.tileArt?.[artKey] : undefined;
             const onArtBg = !!(quad || street);
             return (
               <div

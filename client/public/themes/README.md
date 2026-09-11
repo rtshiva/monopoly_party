@@ -22,6 +22,11 @@ then the built-in SVG scenes show. Recommended order: Grand Prix first.
 | yellow streets | `<theme>-tile-yellow.webp`  | 512 (min 256)     |
 | green streets | `<theme>-tile-green.webp`    | 512 (min 256)     |
 | blue streets | `<theme>-tile-blue.webp`      | 512 (min 256)     |
+| railroads | `<theme>-tile-railroad.webp`        | 512 (min 256)     |
+| utilities | `<theme>-tile-utility.webp`         | 512 (min 256)     |
+| taxes | `<theme>-tile-tax.webp`                 | 512 (min 256)     |
+| chance | `<theme>-tile-chance.webp`              | 512 (min 256)     |
+| chests | `<theme>-tile-chest.webp`               | 512 (min 256)     |
 
 Example: `coastal-center.webp`, `coastal-corners.webp`, `coastal-tile-brown.webp`.
 
@@ -134,6 +139,12 @@ $100) · 9 Conn Ave (light blue $120) · 10 Jail
   Top edge kept plain and calm (a color band overlays there).
   Center kept calm for overlaid game chips.
   ```
+
+  Specials share one brief each (generate once, reuse across themes):
+  railroad = dark steel rails + sleepers from above · utility = stormy teal
+  gradient with a faint lightning fork · tax = grey parchment / official
+  seal motif, no readable text · chance + chest = deep-purple mystery
+  card-back pattern (one file may serve both: point both paths at it).
 
 ## Style + acceptance
 

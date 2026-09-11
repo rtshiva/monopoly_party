@@ -35,7 +35,7 @@ export function CircuitBoard({ room }: { room: RoomState }) {
               <div
                 key={p.tile}
                 style={{ left: `${p.x}%`, top: `${(p.y / 62.5) * 100}%` }}
-                className={`glass absolute w-[96px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl p-1.5 text-center ${isPending ? 'ring-2 ring-amber-300 animate-pulse' : ''} ${isCurrentTurn ? 'ring-1 ring-sky-300/70' : ''} ${t.kind === 'go' ? 'bg-emerald-400/10' : ''} ${t.kind === 'gotojail' ? 'bg-rose-400/10' : ''}`}
+                className={`absolute z-10 w-[100px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl border border-white/15 bg-[#151c34] p-1.5 text-center shadow-xl ${isPending ? 'ring-2 ring-amber-300 animate-pulse' : ''} ${isCurrentTurn ? 'ring-1 ring-sky-300/70' : ''} ${t.kind === 'go' ? 'ring-1 ring-emerald-300/60' : ''} ${t.kind === 'gotojail' ? 'ring-1 ring-rose-300/60' : ''}`}
                 title={`#${p.tile} ${t.name}`}
               >
                 {color && <div className="absolute inset-x-0 top-0 h-[5px]" style={{ background: color }} />}

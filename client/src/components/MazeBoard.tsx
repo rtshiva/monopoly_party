@@ -23,9 +23,10 @@ export function MazeBoard({ room }: { room: RoomState }) {
       <div className="overflow-x-auto">
         <div className="relative grid min-w-[760px] grid-cols-8 gap-2">
           <svg viewBox="0 0 800 500" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full">
-            <polyline points={track} fill="none" stroke="#0d1330" strokeWidth={34} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-            <polyline points={track} fill="none" stroke="#2b3557" strokeWidth={24} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-            <polyline points={track} fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth={1.6} strokeDasharray="9 8" vectorEffect="non-scaling-stroke" />
+            {/* Wide ribbons wrap each row of cards (and round the U-turns),
+                so the snake reads as one bordered track, not a table. */}
+            <polyline points={track} fill="none" stroke="#0d1330" strokeWidth={136} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+            <polyline points={track} fill="none" stroke="#2f3c66" strokeWidth={120} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
           </svg>
           {cells.map((c) => {
             const t = BOARD[c.tile];

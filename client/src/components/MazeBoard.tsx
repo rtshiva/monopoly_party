@@ -29,11 +29,10 @@ export function MazeBoard({ room }: { room: RoomState }) {
       <div className="overflow-x-auto">
         <div className="relative grid min-w-[760px] grid-cols-8 gap-x-2 gap-y-7">
           <svg viewBox={`0 0 800 ${VIEW_H}`} preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full">
-            {/* Ribbon slightly wider than the cards: bordered rows with
-                background slits + rounded U-turns between them. Strokes scale
-                with the drawing (no vector-effect) so proportions hold. */}
-            <polyline points={track} fill="none" stroke="#0d1330" strokeWidth={ROW_H + 16} strokeLinejoin="round" strokeLinecap="round" />
-            <polyline points={track} fill="none" stroke="#2f3c66" strokeWidth={ROW_H + 8} strokeLinejoin="round" strokeLinecap="round" />
+            {/* Money-green ribbons wrap each row of navy cards: high contrast
+                between track and places, with background slits + U-turns. */}
+            <polyline points={track} fill="none" stroke="#06382a" strokeWidth={ROW_H + 16} strokeLinejoin="round" strokeLinecap="round" />
+            <polyline points={track} fill="none" stroke="#0f7a52" strokeWidth={ROW_H + 8} strokeLinejoin="round" strokeLinecap="round" />
           </svg>
           {cells.map((c) => {
             const t = BOARD[c.tile];
@@ -50,7 +49,7 @@ export function MazeBoard({ room }: { room: RoomState }) {
               <div
                 key={c.tile}
                 style={{ gridRow: c.row + 1, gridColumn: c.col + 1 }}
-                className={`glass relative h-[112px] overflow-hidden rounded-xl p-2 ${isPending ? 'ring-2 ring-amber-300 animate-pulse' : ''} ${isCurrentTurn ? 'ring-1 ring-sky-300/70' : ''} ${t.kind === 'go' ? 'bg-emerald-400/10' : ''} ${t.kind === 'gotojail' ? 'bg-rose-400/10' : ''}`}
+                className={`relative h-[112px] overflow-hidden rounded-xl border border-white/15 bg-[#1a2140] p-2 shadow-lg ${isPending ? 'ring-2 ring-amber-300 animate-pulse' : ''} ${isCurrentTurn ? 'ring-1 ring-sky-300/70' : ''} ${t.kind === 'go' ? 'ring-1 ring-emerald-300/60' : ''} ${t.kind === 'gotojail' ? 'ring-1 ring-rose-300/60' : ''}`}
                 title={`#${c.tile} ${t.name}`}
               >
                 {color && <div className="absolute inset-x-0 top-0 h-[6px]" style={{ background: color }} />}

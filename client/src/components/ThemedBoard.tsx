@@ -7,6 +7,8 @@ import { StageBar } from './StageBar';
 import { PlayerTokenGroup } from './PlayerTokenBadge';
 import { useAnimatedTokens } from './useAnimatedTokens';
 import { BoardTheater } from './BoardTheater';
+import { CashFloatBadge, usePlayerCashDeltas } from './CashFloats';
+import { getPlayerColor } from './playerTokens';
 
 /** Classic 11x11 perimeter: index 0 (GO) top-left, clockwise. */
 function tileToRC(i: number): [number, number] {
@@ -85,11 +87,20 @@ function TileFace({
           </div>
         )}
         <div className="mt-[1px] flex items-center gap-1">
-          {owner && (
-            <span className={`rounded-full px-1 text-[8px] font-extrabold ${mortgaged ? 'bg-zinc-500 text-white' : 'bg-amber-300 text-black'}`}>
-              {mortgaged ? 'M' : owner.name.slice(0, 6)}
-            </span>
-          )}
+          {owner && (() => {
+            const oIdx = room.players.findIndex((p) => p.id === owner.id);
+            const oCol = getPlayerColor(oIdx >= 0 ? oIdx : 0);
+            return (
+              <span
+                className={`rounded-full px-1.5 py-0.2 text-[8px] font-extrabold border ${
+                  mortgaged ? 'bg-zinc-600 border-zinc-400 text-white' : 'text-white'
+                }`}
+                style={mortgaged ? undefined : { background: oCol.bgRgba, borderColor: oCol.hex, boxShadow: `0 0 4px ${oCol.glowRgba}` }}
+              >
+                {mortgaged ? 'M' : owner.name.slice(0, 6)}
+              </span>
+            );
+          })()}
           {(inAuction || inTrade) && <span className="text-[9px]">{inAuction ? '🔨' : '🤝'}</span>}
         </div>
       </>
@@ -119,11 +130,20 @@ function TileFace({
         </div>
       )}
       <div className="mt-[1px] flex items-center gap-1">
-        {owner && (
-          <span className={`rounded-full px-1 text-[8px] font-extrabold ${mortgaged ? 'bg-zinc-500 text-white' : 'bg-amber-300 text-black'}`}>
-            {mortgaged ? 'M' : owner.name.slice(0, 6)}
-          </span>
-        )}
+        {owner && (() => {
+          const oIdx = room.players.findIndex((p) => p.id === owner.id);
+          const oCol = getPlayerColor(oIdx >= 0 ? oIdx : 0);
+          return (
+            <span
+              className={`rounded-full px-1.5 py-0.2 text-[8px] font-extrabold border ${
+                mortgaged ? 'bg-zinc-600 border-zinc-400 text-white' : 'text-white'
+              }`}
+              style={mortgaged ? undefined : { background: oCol.bgRgba, borderColor: oCol.hex, boxShadow: `0 0 4px ${oCol.glowRgba}` }}
+            >
+              {mortgaged ? 'M' : owner.name.slice(0, 6)}
+            </span>
+          );
+        })()}
         {(inAuction || inTrade) && <span className="text-[9px]">{inAuction ? '🔨' : '🤝'}</span>}
       </div>
     </>
@@ -141,6 +161,7 @@ export function ThemedBoard({ room }: { room: RoomState }) {
   const discovered = useDiscoveredThemes();
   const theme = themeFor(room.boardStyle, discovered);
   const { visualPositions, hoppingPlayerId, landingBounceTile } = useAnimatedTokens(room);
+  const floats = usePlayerCashDeltas(room);
 
   return (
     <div className="select-none">
@@ -183,6 +204,9 @@ export function ThemedBoard({ room }: { room: RoomState }) {
                 title={t.name}
               >
                 {art && <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30" />}
+                {room.players.map((p) => (visualPositions[p.id] ?? p.position) === i && floats[p.id] ? (
+                  <CashFloatBadge key={p.id} items={floats[p.id]} />
+                ) : null)}
                 <div className="relative h-full w-full min-h-0 min-w-0 flex flex-col justify-between overflow-hidden">
                   <TileFace
                     i={i}

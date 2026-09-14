@@ -28,8 +28,8 @@ Before implementing, review the plan AS a senior staff engineer whose job is kee
 ### 4. REVIEW THE IMPLEMENTATION (senior staff engineer lens)
 After coding, review the diff AS a senior staff engineer guarding long-term maintainability, then verify. Refuse to mark the cycle complete if the code works but is hard to own.
 1. Maintainability pass: would a new joiner understand this in one read? Flag duplicated logic to extract, helpers with unclear names/contracts, files doing two jobs, error paths that stay silent, and any cleverness worth replacing with boring obvious code. Simplify first, then re-verify.
-2. `npm run build` for shared → server → client (fix all errors).
-3. Run a live Socket.IO smoke test covering the new happy path + one abuse path (wrong turn, stale offer, insufficient funds).
+2. `npm run verify` (all three builds + server suites + client vitest) — never a subset. A green subset with a red whole is a fail; the stale-dist incident is why.
+3. Run a live Socket.IO smoke test covering the new happy path + one abuse path (wrong turn, stale offer, insufficient funds). Throwaway `node -e` probes don't count — commit repeating probes as `server/test/` scripts or client vitest cases.
 4. Report: `PLAN vs BUILT` deltas, files changed, test results as PASS lines.
 If any check fails, fix and re-run — never mark the cycle complete on a red build or a diff you would not want to maintain.
 

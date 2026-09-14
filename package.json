@@ -12,6 +12,7 @@
     "build": "npm run build --workspace=shared && npm run build --workspace=server && npm run build --workspace=client",
     "start": "npm run start --workspace=server",
     "test": "npm run build --workspace=@monopoly/shared && npm run test --workspace=@monopoly/server",
+    "verify": "npm run build && npm run test --workspace=@monopoly/server && npm run test --workspace=@monopoly/client",
     "install:all": "npm install"
   },
   "devDependencies": {

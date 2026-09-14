@@ -184,6 +184,23 @@ export type GameError =
   | 'NAME_TAKEN'
   | 'BAD_STYLE';
 
+/**
+ * Runtime mirror of the GameError union for exhaustiveness tests. Keep in
+ * sync when adding codes — errors.test.ts fails any code without a client
+ * mapping, so raw codes can never leak into the UI again.
+ */
+export const GAME_ERRORS: GameError[] = [
+  'NO_ROOM', 'ROOM_FULL', 'GAME_OVER', 'NEED_2',
+  'NO_CONTROL', 'NOT_HOST', 'BAD_SEAT', 'BAD_PIN',
+  'NOT_YOUR_TURN', 'ALREADY_ROLLED', 'ROLL_FIRST', 'PENDING_BUY',
+  'TIME_UP', 'AUCTION_LIVE', 'NEGATIVE', 'STALE_OFFER', 'ALREADY_OWNED',
+  'NO_CASH', 'BAD_TILE', 'HAS_HOUSES', 'EVEN_BUILD', 'MAX_HOUSES',
+  'MORTGAGED', 'NOT_FULL_SET', 'TILE_LOCKED', 'NO_CARD', 'NO_CARDS',
+  'BAD_TRADE', 'NO_OFFER', 'NOT_YOUR_OFFER',
+  'NO_AUCTION', 'BID_TOO_LOW',
+  'NAME_TAKEN', 'BAD_STYLE',
+];
+
 /** Standard socket acknowledgement shape used by every handler. */
 export type SocketResult<T extends Record<string, unknown> = Record<string, never>> =
   | ({ ok: true } & T)

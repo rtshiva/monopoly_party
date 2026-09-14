@@ -10,9 +10,13 @@ import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { io } from 'socket.io-client';
-import { drawChance, drawChest } from '@monopoly/shared';
+import { drawChance, drawChest, applyCardEffect, BOARD, rentFor } from '@monopoly/shared';
 import { tileCell } from '@monopoly/shared';
-import { applyTradeSwap, doRoll, removeSeat } from '../dist/helpers.js';
+import { applyTradeSwap } from '../dist/core/trade.js';
+import { log } from '../dist/core/broadcast.js';
+import { doRoll } from '../dist/core/roll.js';
+import { removeSeat } from '../dist/core/bankruptcy.js';
+
 const PORT = 3123;
 const BASE = `http://localhost:${PORT}`;
 const ROOMS_FILE = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'monopoly-test-')), 'rooms.json');
@@ -68,7 +72,7 @@ try {
   const cHot = await emit(s1, 'createRoom', { playerName: 'Host', token: 'car', deviceLabel: 'Suite-A', style: 'city' });
   check('createRoom with style', cHot.ok === true && cHot.room.boardStyle === 'city');
   const cBad = await emit(s1, 'createRoom', { playerName: 'Host', token: 'car', deviceLabel: 'Suite-A', style: 'nope' });
-  check('bad style falls back', cBad.ok === true && cBad.room.boardStyle === 'grandprix');
+  check('bad style falls back', cBad.ok === true && cBad.room.boardStyle === 'classic');
   const j = await emit(s2, 'joinRoom', { code, playerName: 'Anu', token: 'dog', deviceLabel: 'Suite-B' });
   check('joinRoom', j.ok === true && !!j.controlKey);
   const idB = j.playerId; const keyB = j.controlKey;
@@ -76,6 +80,8 @@ try {
   await emit(s1, 'rejoin', { code, playerId: idA, key: keyA });
   await emit(s2, 'rejoin', { code, playerId: idB, key: keyB });
   check('watchRoom', (await emit(s2, 'watchRoom', { code })).ok === true);
+  // Room codes are normalized server-side: casing never misses a room.
+  check('lowercase code accepted', (await emit(s2, 'watchRoom', { code: code.toLowerCase() })).ok === true);
   // Pure spectators must never disturb seat presence (dashboard separation)
   const sW = await connect();
   await emit(sW, 'watchRoom', { code });
@@ -89,10 +95,12 @@ try {
   check('rejoin with key', (await emit(s3, 'rejoin', { code, playerId: idA, key: keyA })).ok === true);
   check('rejoin without key rejected', (await emit(s3, 'rejoin', { code, playerId: idA })).error === 'NO_CONTROL');
   check('non-host start rejected', (await emit(s2, 'startGame', { code, playerId: idB, key: keyB })).error === 'NOT_HOST');
+  // Lost/stale host key surfaces NO_CONTROL (TV shows the reclaim hint).
+  check('stale-key start rejected', (await emit(s1, 'startGame', { code, playerId: idA, key: 'bogus' })).error === 'NO_CONTROL');
   check('startGame by host', (await emit(s1, 'startGame', { code, playerId: idA, key: keyA })).ok === true);
   await sleep(300);
   check('deadline armed', typeof room.turnDeadline === 'number' && room.turnDeadline > Date.now());
-  check('default board is grandprix', room.boardStyle === 'grandprix');
+  check('default board is classic', room.boardStyle === 'classic');
   check('lastCard starts null', room.lastCard == null);
   const listed2 = await emit(s2, 'listRooms', {});
   check('listRooms shows live game', listed2.ok === true && listed2.rooms.some((r) => r.code === code && r.status === 'playing'));
@@ -116,12 +124,16 @@ try {
   if (room.pendingBuy != null) {
     const b = await emit(curSock, 'buyProperty', { code, playerId: curId, key: curKey });
     check('buy or NO_CASH', b.ok === true || b.error === 'NO_CASH', JSON.stringify(b));
+    // A second buy for the same deed must fail (nothing left to buy).
+    check('duplicate buy rejected', (await emit(curSock, 'buyProperty', { code, playerId: curId, key: curKey })).ok === false);
     await sleep(150);
   }
   const upd = room.players.find((p) => p.id === curId);
   if (upd.hasRolled && room.pendingBuy == null && upd.cash >= 0) {
     check('endTurn', (await emit(curSock, 'endTurn', { code, playerId: curId, key: curKey })).ok === true);
     await sleep(150);
+    // Ending twice: the turn already moved on, so the repeat must fail.
+    check('duplicate endTurn rejected', (await emit(curSock, 'endTurn', { code, playerId: curId, key: curKey })).ok === false);
   }
   check('turns advance', room.turnCount >= 1, `turns=${room.turnCount}`);
   check('mortgage BAD_TILE', (await emit(s1, 'mortgage', { code, playerId: idA, key: keyA, tile: 0 })).error === 'BAD_TILE');
@@ -142,18 +154,41 @@ try {
   check('swap moves cards', sFrom.jailCards === 1 && sTo.jailCards === 1);
 
   // S10 engine: card pools award keepable cards; doubles escape jail with no free re-roll
-  const mkP = () => ({ players: [{ id: 't', name: 'T', properties: [], mortgaged: [], cash: 1500, jailCards: 0, position: 0, inJail: false, jailTurns: 0, doubles: 0, bankrupt: false, hasRolled: false }], buildings: {}, log: [] });
+  const mkPlayer = () => ({ id: 't', name: 'T', properties: [], mortgaged: [], cash: 1500, jailCards: 0, position: 0, inJail: false, jailTurns: 0, doubles: 0, bankrupt: false, hasRolled: false });
   let sawChanceCard = false, sawChestCard = false, cashFinite = true;
   for (let i = 0; i < 300 && !(sawChanceCard && sawChestCard); i++) {
-    const r1 = mkP(); drawChance(r1, 't');
-    if (r1.players[0].jailCards > 0) sawChanceCard = true;
-    const r2 = mkP(); drawChest(r2, 't');
-    if (r2.players[0].jailCards > 0) sawChestCard = true;
-    if (!Number.isFinite(r1.players[0].cash) || !Number.isFinite(r2.players[0].cash)) cashFinite = false;
+    const p1 = mkPlayer(); const d1 = drawChance(); applyCardEffect(p1, d1.effect);
+    if (p1.jailCards > 0) sawChanceCard = true;
+    const p2 = mkPlayer(); const d2 = drawChest(); applyCardEffect(p2, d2.effect);
+    if (p2.jailCards > 0) sawChestCard = true;
+    if (!Number.isFinite(p1.cash) || !Number.isFinite(p2.cash)) cashFinite = false;
   }
   check('chance awards jail card', sawChanceCard);
   check('chest awards jail card', sawChestCard);
   check('card draws keep cash finite', cashFinite);
+
+  // S13 rent rules: base / full-set double / mortgaged / houses / rails / utilities
+  const mkRentRoom = (props, mort = [], buildings = {}) => ({ players: [{ id: 'o', properties: props, mortgaged: mort }], buildings });
+  const medBase = BOARD[1].rent[0];
+  check('rent base', rentFor(mkRentRoom([1]), 1, 7) === medBase);
+  check('rent full set doubles', rentFor(mkRentRoom([1, 3]), 1, 7) === medBase * 2);
+  check('rent mortgaged tile', rentFor(mkRentRoom([1, 3], [1]), 1, 7) === 0);
+  check('rent setmate mortgaged breaks bonus', rentFor(mkRentRoom([1, 3], [3]), 1, 7) === medBase);
+  check('rent houses use table', rentFor(mkRentRoom([1, 3], [], { 1: 2 }), 1, 7) === BOARD[1].rent[3]);
+  check('rent hotel uses top tier', rentFor(mkRentRoom([1, 3], [], { 1: 5 }), 1, 7) === BOARD[1].rent[6]);
+  check('rent railroad tiers', rentFor(mkRentRoom([5]), 5, 7) === 25 && rentFor(mkRentRoom([5, 15]), 5, 7) === 50);
+  check('rent utility 4x/10x', rentFor(mkRentRoom([12]), 12, 7) === 28 && rentFor(mkRentRoom([12, 28]), 28, 7) === 70);
+  check('rent unowned', rentFor(mkRentRoom([]), 1, 7) === 0);
+
+  // S14 activity feed: log() stamps turn + category; feed stays capped.
+  const lr = { turnCount: 7, log: [] };
+  log(lr, 'moved', 'info', 'move');
+  log(lr, 'bought', 'good');
+  // Newest first: index 0 is 'bought' (default cat), index 1 is 'moved'.
+  check('log stamps turn+cat', lr.log[0].turn === 7 && lr.log[0].cat === 'info' && lr.log[1].turn === 7 && lr.log[1].cat === 'move');
+  for (let i = 0; i < 90; i++) log(lr, `x${i}`);
+  check('log caps feed', lr.log.length === 80);
+
   // Rotated board geometry: GO top-left, clockwise; measured art bounds sane
   const c0 = tileCell(0), c10 = tileCell(10), c20 = tileCell(20), c30 = tileCell(30);
   check('GO top-left, Jail top-right', c0.col === 0 && c0.row === 0 && c10.col === 10 && c10.row === 0);
@@ -277,6 +312,8 @@ try {
   check('rematch resets', (await emit(rSock, 'startGame', { code, playerId: winnerId, key: rKey })).ok === true);
   await sleep(200);
   check('fresh game playing', room.status === 'playing' && room.players.every((p) => p.cash === 1500));
+  // Per-turn state must not leak across games (stale doubles => instant jail).
+  check('rematch clears turn state', room.players.every((p) => p.doubles === 0 && p.hasRolled === false && !p.inJail));
 
   // S12 unit: removeSeat pure room surgery
   const ur = {
@@ -297,6 +334,18 @@ try {
   check('removeSeat fixes turn', ur.turnIndex === 1 && ur.players[1].id === 'y' && ur.players[1].hasRolled === false);
   check('removeSeat opens auction', ur.auction?.tile === 3);
 
+  // Kicking down to a solo survivor finishes the game with them as winner.
+  const kr = {
+    code: 'K', status: 'playing', players: [
+      { id: 'k1', name: 'K1', properties: [], mortgaged: [], cash: 100, bankrupt: false, hasRolled: true, doubles: 0, connected: true },
+      { id: 'k2', name: 'K2', properties: [], mortgaged: [], cash: 100, bankrupt: false, hasRolled: false, doubles: 0, connected: true },
+    ],
+    turnIndex: 0, pendingBuy: null, trades: [], auction: null, auctionQueue: [], buildings: {},
+    turnDeadline: null, lastActivity: 0, pausedAt: null, log: [], winnerId: null, turnCount: 3,
+  };
+  removeSeat(kr, kr.players[1]);
+  check('kick to solo finishes', kr.status === 'finished' && kr.winnerId === 'k1');
+
   // S12 live: host reclaim (PIN), pause/resume, kick
   const pinA3 = room.players.find((p) => p.id === idA).seatPin;
   const hk = await emit(s1, 'claimSeat', { code, playerId: idA, pin: pinA3, deviceLabel: 'Suite-A' });
@@ -309,13 +358,18 @@ try {
   check('host pause works', (await emit(s1, 'pauseGame', { code, playerId: idA, key: keyA2 })).ok === true);
   await sleep(150);
   check('paused blocks rolls', (await emit(s1, 'rollDice', { code, playerId: idA, key: keyA2 })).ok === false);
+  // Pause freezes the whole table: economy/turn mutations must reject too
+  // (a mid-pause bankruptcy would strand deeds in the auction queue).
+  check('paused blocks bankrupt', (await emit(s1, 'bankrupt', { code, playerId: idA, key: keyA2 })).ok === false);
+  check('paused blocks mortgage', (await emit(s1, 'mortgage', { code, playerId: idA, key: keyA2, tile: 1 })).ok === false);
+  check('paused blocks payJail', (await emit(s1, 'payJail', { code, playerId: idA, key: keyA2 })).ok === false);
   check('resume works', (await emit(s1, 'resumeGame', { code, playerId: idA, key: keyA2 })).ok === true);
   await sleep(150);
   check('deadline re-armed on resume', room.turnDeadline > Date.now());
   check('setBoardStyle bad value', (await emit(s1, 'setBoardStyle', { code, playerId: idA, key: keyA2, style: 'oval' })).error === 'BAD_STYLE');
   check('retired skin rejected', (await emit(s1, 'setBoardStyle', { code, playerId: idA, key: keyA2, style: 'maze' })).error === 'BAD_STYLE');
   check('non-host setBoardStyle rejected', (await emit(sC, 'setBoardStyle', { code, playerId: idC, key: keyC, style: 'city' })).error === 'NOT_HOST');
-  for (const style of ['city', 'coastal', 'mountain', 'grandprix', 'dinosaur', 'space']) {
+  for (const style of ['classic', 'city', 'coastal', 'mountain', 'grandprix', 'dinosaur', 'space']) {
     const r = await emit(s1, 'setBoardStyle', { code, playerId: idA, key: keyA2, style });
     if (!r.ok) { check(`host sets ${style}`, false, JSON.stringify(r)); break; }
     await sleep(120);
@@ -326,6 +380,46 @@ try {
   check('host kicks C', (await emit(s1, 'kickPlayer', { code, playerId: idA, key: keyA2, targetId: idC })).ok === true);
   await sleep(150);
   check('kicked seat removed', room.players.length === 2 && !room.players.some((p) => p.id === idC));
+  // An undecided purchase blocks endTurn: the deed must go through Buy/Pass.
+  // Drive rolls until a buyable landing appears (bounded; skips gracefully).
+  const keyOf = (id) => (id === idA ? keyA2 : keyB3);
+  const sockOf = (id) => (id === idA ? s1 : s2);
+  let sawPending = false;
+  for (let i = 0; i < 30 && !sawPending; i++) {
+    const cur = room.players[room.turnIndex % room.players.length];
+    if (!cur || cur.bankrupt) break;
+    // Turns freeze while the hammer is down — wait out any live auction
+    // (pass/queued stock can open one) instead of hammering rejected rolls.
+    if (room.auction) {
+      const t0 = Date.now();
+      while (room.auction && Date.now() - t0 < 35000) await sleep(500);
+      continue;
+    }
+    await emit(sockOf(cur.id), 'rollDice', { code, playerId: cur.id, key: keyOf(cur.id) });
+    await sleep(120);
+    const meNow = room.players.find((p) => p.id === cur.id);
+    const stillCur = room.players[room.turnIndex % room.players.length]?.id === cur.id;
+    if (room.pendingBuy != null && stillCur) {
+      const rej = await emit(sockOf(cur.id), 'endTurn', { code, playerId: cur.id, key: keyOf(cur.id) });
+      check('endTurn blocked while pendingBuy', rej.ok === false && rej.error === 'PENDING_BUY', JSON.stringify(rej));
+      sawPending = true;
+      // Buy when affordable (no auction, no freeze); otherwise pass and let
+      // the top-of-loop wait handle the hammer.
+      const tile = BOARD[room.pendingBuy];
+      const price = tile && (tile.kind === 'property' || tile.kind === 'railroad' || tile.kind === 'utility') ? tile.price : Infinity;
+      const buyer = room.players.find((p) => p.id === cur.id);
+      if (buyer && buyer.cash >= price) {
+        await emit(sockOf(cur.id), 'buyProperty', { code, playerId: cur.id, key: keyOf(cur.id) });
+      } else {
+        await emit(sockOf(cur.id), 'passProperty', { code, playerId: cur.id, key: keyOf(cur.id) });
+      }
+      await sleep(120);
+    } else if (meNow.hasRolled && stillCur && meNow.cash >= 0) {
+      await emit(sockOf(cur.id), 'endTurn', { code, playerId: cur.id, key: keyOf(cur.id) });
+      await sleep(80);
+    }
+  }
+  if (!sawPending) check('endTurn blocked while pendingBuy', true, 'SKIP — no buyable landing in 30 rolls');
   sC.disconnect();
   [s1, s2, s3].forEach((s) => s.disconnect());
 

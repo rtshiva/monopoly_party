@@ -1,9 +1,12 @@
 import type { Tile, TileColor } from './types.js';
 
-// Classic 40-tile layout, simplified rents. rent[] = [base, full-set, 1H..4H, hotel]
+// Classic 40-tile layout, simplified rents.
+// rent[] = [base, full-set, 1H, 2H, 3H, 4H, hotel]. Indexed by building
+// level + 1 (level 0 uses rent[0], or rent[1] on a full set) — every entry
+// must exist or hotels silently charge the 4-house price.
 const P = (name: string, color: TileColor, price: number, base: number, houseCost: number): Tile => ({
   kind: 'property', name, color, price,
-  rent: [base, base * 2, base * 5, base * 12, base * 20, base * 30], houseCost,
+  rent: [base, base * 2, base * 5, base * 12, base * 20, base * 30, base * 45], houseCost,
 });
 
 export const BOARD: Tile[] = [

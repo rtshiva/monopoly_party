@@ -11,6 +11,7 @@ import { DicePair } from '../components/DiceFace';
 import { HoldToRollButton } from '../components/HoldToRollButton';
 import { ConnPill } from '../components/ConnPill';
 import { TradeTab } from '../components/TradeTab';
+import { minNextBid, nameOf, outbidBy, topBid } from '../auctionNotify';
 import { PropsTab } from '../components/PropsTab';
 import { resolveDiceFaces } from '../components/diceResolve';
 import { friendlyError } from '../friendlyError';
@@ -149,6 +150,9 @@ export function PlayScreen() {
     if (isMyTurn && navigator.vibrate) { try { navigator.vibrate(60); } catch { /* noop */ } }
   }, [isMyTurn]);
 
+  // Buzz on NEW incoming offers (count increase only — not every render),
+  // and toast briefly when an auction closes under us.
+
   const cashNow = mePlayer(room, pid || playerId)?.cash;
   useEffect(() => {
     if (cashNow == null) return;
@@ -264,6 +268,28 @@ export function PlayScreen() {
   const pendingName = pending ? pending.t.name : '';
   const canBuy = !!(isMyTurn && pending && me.cash >= pendingPrice && pendingPrice > 0);
   const incomingCount = room.trades.filter((t) => t.toId === me.id).length;
+
+  // Buzz on NEW incoming offers (count increase only — not every render),
+  // and toast briefly when an auction closes under us.
+  const prevIncoming = useRef(0);
+  const prevAuctionId = useRef<string | null>(null);
+  const [auctionToast, setAuctionToast] = useState(false);
+  useEffect(() => {
+    if (incomingCount > prevIncoming.current && navigator.vibrate) {
+      try { navigator.vibrate([40, 40, 40]); } catch { /* noop */ }
+    }
+    prevIncoming.current = incomingCount;
+  }, [incomingCount]);
+  useEffect(() => {
+    const id = room?.auction?.id ?? null;
+    if (prevAuctionId.current && !id) {
+      setAuctionToast(true);
+      const t = setTimeout(() => setAuctionToast(false), 5000);
+      prevAuctionId.current = id;
+      return () => clearTimeout(t);
+    }
+    prevAuctionId.current = id;
+  }, [room?.auction?.id]);
 
   // Current-position card data (mockup "Current Position" panel).
   const ownerId = ownerOf(room, me.position);
@@ -392,6 +418,10 @@ export function PlayScreen() {
       {room.status === 'playing' && !me.bankrupt && (
         <div className="mt-3 space-y-2">
           {room.auction && <AuctionCard room={room} me={me} emit={emit} />}
+          {auctionToast && !room.auction && (
+            <div className="glass rounded-2xl border-emerald-300/40 p-3 text-center text-sm font-bold text-emerald-200">
+              🔨 Auction closed — see who won in 📜 Feed</div>
+          )}
           {/* Doubles bonus survives Buy/Pass server-side (doubles stays > 0),
               so the button stays up for the bonus roll alongside End turn. */}
           {canRoll && (!me.hasRolled || me.doubles > 0) && (
@@ -458,7 +488,7 @@ export function PlayScreen() {
           className={`flex-1 rounded-xl py-2 text-sm font-bold ${tab === 'props' ? 'bg-amber-300 text-black' : 'bg-white/10'}`}>
           🏠 Props ({me.properties.length})</button>
         <button type="button" onClick={() => setTab('trade')}
-          className={`flex-1 rounded-xl py-2 text-sm font-bold ${tab === 'trade' ? 'bg-amber-300 text-black' : 'bg-white/10'}`}>
+          className={`flex-1 rounded-xl py-2 text-sm font-bold ${tab === 'trade' ? 'bg-amber-300 text-black' : incomingCount > 0 ? 'animate-pulse bg-amber-300/30 text-amber-100' : 'bg-white/10'}`}>
           🤝 Trade{incomingCount > 0 ? ` (${incomingCount})` : ''}</button>
         <button type="button" onClick={() => setTab('log')}
           className={`flex-1 rounded-xl py-2 text-sm font-bold ${tab === 'log' ? 'bg-amber-300 text-black' : 'bg-white/10'}`}>
@@ -487,9 +517,9 @@ export function PlayScreen() {
 function AuctionCard({ room, me, emit }: { room: RoomState; me: Player; emit: (ev: string, extra?: Record<string, unknown>, onOk?: (res: { ok: boolean; error?: string; controlKey?: string }) => void) => void }) {
   const [amount, setAmount] = useState('');
   const a = room.auction!;
-  const top = [...a.bids].sort((x, y) => y.amount - x.amount)[0];
-  const nameOf = (pid: string) => room.players.find((p) => p.id === pid)?.name ?? '?';
-  const minNext = Math.max(10, top ? top.amount + 1 : 10);
+  const top = topBid(a);
+  const minNext = minNextBid(a);
+  const outbid = outbidBy(a, me.id);
   function bid(v: number) {
     // Keep the typed amount when the server rejects (e.g. outbid mid-tap) —
     // clearing it destroys the user's work for no reason.
@@ -497,8 +527,14 @@ function AuctionCard({ room, me, emit }: { room: RoomState; me: Player; emit: (e
   }
   return (
     <div className="glass rounded-2xl border-amber-300/50 p-3 text-center">
-      <div className="font-bold">🔨 Auction: {BOARD[a.tile]?.name}</div>
-      <div className="text-sm text-white/70">{top ? <>Top: <b className="text-emerald-300">${top.amount}</b> ({nameOf(top.playerId)})</> : 'No bids yet — min $10'}</div>
+      <div className="flex items-center justify-center gap-2 font-bold">🔨 Auction: {BOARD[a.tile]?.name}
+        <TurnCountdown deadline={a.endsAt} className="rounded-full bg-amber-300/20 px-2 py-0.5 font-mono text-xs text-amber-200" />
+      </div>
+      <div className="text-sm text-white/70">{top ? <>Top: <b className="text-emerald-300">${top.amount}</b> ({nameOf(room, top.playerId)})</> : 'No bids yet — min $10'}</div>
+      {outbid && (
+        <div className="mt-1 rounded-xl bg-rose-500/20 px-2 py-1 text-sm font-bold text-rose-200">
+          Outbid by {nameOf(room, outbid)} — bid ${minNext}+ to retake!</div>
+      )}
       <div className="mt-2 flex gap-2">
         <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
           inputMode="numeric" placeholder={`${minNext}`} className="min-w-0 flex-1 rounded-xl border border-white/15 bg-black/30 px-3 py-2 font-mono outline-none" />
@@ -511,7 +547,7 @@ function AuctionCard({ room, me, emit }: { room: RoomState; me: Player; emit: (e
             className="flex-1 rounded-xl bg-white/10 py-1.5 text-xs font-bold">+${d} (${Math.max(minNext, (top?.amount ?? 0) + d)})</button>
         ))}
       </div>
-      <div className="mt-1 text-xs text-white/50">Your cash: ${me.cash} · ends automatically</div>
+      <div className="mt-1 text-xs text-white/50">Your cash: ${me.cash} · highest bid wins at zero</div>
     </div>
   );
 }

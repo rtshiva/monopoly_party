@@ -13,6 +13,7 @@ import { ConnPill } from '../components/ConnPill';
 import { TradeTab } from '../components/TradeTab';
 import { PropsTab } from '../components/PropsTab';
 import { resolveDiceFaces } from '../components/diceResolve';
+import { friendlyError } from '../friendlyError';
 import { DebugPanel } from '../components/DebugPanel';
 import { debugEnabled, dlogc } from '../debug';
 import { TurnCountdown } from '../components/TurnCountdown';
@@ -30,8 +31,14 @@ export function PlayScreen() {
   const [err, setErr] = useState('');
   const [tab, setTab] = useState<'props' | 'log' | 'trade' | 'switch'>('props');
   const [mutedUi, setMutedUi] = useState(isMuted());
+  // Pending ack-timeout ids: cleared as acks land, and all dropped on
+  // unmount so a late timer can't setErr on a dead screen.
+  const ackTimers = useRef<Set<number>>(new Set());
   const prevCash = useRef<number | null>(null);
   const wonRef = useRef(false);
+  // Two-tap bankruptcy confirm (replaces window.confirm): first tap arms,
+  // second fires. Disarms when the cash/turn situation changes underneath.
+  const [armBankrupt, setArmBankrupt] = useState(false);
   const diceTripRef = useRef('');
   const sockRef = useRef<Socket | null>(null);
   const [sockState, setSockState] = useState<Socket | null>(null);
@@ -48,6 +55,7 @@ export function PlayScreen() {
   // refresh never picks up another tab's seat from a different room.
   const pid = playerId || sp.get('pid') || sessionPidFor(upCode) || '';
   const key = controlKey || loadControl(pid);
+  useEffect(() => { setArmBankrupt(false); }, [room?.turnCount, pid, playerId, room ? mePlayer(room, pid)?.cash : null]);
 
   // A kicked seat vanishes from players entirely (bankrupt seats stay put).
   // Drop the stale identity so the no-seat view + claim flow take over
@@ -114,6 +122,8 @@ export function PlayScreen() {
     });
     return () => {
       alive = false;
+      ackTimers.current.forEach((t) => clearTimeout(t));
+      ackTimers.current.clear();
       if (rollStartTimer.current != null) { clearTimeout(rollStartTimer.current); rollStartTimer.current = null; }
       rollStartedRef.current = false;
       s.disconnect(); sockRef.current = null; setSockState(null);
@@ -159,9 +169,14 @@ export function PlayScreen() {
     const s = sockRef.current;
     if (!s) return;
     setErr('');
-    const timer = setTimeout(() => setErr('Server not responding — check connection'), 8000);
+    const timer = window.setTimeout(() => {
+      ackTimers.current.delete(timer);
+      setErr('Server not responding — check connection');
+    }, 8000);
+    ackTimers.current.add(timer);
     s.emit(ev, { code: upCode, playerId: pid, key, ...extra }, (res: { ok: boolean; error?: string; controlKey?: string }) => {
       clearTimeout(timer);
+      ackTimers.current.delete(timer);
       if (!res?.ok) {
         setErr(friendlyError(res?.error)); sndError(); onErr?.(res?.error);
         dlogc('ack-error', `${ev} → ${res?.error || 'reject'} (rev ${useGame.getState().room?.rev ?? '—'})`);
@@ -423,8 +438,13 @@ export function PlayScreen() {
             <button onClick={() => emit('useJailCard')} className="w-full rounded-2xl bg-emerald-300 py-3 font-extrabold text-emerald-950">🃏 Use Get-Out-of-Jail-Free ({me.jailCards})</button>
           )}
           {me.cash < 0 && (
-            <button onClick={() => { if (window.confirm('Declare bankruptcy and leave the game?')) emit('bankrupt'); }}
-              className="w-full rounded-2xl bg-rose-500 py-3 font-extrabold">💀 Declare bankruptcy (${me.cash})</button>
+            <button
+              onClick={() => {
+                if (armBankrupt) { setArmBankrupt(false); emit('bankrupt'); }
+                else setArmBankrupt(true);
+              }}
+              className={`w-full rounded-2xl py-3 font-extrabold ${armBankrupt ? 'bg-rose-600 text-white' : 'bg-rose-500'}`}>
+              {armBankrupt ? `⚠️ Tap again — leave the game? ($${me.cash})` : `💀 Declare bankruptcy ($${me.cash})`}</button>
           )}
         </div>
       )}
@@ -462,47 +482,6 @@ export function PlayScreen() {
       <Link to="/" className="fixed bottom-3 right-3 rounded-full bg-white/10 px-4 py-2 text-sm backdrop-blur">🏠 Home</Link>
     </div>
   );
-}
-
-function friendlyError(code?: string): string {
-  switch (code) {
-    case 'NO_ROOM': return 'Room not found — check the code';
-    case 'ROOM_FULL': return 'Table is full (8 max)';
-    case 'GAME_OVER': return 'That game already finished';
-    case 'NEED_2': return 'Need at least 2 players';
-    case 'BAD_TILE': return 'That property is not available';
-    case 'NAME_TAKEN': return 'Name taken — try another';
-    case 'BAD_STYLE': return 'Unknown board style';
-    case 'NOT_YOUR_TURN': return 'Wait for your turn';
-    case 'ALREADY_ROLLED': return 'You already rolled — end your turn';
-    case 'ROLL_FIRST': return 'Roll first!';
-    case 'PENDING_BUY': return 'Decide BUY or Pass first!';
-    case 'TIME_UP': return '⏰ Time! Your turn was auto-resolved';
-    case 'AUCTION_LIVE': return '🔨 Auction in progress — turns resume after the gavel';    case 'NEGATIVE': return 'You are broke — mortgage or go bankrupt first';
-    case 'NO_CASH': return 'Not enough cash';
-    case 'STALE_OFFER': return 'That property is no longer available';
-    case 'ALREADY_OWNED': return 'Already owned';
-    case 'NOTHING_TO_PASS': return 'Nothing to pass';
-    case 'BAD_TRADE': return 'Invalid trade — check deeds and cash';
-    case 'NO_OFFER': return 'Offer expired or gone';
-    case 'EXPIRED': return 'Offer expired';
-    case 'TILE_LOCKED': return 'A property is locked in another offer';
-    case 'NOT_YOUR_OFFER': return 'That offer is not yours to answer';
-    case 'NO_AUCTION': return 'Auction already ended';
-    case 'BID_TOO_LOW': return 'Bid higher than the top bid (min $10)';
-    case 'HAS_HOUSES': return 'Sell houses first';
-    case 'NOT_FULL_SET': return 'You need the full color set';
-    case 'MAX_HOUSES': return 'Already a hotel here';
-    case 'EVEN_BUILD': return 'Build evenly across the set';
-    case 'MORTGAGED': return 'Unmortgage the set first';
-    case 'NO_CARDS': return 'Not enough Get-Out-of-Jail-Free cards';
-    case 'NO_CARD': return 'No Get-Out-of-Jail-Free card — draw one from Chance/Chest';
-    case 'BAD_PIN': return 'Wrong seat PIN — check the TV board';
-    case 'NO_CONTROL': return 'This device no longer controls that seat — reclaim it in 🔀 Switch';
-    case 'NOT_HOST': return 'Only the host device can do that';
-    case 'BAD_SEAT': return 'That seat is unavailable';
-    default: return code || 'Action failed';
-  }
 }
 
 function AuctionCard({ room, me, emit }: { room: RoomState; me: Player; emit: (ev: string, extra?: Record<string, unknown>, onOk?: (res: { ok: boolean; error?: string; controlKey?: string }) => void) => void }) {

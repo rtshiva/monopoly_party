@@ -65,6 +65,17 @@ export function Landing() {
     } catch { /* noop */ }
   }
 
+  // Shared seat-adoption after a successful host/join ack: persist identity,
+  // take control, and load the room. Navigation differs per caller.
+  function adoptSeat(code: string, pid: string, key: string, room: RoomState | null) {
+    saveSession(code, pid);
+    rememberIdentity();
+    saveControl(pid, key);
+    setControlKey(key);
+    setPlayerId(pid);
+    setRoom(room);
+  }
+
   // Expand a table row into an inline seat-login panel (no navigation needed).
   // Always refetches on expand: seat PINs rotate on every claim, so a cached
   // panel would show dead PINs and a stale roster.
@@ -103,11 +114,7 @@ export function Landing() {
       const res = await emitWithAck<{ ok: boolean; code: string; playerId: string; controlKey: string; room: never }>(
         'createRoom', { playerName: name || 'Host', token, deviceLabel, style: boardTheme });
       if (res?.ok) {
-        saveSession(res.code, res.playerId);
-        rememberIdentity();
-        saveControl(res.playerId, res.controlKey);
-        setControlKey(res.controlKey);
-        setPlayerId(res.playerId); setRoom(res.room as never);
+        adoptSeat(res.code, res.playerId, res.controlKey, res.room as never);
         nav(`/host/${res.code}?pid=${res.playerId}`);
       } else {
         setErr('Could not create room (is server running on :3001?)');
@@ -131,11 +138,7 @@ export function Landing() {
       const res = await emitWithAck<{ ok: boolean; error?: string; code: string; playerId: string; controlKey: string; room: never }>(
         'joinRoom', { code: roomCode.toUpperCase().trim(), playerName: name.trim(), token, deviceLabel });
       if (res?.ok) {
-        saveSession(res.code, res.playerId);
-        rememberIdentity();
-        saveControl(res.playerId, res.controlKey);
-        setControlKey(res.controlKey);
-        setPlayerId(res.playerId); setRoom(res.room as never);
+        adoptSeat(res.code, res.playerId, res.controlKey, res.room as never);
         nav(`/play/${res.code}?pid=${res.playerId}`);
       } else {
         setErr(res?.error === 'NO_ROOM' ? 'Room not found. Check the code.' : res?.error === 'ROOM_FULL' ? 'Room is full (8 max).' : res?.error === 'GAME_OVER' ? 'That game already finished — ask host for a new room.' : 'Join failed — is server running?');

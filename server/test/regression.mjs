@@ -368,6 +368,17 @@ try {
   check('resume works', (await emit(s1, 'resumeGame', { code, playerId: idA, key: keyA2 })).ok === true);
   await sleep(150);
   check('deadline re-armed on resume', room.turnDeadline > Date.now());
+
+  // endGame: host ends early, crowns winner by net worth
+  check('non-host endGame rejected', (await emit(sC, 'endGame', { code, playerId: idC, key: keyC })).error === 'NOT_HOST');
+  const eg = await emit(s1, 'endGame', { code, playerId: idA, key: keyA2 });
+  check('host endGame works', eg.ok === true);
+  await sleep(150);
+  check('game finished after endGame', room.status === 'finished' && !!room.winnerId);
+  // Restart for remaining tests
+  await emit(s1, 'startGame', { code, playerId: idA, key: keyA2 });
+  await sleep(200);
+
   check('setBoardStyle bad value', (await emit(s1, 'setBoardStyle', { code, playerId: idA, key: keyA2, style: 'oval' })).error === 'BAD_STYLE');
   check('retired skin rejected', (await emit(s1, 'setBoardStyle', { code, playerId: idA, key: keyA2, style: 'maze' })).error === 'BAD_STYLE');
   check('non-host setBoardStyle rejected', (await emit(sC, 'setBoardStyle', { code, playerId: idC, key: keyC, style: 'city' })).error === 'NOT_HOST');

@@ -131,3 +131,30 @@ export function applyCardEffect(player: Player, effect: CardEffect): boolean {
   if (effect.jailCards !== undefined) player.jailCards += effect.jailCards;
   return false;
 }
+
+/**
+ * Calculate total net worth for a player: cash + property base prices + building values
+ * (mortgaged properties are valued at mortgage value = 50%). Pure.
+ */
+export function netWorth(player: Player, room: RoomState): number {
+  if (player.bankrupt) return 0;
+  let total = player.cash;
+  for (const t of player.properties) {
+    const tile = BOARD[t];
+    if (tile && 'price' in tile && typeof tile.price === 'number') {
+      if (player.mortgaged.includes(t)) {
+        total += Math.round(tile.price / 2);
+      } else {
+        total += tile.price;
+        if (tile.kind === 'property') {
+          const level = room.buildings[t] ?? 0;
+          if (level > 0) {
+            total += level * tile.houseCost;
+          }
+        }
+      }
+    }
+  }
+  return total;
+}
+

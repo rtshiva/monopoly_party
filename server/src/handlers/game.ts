@@ -1,5 +1,5 @@
 import type { Socket } from 'socket.io';
-import { MAX_PLAYERS, START_CASH } from '@monopoly/shared';
+import { MAX_PLAYERS, START_CASH, netWorth } from '@monopoly/shared';
 import { isKnownStyle } from '../themes.js';
 import type { BoardStyle, Player } from '@monopoly/shared';
 import { rooms, uid } from '../store.js';
@@ -84,6 +84,35 @@ export function registerGameHandlers(socket: Socket) {
     cb?.({ ok: true });
     emit(room);
   });
+
+  socket.on('endGame', ({ code, playerId, key }: { code: string; playerId: string; key: unknown }, cb) => {
+    const room = rooms.get(code);
+    if (!room) return cb?.({ ok: false });
+    const me = requireControl(room, playerId, key);
+    if (!me) return cb?.({ ok: false, error: 'NO_CONTROL' });
+    if (!me.isHost) return cb?.({ ok: false, error: 'NOT_HOST' });
+    if (room.status !== 'playing' && room.status !== 'paused') return cb?.({ ok: false });
+
+    // Determine winner based on total net worth among non-bankrupt players
+    const active = room.players.filter((p) => !p.bankrupt);
+    if (active.length === 0) return cb?.({ ok: false });
+
+    active.sort((a, b) => netWorth(b, room) - netWorth(a, room));
+    const winner = active[0];
+
+    clearTurnTimer(room.code);
+    clearAuctionTimer(room.code);
+    room.turnDeadline = null;
+    room.auction = null;
+    room.trades = [];
+    room.status = 'finished';
+    room.winnerId = winner.id;
+
+    log(room, `🏁 Game ended early by host! 🏆 ${winner.name} wins with $${netWorth(winner, room)} total assets!`, 'good');
+    cb?.({ ok: true });
+    emit(room);
+  });
+
 
   socket.on('kickPlayer', ({ code, playerId, key, targetId }: {
     code: string; playerId: string; key: unknown; targetId: string;

@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
 import { motion } from 'framer-motion';
+import { dlogc } from '../debug';
 
 // Standard pip layouts on a 3x3 grid (row-major indices 0..8).
 const PIPS: Record<number, number[]> = {
@@ -130,6 +131,12 @@ function CubeFaces({ size }: { size: number }) {
   );
 }
 
+/** Checks whether a 3D rotation currently displays the given value face. */
+export function isFacing(rot: { x: number; y: number }, value: number): boolean {
+  const t = FACE_ROT[value] ?? FACE_ROT[1];
+  return ((rot.x - t.x) % 360 + 360) % 360 === 0 && ((rot.y - t.y) % 360 + 360) % 360 === 0;
+}
+
 function DiceCube({ value, size, spinKey, delay = 0, shuffling = false }: {
   value: number; size: number; spinKey: string | null; delay?: number; shuffling?: boolean;
 }) {
@@ -138,29 +145,49 @@ function DiceCube({ value, size, spinKey, delay = 0, shuffling = false }: {
   const [played, setPlayed] = useState(false);
   const rotRef = useRef(target);
   const firstPaint = useRef(true);
+  const prevK = useRef(spinKey ?? 'start');
+  const prevShuffling = useRef(shuffling);
   const reduced = useReducedMotion();
   const k = spinKey ?? 'start';
 
-  // New authoritative roll: always tumble forward onto the decided face.
-  // (An earlier version skipped repeats via a seen-keys set — but the shake
-  // preview can leave the cube showing random faces, so a skipped repeat
-  // froze fantasy faces on the roller's screen while the text was correct.
-  // Deps [k] already scope re-runs; every new key re-syncs unconditionally.)
   useEffect(() => {
-    if (firstPaint.current) { firstPaint.current = false; return; } // mount: show statically
-    setPlayed(true);
-    if (shuffling || reduced) { rotRef.current = target; setRot(target); return; }
-    rotRef.current = nextRotation(rotRef.current, value);
-    setRot(rotRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [k]);
+    if (firstPaint.current) {
+      firstPaint.current = false;
+      rotRef.current = target;
+      setRot(target);
+      return;
+    }
 
-  // While held (shuffling), snap to each preview face with no transition.
-  useEffect(() => {
-    if (!shuffling) return;
-    rotRef.current = target;
-    setRot(target);
-  }, [value, shuffling]); // eslint-disable-line react-hooks/exhaustive-deps
+    const kChanged = prevK.current !== k;
+    const shufflingStopped = prevShuffling.current && !shuffling;
+    prevK.current = k;
+    prevShuffling.current = shuffling;
+
+    if (shuffling) {
+      rotRef.current = target;
+      setRot(target);
+      return;
+    }
+
+    const facing = isFacing(rotRef.current, value);
+
+    // Tumble forward on: new roll, shuffle release, or any mismatch with authoritative value
+    if (kChanged || shufflingStopped || !facing) {
+      if (!facing) {
+        dlogc('dice-heal', `resyncing cube to value=${value} (from rot ${rotRef.current.x},${rotRef.current.y})`);
+      } else if (kChanged) {
+        dlogc('dice-tumble', `tumble for ${k} -> value=${value}`);
+      }
+      setPlayed(true);
+      if (reduced) {
+        rotRef.current = target;
+        setRot(target);
+      } else {
+        rotRef.current = nextRotation(rotRef.current, value);
+        setRot(rotRef.current);
+      }
+    }
+  }, [k, shuffling, value, reduced, target]);
 
   const lively = played && !shuffling && !reduced;
   const flight = { duration: 1, delay, ease: [0.15, 0.6, 0.25, 1] as const };

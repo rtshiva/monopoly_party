@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pruneEntries } from './debug';
+import { debugEnabled, pruneEntries } from './debug';
 import type { DbgEntry } from './debug';
 
 describe('pruneEntries', () => {
@@ -16,5 +16,18 @@ describe('pruneEntries', () => {
   });
   it('keeps boundary entries', () => {
     expect(pruneEntries([mk(now - 100)], now, 100)).toHaveLength(1);
+  });
+});
+
+describe('debugEnabled', () => {
+  it('defaults to true when search string has no debug param', () => {
+    expect(debugEnabled('')).toBe(true);
+    expect(debugEnabled()).toBe(true);
+  });
+  it('is enabled when ?debug=1', () => {
+    expect(debugEnabled('?debug=1')).toBe(true);
+  });
+  it('can be disabled explicitly with ?debug=0', () => {
+    expect(debugEnabled('?debug=0')).toBe(false);
   });
 });

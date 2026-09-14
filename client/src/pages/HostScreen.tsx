@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { motion } from 'framer-motion';
@@ -11,8 +11,11 @@ import { ClaimPanel } from '../components/ClaimPanel';
 import { ConnPill } from '../components/ConnPill';
 import { DebugPanel } from '../components/DebugPanel';
 import { debugEnabled } from '../debug';
-import { BOARD, TOKENS, applyRoomDelta } from '@monopoly/shared';
+import { BOARD, TOKENS, applyRoomDelta, netWorth } from '@monopoly/shared';
 import type { RoomDelta, RoomState } from '@monopoly/shared';
+import { getPlayerColor } from '../components/playerTokens';
+import { CashFloatBadge, usePlayerCashDeltas } from '../components/CashFloats';
+import { isMuted, setMuted, sndBuy, sndCash, sndError, sndRoll, sndWin } from '../sound';
 
 export function HostScreen() {
   const { code = '' } = useParams();
@@ -75,10 +78,33 @@ export function HostScreen() {
     return <div className="p-10 text-center text-white/60">Loading board {upCode}… (start server with <code>npm run dev</code>)</div>;
   }
 
-  const sorted = [...room.players].sort((a, b) => b.cash - a.cash);
+  const sorted = [...room.players].sort((a, b) => {
+    if (room.status === 'finished') {
+      return netWorth(b, room) - netWorth(a, room);
+    }
+    return b.cash - a.cash;
+  });
   const hostSeat = room.players.find((p) => p.isHost);
   const amHost = !!hostSeat && hostSeat.id === pid;
   const activePlay = room.status === 'playing' || room.status === 'paused';
+  const [mutedUi, setMutedUi] = useState(isMuted());
+  const floats = usePlayerCashDeltas(room);
+
+  // Trigger TV audio effects on key events if unmuted
+  const prevRevRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!room || isMuted()) return;
+    if (prevRevRef.current !== null && prevRevRef.current !== room.rev) {
+      const latest = room.log[0];
+      if (latest) {
+        if (latest.text.includes('rent') || latest.text.includes('passed GO')) sndCash();
+        else if (latest.text.includes('bought') || latest.text.includes('built')) sndBuy();
+        else if (latest.text.includes('wins the game')) sndWin();
+        else if (latest.text.includes('bankrupt') || latest.text.includes('JAIL')) sndError();
+      }
+    }
+    prevRevRef.current = room.rev;
+  }, [room?.rev, room?.log]);
   const hideChrome = chromeHidden && activePlay;
   // Shown when this browser doesn't hold the host key (fresh window, or the
   // key moved elsewhere). The board itself always works — only the buttons
@@ -86,7 +112,7 @@ export function HostScreen() {
   const [needLogin, setNeedLogin] = useState(false);
   const roomCode: string = room.code;
 
-  async function hostAction(ev: 'pauseGame' | 'resumeGame' | 'kickPlayer' | 'setBoardStyle' | 'addBot', extra: Record<string, unknown> = {}) {
+  async function hostAction(ev: 'pauseGame' | 'resumeGame' | 'endGame' | 'kickPlayer' | 'setBoardStyle' | 'addBot', extra: Record<string, unknown> = {}) {
     if (!pid) { setErr('Host seat not held on this screen.'); return; }
     try {
       const res = await emitWithAck<{ ok: boolean; error?: string }>(ev, { code: roomCode, playerId: pid, key: loadControl(pid), ...extra });
@@ -114,19 +140,37 @@ export function HostScreen() {
         <div className="flex flex-wrap items-center gap-3">
           <div className="font-display text-xl font-bold">🎲 MONOPOLY PARTY <span className="ml-2 rounded-lg bg-amber-300 px-2 py-1 font-mono text-black">{room.code}</span></div>
           <button onClick={() => navigator.clipboard?.writeText(joinURL)} className="rounded-xl bg-white/10 px-3 py-2 text-sm hover:bg-white/20">📋 Copy invite link</button>
+          <button
+            type="button"
+            title={mutedUi ? 'Unmute TV sounds' : 'Mute TV sounds'}
+            onClick={() => { const m = !mutedUi; setMuted(m); setMutedUi(m); }}
+            className="rounded-xl bg-white/10 px-3 py-1.5 text-sm font-bold flex items-center gap-1.5 hover:bg-white/20"
+          >
+            <span>{mutedUi ? '🔇 TV Sound Off' : '🔊 TV Sound On'}</span>
+          </button>
           <div className="ml-auto text-sm text-white/60">{room.status === 'lobby' ? '🟡 Lobby — waiting for players' : room.status === 'playing' ? '🟢 Playing' : room.status === 'paused' ? '⏸ Paused' : '🏁 Finished'}</div>
         </div>
       )}
 
       {amHost && (room.status === 'playing' || room.status === 'paused') && !hideChrome && (
-        <div className="glass mt-3 flex items-center gap-3 rounded-2xl p-3">
+        <div className="glass mt-3 flex items-center gap-3 rounded-2xl p-3 flex-wrap">
           <span className="font-bold">🔧 Host</span>
           {room.status === 'playing' ? (
-            <button onClick={() => hostAction('pauseGame')} className="rounded-xl bg-white/15 px-4 py-2 text-sm font-bold">⏸ Pause game</button>
+            <button onClick={() => hostAction('pauseGame')} className="rounded-xl bg-white/15 px-4 py-2 text-sm font-bold hover:bg-white/25">⏸ Pause game</button>
           ) : (
             <button onClick={() => hostAction('resumeGame')} className="btn-gold rounded-xl px-4 py-2 text-sm">▶️ Resume game</button>
           )}
-          <span className="text-xs text-white/50">Pause freezes turns, auctions and the clock.</span>
+          <button
+            onClick={() => {
+              if (window.confirm('End the game now and crown the winner by total assets?')) {
+                hostAction('endGame');
+              }
+            }}
+            className="rounded-xl bg-rose-500/25 border border-rose-400/40 text-rose-200 px-4 py-2 text-sm font-bold hover:bg-rose-500/40"
+          >
+            🏁 End game
+          </button>
+          <span className="text-xs text-white/50">Pause freezes turns and auctions. End game ranks players by total net worth.</span>
         </div>
       )}
 
@@ -209,20 +253,77 @@ export function HostScreen() {
           <div className="glass rounded-2xl p-4">
             <div className="font-display font-bold">🏆 Leaderboard</div>
             <div className="mt-2 space-y-2">
-              {sorted.map((p, i) => (
-                <div key={p.id} className={`flex items-center gap-2 rounded-xl px-3 py-2 ${p.bankrupt ? 'bg-white/5 opacity-50' : 'bg-white/10'}`}>
-                  <span className="w-6 font-bold">{i + 1}</span>
-                  <span className="text-xl">{TOKENS[p.token]}</span>
-                    <span className="flex-1 truncate font-semibold">{p.name}{p.isBot ? ' 🤖' : ''} {p.bankrupt ? '(💀)' : ''} {!p.connected ? '(📴)' : p.controllerLabel ? `📱${p.controllerLabel}` : ''}</span>
-                  {!p.bankrupt && <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[11px] text-amber-200" title="Seat takeover PIN">PIN {p.seatPin}</span>}
-                  <span className={`font-mono font-bold ${p.cash < 0 ? 'text-rose-300' : 'text-emerald-300'}`}>${p.cash}</span>
-                  {amHost && hostSeat && p.id !== hostSeat.id && !p.bankrupt && (
-                    <button title={`Remove ${p.name} (deeds go to auction)`} onClick={() => {
-                      if (window.confirm(`Remove ${p.name} from the game? Their deeds go to bank auction.`)) hostAction('kickPlayer', { targetId: p.id });
-                    }} className="rounded-lg bg-rose-500/20 px-2 py-0.5 text-xs font-bold text-rose-200">✕</button>
-                  )}
-                </div>
-              ))}
+              {sorted.map((p, i) => {
+                const pOriginalIndex = room.players.findIndex((rp) => rp.id === p.id);
+                const pColor = getPlayerColor(pOriginalIndex >= 0 ? pOriginalIndex : i);
+                const isLeader = i === 0 && !p.bankrupt;
+                const isDanger = !p.bankrupt && p.cash <= 150;
+                const playerNet = netWorth(p, room);
+                return (
+                  <div
+                    key={p.id}
+                    className={`relative flex items-center gap-2 rounded-xl px-3 py-2 border transition-all ${
+                      p.bankrupt
+                        ? 'bg-white/5 opacity-40 border-white/5'
+                        : isLeader
+                        ? 'bg-amber-300/10 border-amber-300/40 shadow-[0_0_12px_rgba(252,211,77,0.15)]'
+                        : isDanger
+                        ? 'bg-rose-500/10 border-rose-500/40 animate-pulse'
+                        : 'bg-white/10 border-white/5'
+                    }`}
+                    style={{
+                      borderLeftColor: pColor.hex,
+                      borderLeftWidth: '4px',
+                    }}
+                  >
+                    <CashFloatBadge items={floats[p.id]} />
+                    <span className="w-5 text-xs font-bold flex items-center gap-1">
+                      {isLeader ? '👑' : <span className="text-white/70">{i + 1}</span>}
+                    </span>
+                    <span
+                      className="flex items-center justify-center w-7 h-7 rounded-full text-base border shadow-sm"
+                      style={{
+                        background: pColor.bgRgba,
+                        borderColor: pColor.hex,
+                        boxShadow: `0 0 6px ${pColor.glowRgba}`,
+                      }}
+                    >
+                      {TOKENS[p.token]}
+                    </span>
+                    <span className="flex-1 truncate font-semibold">
+                      {p.name}
+                      {p.isBot ? ' 🤖' : ''} {p.bankrupt ? '(💀)' : ''}{' '}
+                      {!p.connected ? '(📴)' : p.controllerLabel ? `📱${p.controllerLabel}` : ''}
+                      {isDanger && <span className="ml-1 text-[10px] text-rose-300 font-bold">⚠️ LOW CASH</span>}
+                    </span>
+                    {!p.bankrupt && (
+                      <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[11px] text-amber-200" title="Seat takeover PIN">
+                        PIN {p.seatPin}
+                      </span>
+                    )}
+                    <div className="text-right font-mono min-w-16">
+                      <div className={`font-bold ${p.cash < 0 ? 'text-rose-300' : 'text-emerald-300'}`}>
+                        ${p.cash}
+                      </div>
+                      <div className="text-[10px] text-white/50" title="Total Net Worth (Cash + Deeds + Buildings)">
+                        Net: ${playerNet}
+                      </div>
+                    </div>
+                    {amHost && hostSeat && p.id !== hostSeat.id && !p.bankrupt && (
+                      <button
+                        title={`Remove ${p.name} (deeds go to auction)`}
+                        onClick={() => {
+                          if (window.confirm(`Remove ${p.name} from the game? Their deeds go to bank auction.`))
+                            hostAction('kickPlayer', { targetId: p.id });
+                        }}
+                        className="rounded-lg bg-rose-500/20 px-2 py-0.5 text-xs font-bold text-rose-200"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
           {(room.status === 'playing' || room.status === 'paused') && !hideChrome && (

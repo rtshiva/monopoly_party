@@ -3,6 +3,7 @@ import { BOARD, TOKENS, tilePrice } from '@monopoly/shared';
 import type { Player, RoomState } from '@monopoly/shared';
 import type { ClaimEmit } from './ClaimPanel';
 import { TileArt } from './TileArt';
+import { getSetProgress } from './propsHelper';
 
 interface Props {
   room: RoomState;
@@ -90,11 +91,11 @@ export function TradeTab({ room, me, emit }: Props) {
     );
   }
 
-  function deedChips(mine: number[], selected: number[], toggleFn: (t: number) => void) {
-    if (mine.length === 0) return <div className="py-1 text-xs text-white/50">No deeds</div>;
+  function deedChips(tiles: number[], selected: number[], toggleFn: (t: number) => void, forPlayer: Player) {
+    if (tiles.length === 0) return <div className="py-1 text-xs text-white/50">No deeds</div>;
     return (
       <div className="flex flex-wrap gap-1.5">
-        {mine.map((i) => {
+        {tiles.map((i) => {
           const on = selected.includes(i);
           const locked = room.trades.some((t) => t.giveTiles.includes(i) || t.wantTiles.includes(i));
           // Strict set rule (mirrors server setHasBuildings): any building
@@ -105,11 +106,42 @@ export function TradeTab({ room, me, emit }: Props) {
             : [];
           const setBuilt = set.some((s) => (room.buildings[s] ?? 0) > 0);
           const blocked = (locked && !on) || setBuilt;
+
+          const progress = getSetProgress(i, room, me);
+          const isMyChip = forPlayer.id === me.id;
+          let badge: { text: string; cls: string } | null = null;
+          if (progress.total > 1) {
+            if (isMyChip) {
+              if (progress.isComplete) {
+                badge = { text: '⚠️ Breaks Set', cls: 'bg-rose-500/25 text-rose-200 border-rose-500/40' };
+              } else if (progress.owned > 1) {
+                badge = { text: `${progress.owned}/${progress.total}`, cls: 'bg-white/10 text-white/70 border-white/20' };
+              }
+            } else {
+              // What I would receive from them:
+              if (progress.owned + 1 === progress.total) {
+                badge = { text: '⭐ Completes Set!', cls: 'bg-emerald-400/25 text-emerald-200 border-emerald-400/40' };
+              } else if (progress.owned > 0) {
+                badge = { text: `Set ${progress.owned + 1}/${progress.total}`, cls: 'bg-amber-300/25 text-amber-200 border-amber-300/40' };
+              }
+            }
+          }
+
           return (
             <button key={i} type="button" disabled={blocked && !on} onClick={() => toggleFn(i)} title={setBuilt ? 'Sell all houses in this set first' : locked ? 'In another open offer' : tileName(i)}
               className={`flex items-center gap-1.5 rounded-xl border px-1.5 py-1 text-xs font-bold ${on ? 'border-amber-300 bg-amber-300/20' : 'border-white/10 bg-white/5'} ${blocked && !on ? 'opacity-40' : ''}`}>
               <TileArt tile={i} size={26} />
-              <span>{tileName(i)}{setBuilt ? ' 🏠🔒' : ''}<br /><span className="font-mono text-emerald-300">${tilePrice(i)}</span></span>
+              <div className="text-left">
+                <div className="flex items-center gap-1">
+                  <span>{tileName(i)}{setBuilt ? ' 🏠🔒' : ''}</span>
+                  {badge && (
+                    <span className={`rounded px-1 py-0.2 text-[9px] font-bold border ${badge.cls}`}>
+                      {badge.text}
+                    </span>
+                  )}
+                </div>
+                <span className="font-mono text-emerald-300">${tilePrice(i)}</span>
+              </div>
             </button>
           );
         })}
@@ -169,7 +201,7 @@ export function TradeTab({ room, me, emit }: Props) {
               <div className="rounded-2xl border border-emerald-300/30 bg-emerald-300/5 p-2">
                 <div className="mb-1 text-sm font-bold text-emerald-300">📤 You Give</div>
                 <div className="text-xs font-bold text-white/60">Properties</div>
-                <div className="mt-1">{deedChips(me.properties, give, (t) => toggle(give, setGive, t))}</div>
+                <div className="mt-1">{deedChips(me.properties, give, (t) => toggle(give, setGive, t), me)}</div>
                 <div className="mt-2 text-xs font-bold text-white/60">Cash</div>
                 <div className="mt-1">{cashStepper(giveCash, setGiveCash)}</div>
                 <div className="mt-2">{stepper('🃏 Cards', me.jailCards, giveCards, setGiveCards)}</div>
@@ -177,7 +209,7 @@ export function TradeTab({ room, me, emit }: Props) {
               <div className="rounded-2xl border border-sky-300/30 bg-sky-300/5 p-2">
                 <div className="mb-1 text-sm font-bold text-sky-300">📥 You Get</div>
                 <div className="text-xs font-bold text-white/60">Properties</div>
-                <div className="mt-1">{deedChips(to.properties, want, (t) => toggle(want, setWant, t))}</div>
+                <div className="mt-1">{deedChips(to.properties, want, (t) => toggle(want, setWant, t), to)}</div>
                 <div className="mt-2 text-xs font-bold text-white/60">Cash</div>
                 <div className="mt-1">{cashStepper(wantCash, setWantCash)}</div>
                 <div className="mt-2">{stepper('🃏 Cards', to.jailCards, wantCards, setWantCards)}</div>

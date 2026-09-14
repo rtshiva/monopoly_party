@@ -19,8 +19,11 @@ import { DebugPanel } from '../components/DebugPanel';
 import { debugEnabled, dlogc } from '../debug';
 import { TurnCountdown } from '../components/TurnCountdown';
 import { isMuted, setMuted, sndBuy, sndCash, sndError, sndRoll, sndTick, sndWin } from '../sound';
-import { BOARD, GO_SALARY, TOKENS, applyRoomDelta, ownerOf, rentFor, tilePrice } from '@monopoly/shared';
+import { BOARD, DEFAULT_BOARD_STYLE, GO_SALARY, TOKENS, applyRoomDelta, netWorth, ownerOf, rentFor, tilePrice } from '@monopoly/shared';
 import { TileArt } from '../components/TileArt';
+import { useDiscoveredThemes } from '../useThemes';
+import { themeFor, type TileArtKey } from '../components/boardThemes';
+import { getSetProgress } from '../components/propsHelper';
 import type { Player, RoomDelta, RoomState } from '@monopoly/shared';
 
 export function PlayScreen() {
@@ -211,6 +214,15 @@ export function PlayScreen() {
     }
   }, [room, preview, shaking, rolling]);
 
+  // Clear in-flight roll state whenever authoritative server state arrives
+  useEffect(() => {
+    setRolling(false);
+    setPreview(null);
+    if (room?.lastRoll) {
+      dlogc('roll-room', `"${room.lastRoll}" dice=[${room.dice}] rev=${room.rev}`);
+    }
+  }, [room?.lastRoll, room?.rev]);
+
   // Hold-to-roll presence: tell the room we're shaking (TV + others wobble).
   // Debounced 300ms so quick taps never flash the TV; fire-and-forget, the
   // server validates turn/control and auto-clears on roll/timeout/disconnect.
@@ -218,6 +230,7 @@ export function PlayScreen() {
     shakingRef.current = holding;
     setShaking(holding);
     if (holding) {
+      dlogc('roll-hold', 'player holding roll button');
       if (rollStartTimer.current != null) return;
       rollStartTimer.current = window.setTimeout(() => {
         rollStartTimer.current = null;
@@ -225,6 +238,7 @@ export function PlayScreen() {
         sockRef.current?.emit('rollStart', { code: upCode, playerId: pid, key });
       }, 300);
     } else {
+      dlogc('roll-release', 'player released roll button');
       if (rollStartTimer.current != null) { clearTimeout(rollStartTimer.current); rollStartTimer.current = null; }
       if (rollStartedRef.current) {
         rollStartedRef.current = false;
@@ -292,6 +306,9 @@ export function PlayScreen() {
   }, [room?.auction?.id]);
 
   // Current-position card data (mockup "Current Position" panel).
+  const discovered = useDiscoveredThemes();
+  const theme = themeFor(room.boardStyle ?? DEFAULT_BOARD_STYLE, discovered);
+  const myNetWorth = netWorth(me, room);
   const ownerId = ownerOf(room, me.position);
   const ownerName = ownerId ? room.players.find((p) => p.id === ownerId)?.name ?? null : null;
   const isMine = me.properties.includes(me.position);
@@ -305,6 +322,13 @@ export function PlayScreen() {
     : myTile.kind === 'go' ? `Collect $${GO_SALARY} salary`
     : myTile.kind === 'parking' ? 'Rest — nothing happens'
     : null;
+
+  const currentArtKey: TileArtKey | undefined = myTile.kind === 'property'
+    ? (myTile.color !== 'none' ? myTile.color : undefined)
+    : (myTile.kind === 'railroad' || myTile.kind === 'utility') ? myTile.kind : undefined;
+  const currentArtUrl = currentArtKey ? theme.tileArt?.[currentArtKey] : undefined;
+  const currentSetProgress = (myTile.kind === 'property' || myTile.kind === 'railroad' || myTile.kind === 'utility')
+    ? getSetProgress(me.position, room, me) : null;
   return (
     <div className="mx-auto max-w-md px-3 pb-28 pt-4">
       {/* header */}
@@ -314,7 +338,20 @@ export function PlayScreen() {
           <div className="font-bold">🎮 {me.name} <span className="ml-1 rounded bg-white/10 px-1 font-mono text-xs">{room.code}</span></div>
           <div className="text-xs text-white/60">📍 {myTile.name} · {me.inJail ? '🔒 In jail' : 'Free'} · {hasControl ? 'controlling' : 'NOT controlling'}</div>
         </div>
-        <div className={`font-mono text-xl font-extrabold ${me.cash < 0 ? 'text-rose-300' : 'text-emerald-300'}`}>${me.cash}</div>
+        <div className="text-right">
+          <div className={`font-mono text-xl font-extrabold ${me.cash < 0 ? 'text-rose-300' : 'text-emerald-300'}`}>${me.cash}</div>
+          <div className="text-[11px] font-medium text-white/60">Net: <span className="font-mono text-emerald-300/90">${myNetWorth}</span></div>
+        </div>
+        {me.isHost && (room.status === 'playing' || room.status === 'paused') && (
+          <button
+            type="button"
+            title={room.status === 'playing' ? 'Pause game' : 'Resume game'}
+            onClick={() => emit(room.status === 'playing' ? 'pauseGame' : 'resumeGame')}
+            className="rounded-xl bg-white/15 px-2.5 py-1 text-sm font-bold"
+          >
+            {room.status === 'playing' ? '⏸' : '▶️'}
+          </button>
+        )}
         <button type="button" title={mutedUi ? 'Unmute sounds' : 'Mute sounds'}
           onClick={() => { const m = !mutedUi; setMuted(m); setMutedUi(m); }}
           className="rounded-xl bg-white/10 px-2 py-1 text-lg">{mutedUi ? '🔇' : '🔊'}</button>
@@ -330,13 +367,17 @@ export function PlayScreen() {
         )}
         {room.status === 'playing' && !sockUp && <Banner key="sync" text="🔄 Reconnecting — turn status syncing with the server…" />}
         {room.status === 'playing' && sockUp && isMyTurn && !timeUp && (
-          <div key="turn" className="mt-3 rounded-2xl bg-amber-300 p-4 text-center text-black">
-            <div className="font-display text-xl font-extrabold">🎲 Your Turn, {me.name}!</div>
-            <div className="text-sm font-semibold opacity-80">Roll the dice to move · Turn #{room.turnCount}</div>
+          <div key="turn" className="mt-3 rounded-2xl bg-amber-300 p-3.5 text-center text-black shadow-lg">
+            <div className="flex items-center justify-center gap-2">
+              <span className="font-display text-xl font-extrabold">🎲 Your Turn, {me.name}!</span>
+              <TurnCountdown
+                deadline={room.turnDeadline}
+                onZero={() => setTimeUp(true)}
+                className="rounded-full bg-black/15 px-2.5 py-0.5 font-mono text-xs font-bold text-black"
+              />
+            </div>
+            <div className="text-xs font-semibold opacity-85 mt-0.5">Roll the dice to move · Turn #{room.turnCount}</div>
           </div>
-        )}
-        {room.status === 'playing' && sockUp && isMyTurn && !timeUp && (
-          <div className="mt-1 text-center"><TurnCountdown deadline={room.turnDeadline} onZero={() => setTimeUp(true)} className="rounded-full bg-amber-300/20 px-3 py-1 font-mono text-sm text-amber-200" /></div>
         )}
         {room.status === 'playing' && sockUp && isMyTurn && timeUp && (
           <Banner key="timeup" text="⏰ Time! Resolving your turn…" />
@@ -354,13 +395,43 @@ export function PlayScreen() {
           })()} />
         )}
         {room.status === 'paused' && (
-          <Banner key="paused" text="⏸ Paused by host — hang tight, nothing moves until resume" />
+          <div key="paused" className="mt-3 rounded-2xl bg-white/10 p-3 text-center">
+            <div className="font-bold">⏸ Paused by host — game clock frozen</div>
+            {me.isHost && (
+              <div className="mt-2 flex gap-2 justify-center">
+                <button
+                  type="button"
+                  onClick={() => emit('resumeGame')}
+                  className="btn-gold rounded-xl px-4 py-2 text-sm font-bold"
+                >
+                  ▶️ Resume Game
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm('End the game now and crown the winner by total assets?')) {
+                      emit('endGame');
+                    }
+                  }}
+                  className="rounded-xl bg-rose-500/25 border border-rose-400/40 text-rose-200 px-4 py-2 text-sm font-bold"
+                >
+                  🏁 End Game
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </AnimatePresence>
 
   {room.lastRoll && <div className="mt-2 text-center text-sm text-amber-200">🎲 {room.lastRoll}</div>}
   <div className="mt-2 flex justify-center">
-    <DicePair d1={resolveDiceFaces(preview, shaking || rolling, room.dice)[0]} d2={resolveDiceFaces(preview, shaking || rolling, room.dice)[1]} rollKey={room.lastRoll} size={48} shuffling={(shaking || rolling) && preview != null} />
+    <DicePair
+      d1={resolveDiceFaces(preview, shaking, room.dice)[0]}
+      d2={resolveDiceFaces(preview, shaking, room.dice)[1]}
+      rollKey={room.lastRoll ? `${room.lastRoll}:${room.dice[0]}-${room.dice[1]}:${room.rev}` : null}
+      size={48}
+      shuffling={shaking && preview != null}
+    />
   </div>
       <AnimatePresence>
         {room.lastCard && (
@@ -377,41 +448,65 @@ export function PlayScreen() {
       </AnimatePresence>
 
       {/* current position */}
-      <div className="glass mt-2 flex items-center gap-3 rounded-2xl p-3">
-        <TileArt tile={me.position} size={56} />
-        <div className="flex-1">
-          <div className="text-xs text-white/50">Current Position</div>
-          <div className="font-bold">📍 {myTile.name}</div>
-          {(myTile.kind === 'property' || myTile.kind === 'railroad' || myTile.kind === 'utility') ? (
-            <div className="text-xs text-white/60">
-              Price ${tilePrice(me.position)} · Rent ${tileRent} · Owner {isMine ? 'You' : (ownerName ?? '—')}
+      <div
+        className="relative mt-2 overflow-hidden rounded-2xl border border-white/15 p-3 shadow-lg"
+        style={{
+          ...(currentArtUrl
+            ? { backgroundImage: `url("${currentArtUrl}")`, backgroundSize: 'cover', backgroundPosition: 'center' }
+            : { background: 'rgba(255, 255, 255, 0.05)' }),
+        }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/80 to-black/85 backdrop-blur-[2px]" />
+        <div className="relative z-10">
+          <div className="flex items-center gap-3">
+            <TileArt tile={me.position} size={56} />
+            <div className="flex-1 min-w-0">
+              <div className="text-xs text-white/50">Current Position</div>
+              <div className="font-bold truncate">📍 {myTile.name}</div>
+              {(myTile.kind === 'property' || myTile.kind === 'railroad' || myTile.kind === 'utility') ? (
+                <div className="text-xs text-white/70">
+                  Price ${tilePrice(me.position)} · Rent ${tileRent} · Owner {isMine ? 'You' : (ownerName ?? '—')}
+                </div>
+              ) : (
+                <div className="text-xs text-white/70">{tileDetail}</div>
+              )}
             </div>
-          ) : (
-            <div className="text-xs text-white/60">{tileDetail}</div>
+            {isMine ? (
+              <span className="rounded-lg bg-sky-300/20 border border-sky-300/30 px-2 py-1 text-xs font-bold text-sky-200 shrink-0">🏠 Your Property</span>
+            ) : room.pendingBuy === me.position && isMyTurn ? (
+              <span className="rounded-lg bg-amber-300/20 border border-amber-300/30 px-2 py-1 text-xs font-bold text-amber-200 shrink-0">🏷️ For Sale</span>
+            ) : ownerName ? (
+              <span className="rounded-lg bg-white/10 px-2 py-1 text-xs font-bold text-white/70 shrink-0">{ownerName}'s</span>
+            ) : null}
+          </div>
+
+          {/* Strategic Set Advice */}
+          {currentSetProgress && currentSetProgress.total > 1 && (
+            <div className="mt-2.5 pt-2 border-t border-white/10 flex flex-wrap items-center gap-1.5 text-xs">
+              {currentSetProgress.isComplete ? (
+                <span className="rounded-md bg-emerald-400/20 border border-emerald-400/30 px-2 py-0.5 font-bold text-emerald-200">
+                  ⭐ Complete monopoly! (${tileRent} rent)
+                </span>
+              ) : isMine ? (
+                <span className="rounded-md bg-sky-400/20 border border-sky-400/30 px-2 py-0.5 font-bold text-sky-200">
+                  You own {currentSetProgress.owned}/{currentSetProgress.total} in this group
+                </span>
+              ) : currentSetProgress.owned > 0 ? (
+                <span className="rounded-md bg-amber-400/20 border border-amber-400/30 px-2 py-0.5 font-bold text-amber-200">
+                  ✨ You own {currentSetProgress.owned}/{currentSetProgress.total} · Buying completes {currentSetProgress.owned + 1}/{currentSetProgress.total}!
+                </span>
+              ) : ownerName ? (
+                <span className="rounded-md bg-rose-400/20 border border-rose-400/30 px-2 py-0.5 font-bold text-rose-200">
+                  ⚠️ Owned by {ownerName}
+                </span>
+              ) : (
+                <span className="rounded-md bg-white/10 px-2 py-0.5 text-white/70">
+                  Unowned deed ({currentSetProgress.total} in set)
+                </span>
+              )}
+            </div>
           )}
         </div>
-        {isMine ? (
-          <span className="rounded-lg bg-sky-300/20 px-2 py-1 text-xs font-bold text-sky-200">🏠 Your Property</span>
-        ) : room.pendingBuy === me.position && isMyTurn ? (
-          <span className="rounded-lg bg-amber-300/20 px-2 py-1 text-xs font-bold text-amber-200">🏷️ For Sale</span>
-        ) : ownerName ? (
-          <span className="rounded-lg bg-white/10 px-2 py-1 text-xs font-bold text-white/70">{ownerName}'s</span>
-        ) : null}
-      </div>
-
-      {/* quick actions */}
-      <div className="mt-2 grid grid-cols-4 gap-2">
-        {([
-          ['🏠', 'Properties', 'props'],
-          ['🤝', 'Trade', 'trade'],
-          ['🔨', 'Build', 'props'],
-          ['🏦', 'Mortgage', 'props'],
-        ] as const).map(([icon, label, target]) => (
-          <button key={label} type="button" onClick={() => setTab(target)}
-            className={`rounded-2xl py-2.5 text-xs font-bold ${tab === target ? 'bg-amber-300 text-black' : 'bg-white/10'}`}>
-            <span className="block text-lg">{icon}</span>{label}
-          </button>
-        ))}
       </div>
 
       {/* actions */}
@@ -439,11 +534,17 @@ export function PlayScreen() {
                 setPreview([1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)]); sndTick();
               }}
               onCommit={() => {
-                sndRoll(); setRolling(true);
-                // On reject (e.g. stale tap after the turn moved on) reset
-                // immediately instead of hanging on "Rolling…" for 4s.
-                emit('rollDice', {}, undefined, () => { setRolling(false); setPreview(null); });
-                setTimeout(() => { setRolling(false); setPreview(null); }, 4000);
+                sndRoll();
+                dlogc('roll-commit', `preview was [${preview}]`);
+                setRolling(true);
+                setPreview(null);
+                const finishRoll = () => {
+                  dlogc('roll-finish', 'clearing rolling and preview');
+                  setRolling(false);
+                  setPreview(null);
+                };
+                emit('rollDice', {}, finishRoll, finishRoll);
+                setTimeout(finishRoll, 4000);
               }}
             />
           )}
@@ -483,19 +584,19 @@ export function PlayScreen() {
       {err && <div className="mt-2 rounded-xl bg-rose-500/20 px-3 py-2 text-center text-sm text-rose-200">{err}</div>}
 
       {/* tabs */}
-      <div className="mt-4 flex gap-2">
+      <div className="mt-4 flex gap-1.5">
         <button type="button" onClick={() => setTab('props')}
-          className={`flex-1 rounded-xl py-2 text-sm font-bold ${tab === 'props' ? 'bg-amber-300 text-black' : 'bg-white/10'}`}>
-          🏠 Props ({me.properties.length})</button>
+          className={`flex-1 rounded-xl py-2 text-xs font-bold transition-colors ${tab === 'props' ? 'bg-amber-300 text-black shadow-md' : 'bg-white/10 text-white/80 hover:bg-white/15'}`}>
+          🏠 Properties ({me.properties.length})</button>
         <button type="button" onClick={() => setTab('trade')}
-          className={`flex-1 rounded-xl py-2 text-sm font-bold ${tab === 'trade' ? 'bg-amber-300 text-black' : incomingCount > 0 ? 'animate-pulse bg-amber-300/30 text-amber-100' : 'bg-white/10'}`}>
+          className={`flex-1 rounded-xl py-2 text-xs font-bold transition-colors ${tab === 'trade' ? 'bg-amber-300 text-black shadow-md' : incomingCount > 0 ? 'animate-pulse bg-amber-300/30 text-amber-100 border border-amber-300/50' : 'bg-white/10 text-white/80 hover:bg-white/15'}`}>
           🤝 Trade{incomingCount > 0 ? ` (${incomingCount})` : ''}</button>
         <button type="button" onClick={() => setTab('log')}
-          className={`flex-1 rounded-xl py-2 text-sm font-bold ${tab === 'log' ? 'bg-amber-300 text-black' : 'bg-white/10'}`}>
+          className={`flex-1 rounded-xl py-2 text-xs font-bold transition-colors ${tab === 'log' ? 'bg-amber-300 text-black shadow-md' : 'bg-white/10 text-white/80 hover:bg-white/15'}`}>
           📜 Feed</button>
         <button type="button" onClick={() => setTab('switch')}
-          className={`flex-1 rounded-xl py-2 text-sm font-bold ${tab === 'switch' ? 'bg-amber-300 text-black' : 'bg-white/10'}`}>
-          🔀 Switch</button>
+          className={`flex-1 rounded-xl py-2 text-xs font-bold transition-colors ${tab === 'switch' ? 'bg-amber-300 text-black shadow-md' : 'bg-white/10 text-white/80 hover:bg-white/15'}`}>
+          🔀 Seat</button>
       </div>
 
       {tab === 'switch' ? (

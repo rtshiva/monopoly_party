@@ -1,9 +1,12 @@
-import { BOARD, COLOR_HEX, TOKENS, tileCell } from '@monopoly/shared';
+import { BOARD, COLOR_HEX, tileCell } from '@monopoly/shared';
 import type { RoomState } from '@monopoly/shared';
 import { themeFor, type BoardTheme, type TileArtKey } from './boardThemes';
 import { useDiscoveredThemes } from '../useThemes';
 import { ThemeArt, TitleBadge } from './ThemeArt';
 import { StageBar } from './StageBar';
+import { PlayerTokenGroup } from './PlayerTokenBadge';
+import { useAnimatedTokens } from './useAnimatedTokens';
+import { BoardTheater } from './BoardTheater';
 
 /** Classic 11x11 perimeter: index 0 (GO) top-left, clockwise. */
 function tileToRC(i: number): [number, number] {
@@ -28,9 +31,27 @@ const KIND_LABEL: Record<string, string> = {
 
 /** Shared tile content. Card mode paints the light tile; art mode paints dark
  *  chips readable over generated backgrounds. */
-function TileFace({ i, room, theme, onArt }: { i: number; room: RoomState; theme: BoardTheme; onArt: boolean }) {
+function TileFace({
+  i,
+  room,
+  theme,
+  onArt,
+  visualPositions,
+  hoppingPlayerId,
+  isLandingTile,
+}: {
+  i: number;
+  room: RoomState;
+  theme: BoardTheme;
+  onArt: boolean;
+  visualPositions: Record<string, number>;
+  hoppingPlayerId: string | null;
+  isLandingTile: boolean;
+}) {
   const t = BOARD[i];
-  const here = room.players.filter((p) => !p.bankrupt && p.position === i);
+  // Calculate players currently visually on this tile
+  const here = room.players.filter((p) => !p.bankrupt && (visualPositions[p.id] ?? p.position) === i);
+  const activePlayer = room.status === 'playing' ? room.players[room.turnIndex % room.players.length] : null;
   const owner = room.players.find((p) => p.properties.includes(i));
   const level = room.buildings[i] ?? 0;
   const mortgaged = !!owner && owner.mortgaged.includes(i);
@@ -53,11 +74,14 @@ function TileFace({ i, room, theme, onArt }: { i: number; room: RoomState; theme
           </div>
         )}
         {here.length > 0 && (
-          <div className="mt-[1px] inline-flex flex-wrap items-center gap-[2px] rounded-full bg-black/65 px-1.5 py-0.5 text-[13px] shadow-[0_0_10px_rgba(255,255,255,0.4)] ring-1 ring-white/40">
-            {here.slice(0, 4).map((p) => (
-              <span key={p.id} title={p.name} className="drop-shadow-[0_0_3px_rgba(255,255,255,0.9)]">{TOKENS[p.token]}</span>
-            ))}
-            {here.length > 4 && <span className="text-[9px] font-bold text-white">+{here.length - 4}</span>}
+          <div className="mt-[1px]">
+            <PlayerTokenGroup
+              players={here}
+              roomPlayers={room.players}
+              activePlayerId={activePlayer ? activePlayer.id : null}
+              hoppingPlayerId={hoppingPlayerId}
+              isLandingTile={isLandingTile}
+            />
           </div>
         )}
         <div className="mt-[1px] flex items-center gap-1">
@@ -84,10 +108,14 @@ function TileFace({ i, room, theme, onArt }: { i: number; room: RoomState; theme
         </div>
       )}
       {here.length > 0 && (
-        <div className="flex flex-wrap gap-[1px] text-[11px]">
-          {here.slice(0, 4).map((p) => (
-            <span key={p.id} title={p.name}>{TOKENS[p.token]}</span>
-          ))}
+        <div className="mt-[1px]">
+          <PlayerTokenGroup
+            players={here}
+            roomPlayers={room.players}
+            activePlayerId={activePlayer ? activePlayer.id : null}
+            hoppingPlayerId={hoppingPlayerId}
+            isLandingTile={isLandingTile}
+          />
         </div>
       )}
       <div className="mt-[1px] flex items-center gap-1">
@@ -112,6 +140,8 @@ export function ThemedBoard({ room }: { room: RoomState }) {
   // (e.g. discworld) the moment the list lands, no code changes.
   const discovered = useDiscoveredThemes();
   const theme = themeFor(room.boardStyle, discovered);
+  const { visualPositions, hoppingPlayerId, landingBounceTile } = useAnimatedTokens(room);
+
   return (
     <div className="select-none">
       <StageBar room={room} />
@@ -120,8 +150,9 @@ export function ThemedBoard({ room }: { room: RoomState }) {
           {BOARD.map((t, i) => {
             const [r, c] = tileToRC(i);
             const isPending = room.pendingBuy === i;
-            const occupied = room.players.some((p) => !p.bankrupt && p.position === i);
-            const isCurrentTurn = room.status === 'playing' && room.players[room.turnIndex % room.players.length]?.position === i;
+            const isLanding = landingBounceTile === i;
+            const occupied = room.players.some((p) => !p.bankrupt && (visualPositions[p.id] ?? p.position) === i);
+            const isCurrentTurn = room.status === 'playing' && (visualPositions[room.players[room.turnIndex % room.players.length]?.id] ?? room.players[room.turnIndex % room.players.length]?.position) === i;
             const corner = isCornerKind(t.kind) ? CORNER_STYLE[t.kind] : null;
             // Every tile kind can carry art: streets by color, everything else by kind.
             const artKey: TileArtKey | undefined = t.kind === 'property'
@@ -138,21 +169,34 @@ export function ThemedBoard({ room }: { room: RoomState }) {
                   color: theme.ink,
                   ...(art ? { backgroundImage: `url("${art}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}),
                 }}
-                className={`relative overflow-hidden rounded-[7px] p-[3px] text-[10px] leading-tight lg:text-[11px] ${isPending ? 'ring-2 ring-amber-500 animate-pulse' : ''} ${isCurrentTurn ? 'ring-2 ring-sky-500' : ''} ${occupied && !isCurrentTurn ? 'shadow-[0_0_14px_rgba(186,230,253,0.55)]' : ''}`}
+                className={`relative overflow-hidden rounded-[7px] p-[3px] text-[10px] leading-tight lg:text-[11px] transition-shadow ${
+                  isPending ? 'ring-2 ring-amber-500 animate-pulse' : ''
+                } ${isLanding ? 'ring-2 ring-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.8)]' : ''} ${
+                  isCurrentTurn && !isLanding ? 'ring-2 ring-sky-500' : ''
+                } ${occupied && !isCurrentTurn && !isLanding ? 'shadow-[0_0_14px_rgba(186,230,253,0.55)]' : ''}`}
                 title={t.name}
               >
                 {art && <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30" />}
                 <div className="relative h-full">
-                  <TileFace i={i} room={room} theme={theme} onArt={!!art} />
+                  <TileFace
+                    i={i}
+                    room={room}
+                    theme={theme}
+                    onArt={!!art}
+                    visualPositions={visualPositions}
+                    hoppingPlayerId={hoppingPlayerId}
+                    isLandingTile={isLanding}
+                  />
                 </div>
               </div>
             );
           })}
           <div
             style={{ gridRow: '2 / 11', gridColumn: '2 / 11' }}
-            className="overflow-hidden rounded-2xl"
+            className="relative overflow-hidden rounded-2xl"
           >
             <ThemeArt theme={theme} />
+            <BoardTheater room={room} />
           </div>
         </div>
       </div>

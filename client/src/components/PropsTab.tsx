@@ -1,7 +1,11 @@
-import { BOARD, COLOR_HEX, TOKENS, fullSetOf, tilePrice } from '@monopoly/shared';
+import { useState } from 'react';
+import { BOARD, COLOR_HEX, DEFAULT_BOARD_STYLE, TOKENS, fullSetOf, tilePrice } from '@monopoly/shared';
 import type { Player, RoomState } from '@monopoly/shared';
 import { TileArt } from './TileArt';
 import type { ClaimEmit } from './ClaimPanel';
+import { useDiscoveredThemes } from '../useThemes';
+import { themeFor, type TileArtKey } from './boardThemes';
+import { getSetProgress } from './propsHelper';
 
 interface Props {
   room: RoomState;
@@ -11,11 +15,26 @@ interface Props {
 
 /** Phone properties tab: portfolio strip, per-deed mortgage/build/sell, roster. */
 export function PropsTab({ room, me, emit }: Props) {
+  const [filter, setFilter] = useState<'all' | 'build' | 'mortgaged'>('all');
+  const discovered = useDiscoveredThemes();
+  const theme = themeFor(room.boardStyle ?? DEFAULT_BOARD_STYLE, discovered);
+
   // Deed portfolio value: prices + houses/hotel investment.
   const totalVal = me.properties.reduce((s, i) => {
     const t = BOARD[i];
     return s + tilePrice(i) + (room.buildings[i] ?? 0) * (t.kind === 'property' ? t.houseCost : 0);
   }, 0);
+
+  // Quick filter groups
+  const buildable = me.properties.filter((i) => {
+    const t = BOARD[i];
+    if (t.kind !== 'property' || me.mortgaged.includes(i)) return false;
+    const set = fullSetOf(i);
+    return set.length > 0 && set.every((x) => me.properties.includes(x)) && (room.buildings[i] ?? 0) < 5;
+  });
+  const mortgaged = me.properties.filter((i) => me.mortgaged.includes(i));
+  const visibleProps = filter === 'build' ? buildable : filter === 'mortgaged' ? mortgaged : me.properties;
+
   return (
     <>
       {me.properties.length > 0 && (
@@ -33,11 +52,45 @@ export function PropsTab({ room, me, emit }: Props) {
               </div>
             ))}
           </div>
+          {(buildable.length > 0 || mortgaged.length > 0) && (
+            <div className="mt-3 flex gap-1.5 border-t border-white/10 pt-2 text-xs">
+              <button
+                type="button"
+                onClick={() => setFilter('all')}
+                className={`rounded-xl px-2.5 py-1 font-bold transition-colors ${filter === 'all' ? 'bg-amber-300 text-black shadow' : 'bg-white/10 text-white/70 hover:bg-white/15'}`}
+              >
+                All ({me.properties.length})
+              </button>
+              {buildable.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setFilter('build')}
+                  className={`rounded-xl px-2.5 py-1 font-bold transition-colors ${filter === 'build' ? 'bg-emerald-300 text-emerald-950 shadow' : 'bg-white/10 text-emerald-300 hover:bg-white/15'}`}
+                >
+                  🔨 Can Build ({buildable.length})
+                </button>
+              )}
+              {mortgaged.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setFilter('mortgaged')}
+                  className={`rounded-xl px-2.5 py-1 font-bold transition-colors ${filter === 'mortgaged' ? 'bg-orange-300 text-orange-950 shadow' : 'bg-white/10 text-orange-300 hover:bg-white/15'}`}
+                >
+                  🏦 Mortgaged ({mortgaged.length})
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
       <div className="mt-2 space-y-2">
       {me.properties.length === 0 && <div className="rounded-2xl bg-white/5 p-4 text-center text-sm text-white/50">No deeds yet — land on streets and hit BUY.</div>}
-      {me.properties.map((i) => {
+      {me.properties.length > 0 && visibleProps.length === 0 && (
+        <div className="rounded-2xl bg-white/5 p-4 text-center text-sm text-white/50">
+          No properties match this filter. <button type="button" onClick={() => setFilter('all')} className="underline text-amber-300">Show all</button>
+        </div>
+      )}
+      {visibleProps.map((i) => {
         const t = BOARD[i];
         const price = t.kind === 'property' || t.kind === 'railroad' || t.kind === 'utility' ? t.price : 0;
         const color = t.kind === 'property' ? COLOR_HEX[t.color] : '#666';
@@ -45,38 +98,126 @@ export function PropsTab({ room, me, emit }: Props) {
         const mort = me.mortgaged.includes(i);
         const set = fullSetOf(i);
         const isFull = set.length > 0 && set.every((x) => me.properties.includes(x));
-        // Mirror the server rule (rentFor): unmortgaged full set at level 0
-        // charges double base; mortgaged deeds collect nothing.
         const bonus = t.kind === 'property' && isFull && !mort && set.every((x) => !me.mortgaged.includes(x));
         const rentNow = t.kind === 'property' ? (mort ? '—' : level > 0 ? t.rent[Math.min(Math.floor(level) + 1, 6)] : bonus ? t.rent[0] * 2 : t.rent[0]) : '—';
         const houseCost = t.kind === 'property' ? t.houseCost : 0;
+
+        const artKey: TileArtKey | undefined = t.kind === 'property'
+          ? (t.color !== 'none' ? t.color : undefined)
+          : t.kind;
+        const artUrl = artKey ? theme.tileArt?.[artKey] : undefined;
+        const progress = getSetProgress(i, room, me);
+
         return (
-          <div key={i} className="glass rounded-2xl p-3">
-            <div className="flex items-center gap-2">
-              <span className="h-8 w-2 rounded" style={{ background: color }} />
-              <div className="flex-1"><div className="font-bold">{t.name} {mort ? '(mortgaged)' : ''}</div>
-                <div className="text-xs text-white/60">${price} · rent ${rentNow}{level > 0 && <span className="ml-1">{level === 5 ? '🏨' : '🏠'.repeat(level)}</span>}</div></div>
-              <button onClick={() => emit('mortgage', { tile: i })} className="rounded-xl bg-white/15 px-3 py-2 text-xs font-bold">
-                {mort ? 'Unmortgage' : `Mortgage +$${Math.round(price / 2)}`}</button>
-            </div>
-            {t.kind === 'property' && !mort && (
-              <div className="mt-2 flex items-center gap-2">
-                {isFull && level < 5 && (
-                  <button onClick={() => emit('buyHouse', { tile: i })}
-                    className="flex-1 rounded-xl bg-emerald-300/90 px-2 py-1.5 text-xs font-extrabold text-emerald-950">
-                    {level === 4 ? `🏨 Hotel $${houseCost}` : `🏠 House $${houseCost}`}</button>
-                )}
-                {level > 0 && (
-                  <button onClick={() => emit('sellHouse', { tile: i })}
-                    className="flex-1 rounded-xl bg-white/15 px-2 py-1.5 text-xs font-bold">Sell +${Math.floor(houseCost / 2)}</button>
-                )}
-                {isFull && set.some((x) => (room.buildings[x] ?? 0) > 0) && (
-                  <button onClick={() => emit('sellAllHouses', { tile: i })}
-                    className="flex-1 rounded-xl bg-amber-300/20 px-2 py-1.5 text-xs font-bold text-amber-200">Sell all in set</button>
-                )}
-                {!isFull && <div className="text-xs text-white/40">Full set unlocks houses</div>}
+          <div
+            key={i}
+            className="relative overflow-hidden rounded-2xl border border-white/15 p-3 shadow-lg"
+            style={{
+              ...(artUrl
+                ? { backgroundImage: `url("${artUrl}")`, backgroundSize: 'cover', backgroundPosition: 'center' }
+                : { background: 'rgba(255, 255, 255, 0.05)' }),
+            }}
+          >
+            {/* Dark glass backdrop overlay for readability */}
+            <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/80 to-black/85 backdrop-blur-[2px]" />
+
+            <div className="relative z-10">
+              <div className="flex items-center gap-2.5">
+                <span className="h-8 w-2 rounded-full shadow" style={{ background: color }} />
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold flex items-center gap-1.5 truncate">
+                    <span>{t.name}</span>
+                    {mort && (
+                      <span className="rounded bg-rose-500/30 border border-rose-400/40 px-1.5 py-0.5 text-[10px] font-bold text-rose-200">
+                        MORTGAGED
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-white/70">
+                    ${price} · rent ${rentNow}
+                    {level > 0 && (
+                      <span className="ml-1.5 font-bold text-amber-200">
+                        {level === 5 ? '🏨 Hotel' : `${level} 🏠`}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => emit('mortgage', { tile: i })}
+                  className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
+                    mort ? 'bg-amber-300 text-black shadow' : 'bg-white/15 text-white hover:bg-white/20'
+                  }`}
+                >
+                  {mort ? 'Unmortgage' : `Mortgage +$${Math.round(price / 2)}`}
+                </button>
               </div>
-            )}
+
+              {/* Set progress & missing deeds */}
+              {progress.total > 1 && (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+                  {progress.isComplete ? (
+                    <span className="rounded-md bg-emerald-400/20 border border-emerald-400/30 px-2 py-0.5 font-bold text-emerald-200">
+                      ⭐ Set Complete ({progress.owned}/{progress.total})
+                    </span>
+                  ) : (
+                    <>
+                      <span className="rounded-md bg-amber-400/20 border border-amber-400/30 px-2 py-0.5 font-bold text-amber-200">
+                        Set: {progress.owned}/{progress.total}
+                      </span>
+                      <span className="text-white/70 text-[11px]">
+                        Need:{' '}
+                        {progress.pending.map((p, idx) => (
+                          <span key={p.tile}>
+                            {idx > 0 && ', '}
+                            <span className="font-medium text-white">{p.name}</span>{' '}
+                            {p.ownerName ? (
+                              <span className="text-amber-300">({p.ownerName})</span>
+                            ) : (
+                              <span className="text-emerald-300 font-semibold">(Unowned)</span>
+                            )}
+                          </span>
+                        ))}
+                      </span>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Building controls */}
+              {t.kind === 'property' && !mort && (
+                <div className="mt-2.5 flex items-center gap-2 border-t border-white/10 pt-2">
+                  {isFull && level < 5 && (
+                    <button
+                      type="button"
+                      onClick={() => emit('buyHouse', { tile: i })}
+                      className="flex-1 rounded-xl bg-emerald-400 px-2 py-1.5 text-xs font-extrabold text-emerald-950 shadow hover:bg-emerald-300"
+                    >
+                      {level === 4 ? `🏨 Hotel $${houseCost}` : `🏠 House $${houseCost}`}
+                    </button>
+                  )}
+                  {level > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => emit('sellHouse', { tile: i })}
+                      className="flex-1 rounded-xl bg-white/15 px-2 py-1.5 text-xs font-bold hover:bg-white/20"
+                    >
+                      Sell +${Math.floor(houseCost / 2)}
+                    </button>
+                  )}
+                  {isFull && set.some((x) => (room.buildings[x] ?? 0) > 0) && (
+                    <button
+                      type="button"
+                      onClick={() => emit('sellAllHouses', { tile: i })}
+                      className="flex-1 rounded-xl bg-amber-300/20 px-2 py-1.5 text-xs font-bold text-amber-200 hover:bg-amber-300/30"
+                    >
+                      Sell all in set
+                    </button>
+                  )}
+                  {!isFull && <div className="text-[11px] text-white/40">Full set unlocks houses</div>}
+                </div>
+              )}
+            </div>
           </div>
         );
       })}

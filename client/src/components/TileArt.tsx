@@ -1,13 +1,25 @@
-import { BOARD, COLOR_HEX } from '@monopoly/shared';
+import { BOARD, COLOR_HEX, DEFAULT_BOARD_STYLE } from '@monopoly/shared';
+import { useGame } from '../store';
+import { useDiscoveredThemes } from '../useThemes';
+import { themeFor, type BoardTheme, type TileArtKey } from './boardThemes';
 
 /**
- * Offline-first tile thumbnail placeholder (no image assets needed).
- * Color band + emoji per tile kind, matching the dark glass theme.
- * When real tile art lands in client/public/tiles/, swap the inner emoji
- * for an <img> here — every consumer (trade, position card, deed rows)
- * upgrades at once.
+ * Tile thumbnail showing color band, theme background artwork (if available in
+ * current board theme), and emoji icon. Upgrades thumbnails across the phone UI.
  */
-export function TileArt({ tile, size = 44 }: { tile: number; size?: number }) {
+export function TileArt({
+  tile,
+  size = 44,
+  theme: propTheme,
+}: {
+  tile: number;
+  size?: number;
+  theme?: BoardTheme;
+}) {
+  const room = useGame((s) => s.room);
+  const discovered = useDiscoveredThemes();
+  const theme = propTheme ?? themeFor(room?.boardStyle ?? DEFAULT_BOARD_STYLE, discovered);
+
   const t = BOARD[tile];
   let band = '#64748b';
   let icon = '❓';
@@ -21,14 +33,27 @@ export function TileArt({ tile, size = 44 }: { tile: number; size?: number }) {
   else if (t?.kind === 'jail') { band = '#94a3b8'; icon = '🔒'; }
   else if (t?.kind === 'parking') { band = '#38bdf8'; icon = '🅿️'; }
   else if (t?.kind === 'go') { band = '#4ade80'; icon = '🟢'; }
+
+  const artKey: TileArtKey | undefined = t?.kind === 'property'
+    ? (t.color !== 'none' ? t.color : undefined)
+    : t?.kind;
+  const art = artKey ? theme?.tileArt?.[artKey] : undefined;
+
   return (
     <div
-      className="flex shrink-0 flex-col overflow-hidden rounded-xl border border-white/15 bg-black/40"
-      style={{ width: size, height: size }}
+      className="relative flex shrink-0 flex-col overflow-hidden rounded-xl border border-white/20 bg-black/40 shadow-inner"
+      style={{
+        width: size,
+        height: size,
+        ...(art ? { backgroundImage: `url("${art}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}),
+      }}
       aria-hidden
     >
       <div style={{ background: band, height: Math.max(5, Math.round(size / 7)) }} />
-      <div className="flex flex-1 items-center justify-center" style={{ fontSize: Math.round(size / 2.4) }}>{icon}</div>
+      {art && <div className="absolute inset-0 bg-black/35" />}
+      <div className="relative flex flex-1 items-center justify-center font-bold drop-shadow" style={{ fontSize: Math.round(size / 2.4) }}>
+        {icon}
+      </div>
     </div>
   );
 }

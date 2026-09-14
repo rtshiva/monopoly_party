@@ -18,7 +18,7 @@ export function StageBar({ room }: { room: RoomState }) {
           Room <span className="font-mono font-extrabold text-white">{room.code}</span> · Turn {room.turnCount} · {room.players.length} players
         </div>
       </div>
-      <DicePair d1={room.dice[0]} d2={room.dice[1]} rollKey={room.lastRoll} size={44} shuffling={!!roller} />
+      <DicePair d1={room.dice[0]} d2={room.dice[1]} rollKey={room.lastRoll ? `${room.lastRoll}:${room.dice[0]}-${room.dice[1]}:${room.rev}` : null} size={44} shuffling={!!roller} />
       <div className="text-sm">
         {roller ? (
           <div className="font-bold text-amber-200">🎲 {roller.name} is shaking…</div>

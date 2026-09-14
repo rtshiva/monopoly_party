@@ -87,7 +87,18 @@ try {
 export function dlogc(evt: string, msg = '') {
   buf.push({ at: Date.now(), evt, msg });
   if (buf.length > MAX) buf.splice(0, buf.length - MAX);
+  try {
+    // Mirror to console so browser devtools/inspect captures all events
+    console.log(`[debug] ${evt}${msg ? `: ${msg}` : ''}`);
+  } catch { /* noop */ }
   schedulePersist();
+}
+
+/** Clear the in-memory and persisted ring buffer. */
+export function clearDebugBuffer() {
+  buf.length = 0;
+  dirty = true;
+  persistNow();
 }
 
 /** Newest-first snapshot for the overlay. */
@@ -95,10 +106,13 @@ export function debugBuffer(): DbgEntry[] {
   return [...buf].reverse();
 }
 
-export function debugEnabled(): boolean {
+export function debugEnabled(search?: string): boolean {
   try {
-    return new URLSearchParams(window.location.search).has('debug');
+    const s = search ?? (typeof window !== 'undefined' ? window.location?.search ?? '' : '');
+    const p = new URLSearchParams(s);
+    // Hardcoded enabled till stability; can still be explicitly disabled via ?debug=0
+    return p.get('debug') !== '0';
   } catch {
-    return false;
+    return true;
   }
 }

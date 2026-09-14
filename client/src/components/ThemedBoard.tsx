@@ -146,7 +146,13 @@ export function ThemedBoard({ room }: { room: RoomState }) {
     <div className="select-none">
       <StageBar room={room} />
       <div className="rounded-3xl p-2 shadow-xl" style={{ background: theme.boardBg }}>
-        <div className="grid grid-cols-11 grid-rows-11 gap-[3px]">
+        <div
+          className="grid gap-[3px] aspect-square w-full max-w-[860px] mx-auto"
+          style={{
+            gridTemplateColumns: 'repeat(11, minmax(0, 1fr))',
+            gridTemplateRows: 'repeat(11, minmax(0, 1fr))',
+          }}
+        >
           {BOARD.map((t, i) => {
             const [r, c] = tileToRC(i);
             const isPending = room.pendingBuy === i;
@@ -169,7 +175,7 @@ export function ThemedBoard({ room }: { room: RoomState }) {
                   color: theme.ink,
                   ...(art ? { backgroundImage: `url("${art}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}),
                 }}
-                className={`relative overflow-hidden rounded-[7px] p-[3px] text-[10px] leading-tight lg:text-[11px] transition-shadow ${
+                className={`relative overflow-hidden rounded-[7px] p-[2px] min-w-0 min-h-0 flex flex-col justify-between text-[10px] leading-tight lg:text-[11px] transition-shadow ${
                   isPending ? 'ring-2 ring-amber-500 animate-pulse' : ''
                 } ${isLanding ? 'ring-2 ring-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.8)]' : ''} ${
                   isCurrentTurn && !isLanding ? 'ring-2 ring-sky-500' : ''
@@ -177,7 +183,7 @@ export function ThemedBoard({ room }: { room: RoomState }) {
                 title={t.name}
               >
                 {art && <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30" />}
-                <div className="relative h-full">
+                <div className="relative h-full w-full min-h-0 min-w-0 flex flex-col justify-between overflow-hidden">
                   <TileFace
                     i={i}
                     room={room}

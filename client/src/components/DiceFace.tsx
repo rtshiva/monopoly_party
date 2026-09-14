@@ -92,8 +92,8 @@ function faceTransform(v: number, half: number): CSSProperties {
   }
 }
 
-/** Forward-spinning target: N full turns plus the delta onto the face. */
-function nextRotation(cur: { x: number; y: number }, value: number, spins = 2) {
+/** Forward-spinning target: N full turns plus the delta onto the face. Pure. */
+export function nextRotation(cur: { x: number; y: number }, value: number, spins = 2) {
   const t = FACE_ROT[value] ?? FACE_ROT[1];
   const dx = ((t.x - cur.x) % 360 + 360) % 360;
   const dy = ((t.y - cur.y) % 360 + 360) % 360;
@@ -137,16 +137,17 @@ function DiceCube({ value, size, spinKey, delay = 0, shuffling = false }: {
   const [rot, setRot] = useState(target);
   const [played, setPlayed] = useState(false);
   const rotRef = useRef(target);
-  const seenKeys = useRef<Set<string>>(new Set());
+  const firstPaint = useRef(true);
   const reduced = useReducedMotion();
   const k = spinKey ?? 'start';
 
-  // New authoritative roll: tumble forward onto the decided face.
+  // New authoritative roll: always tumble forward onto the decided face.
+  // (An earlier version skipped repeats via a seen-keys set — but the shake
+  // preview can leave the cube showing random faces, so a skipped repeat
+  // froze fantasy faces on the roller's screen while the text was correct.
+  // Deps [k] already scope re-runs; every new key re-syncs unconditionally.)
   useEffect(() => {
-    if (seenKeys.current.has(k)) return;
-    seenKeys.current.add(k);
-    if (seenKeys.current.size > 8) seenKeys.current = new Set([k]);
-    if (seenKeys.current.size === 1) return; // first mount: show statically
+    if (firstPaint.current) { firstPaint.current = false; return; } // mount: show statically
     setPlayed(true);
     if (shuffling || reduced) { rotRef.current = target; setRot(target); return; }
     rotRef.current = nextRotation(rotRef.current, value);

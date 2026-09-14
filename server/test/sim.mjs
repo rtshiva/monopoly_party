@@ -14,6 +14,8 @@ import path from 'path';
 delete process.env.REDIS_URL;
 delete process.env.DATABASE_URL;
 process.env.ROOMS_FILE = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'monopoly-sim-')), 'rooms.json');
+// Suite traffic stays out of the dev journal (see regression.mjs).
+process.env.LOG_FILE = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'monopoly-sim-log-')), 'debug.log');
 
 const { rooms, setIo, forgetRoom } = await import('../dist/store.js');
 setIo({ to: () => ({ emit: () => {} }) });

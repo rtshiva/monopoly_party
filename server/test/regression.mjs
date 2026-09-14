@@ -20,6 +20,8 @@ import { removeSeat } from '../dist/core/bankruptcy.js';
 const PORT = 3123;
 const BASE = `http://localhost:${PORT}`;
 const ROOMS_FILE = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'monopoly-test-')), 'rooms.json');
+// Keep suite traffic out of the dev journal: game-night logs stay live-only.
+const LOG_FILE = path.join(path.dirname(ROOMS_FILE), 'debug.log');
 const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 const results = [];
@@ -29,7 +31,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function boot() {
   const child = spawn(process.execPath, ['dist/index.js'], {
     cwd: path.resolve(SERVER_DIR, '..'),
-    env: { ...process.env, PORT: String(PORT), ROOMS_FILE },
+    env: { ...process.env, PORT: String(PORT), ROOMS_FILE, LOG_FILE },
     stdio: 'ignore',
   });
   return child;

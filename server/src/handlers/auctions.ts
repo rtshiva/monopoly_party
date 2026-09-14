@@ -1,8 +1,9 @@
 import type { Socket } from 'socket.io';
-import { BOARD } from '@monopoly/shared';
-import { MIN_BID } from '@monopoly/shared';
+import { BOARD, MIN_BID } from '@monopoly/shared';
 import { rooms } from '../store.js';
-import { emit, log, requireControl, resolveAuction } from '../helpers.js';
+import { emit, log } from '../core/broadcast.js';
+import { requireControl } from '../core/seat.js';
+import { resolveAuction } from '../core/auction.js';
 
 export function registerAuctionHandlers(socket: Socket) {
   socket.on('auctionBid', ({ code, playerId, key, amount }: { code: string; playerId: string; key: unknown; amount: unknown }, cb) => {

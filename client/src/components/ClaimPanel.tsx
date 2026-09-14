@@ -24,7 +24,8 @@ export function ClaimPanel({ room, seats, title, onClaimed, emit }: Props) {
   const [pins, setPins] = useState<Record<string, string>>({});
   const [labelDraft, setLabelDraft] = useState(deviceLabel);
   const [msg, setMsg] = useState('');
-  const list = (seats ?? room.players).filter((p) => !p.bankrupt);
+  // Bots hold no key and reject claims server-side — hide them up front.
+  const list = (seats ?? room.players).filter((p) => !p.bankrupt && !p.isBot);
 
   function claim(seat: Player) {
     const pin = (pins[seat.id] || '').trim();

@@ -165,7 +165,7 @@ Anyone with link + `?spectate` sees board read-only. Host “Copy invite” for 
 - [x] M2 Chance/Chest deck + doubles + mortgage + houses-lite
 - [x] M3 Trades + auctions + houses/hotels + sounds + PWA install
 - [x] M4 Turn timers + offline skip + bankruptcy auctions + rematch + snapshots + `npm test`
-- [ ] V2 Full even-build trading of houses, Redis, Postgres history, bots
+- [x] V2 Full even-build trading of houses, Redis, Postgres history, bots, delta events
 
 ---
 

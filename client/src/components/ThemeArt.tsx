@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { BoardTheme } from './boardThemes';
 
 /** Shared title badge drawn over every center scene (HTML = always crisp). */
@@ -134,10 +135,13 @@ const SCENES: Record<string, () => React.JSX.Element> = {
  *  file exists, otherwise the built-in SVG scene. Title is always HTML. */
 export function ThemeArt({ theme }: { theme: BoardTheme }) {
   const Scene = SCENES[theme.id] ?? GrandPrix;
+  const [imgOk, setImgOk] = useState(true);
+  // Reset if the theme (or its art URL) changes mid-session.
+  useEffect(() => { setImgOk(true); }, [theme.id, theme.artImage]);
   return (
     <div className="relative h-full w-full">
-      {theme.artImage ? (
-        <img src={theme.artImage} alt={theme.name} className="h-full w-full object-cover" draggable={false} />
+      {theme.artImage && imgOk ? (
+        <img src={theme.artImage} alt={theme.name} onError={() => setImgOk(false)} className="h-full w-full object-cover" draggable={false} />
       ) : (
         <svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" className="h-full w-full">
           <Scene />

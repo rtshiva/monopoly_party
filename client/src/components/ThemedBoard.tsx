@@ -1,6 +1,7 @@
 import { BOARD, COLOR_HEX, TOKENS, tileCell } from '@monopoly/shared';
 import type { RoomState } from '@monopoly/shared';
-import { BOARD_THEMES, type BoardTheme, type TileArtKey } from './boardThemes';
+import { themeFor, type BoardTheme, type TileArtKey } from './boardThemes';
+import { useDiscoveredThemes } from '../useThemes';
 import { ThemeArt, TitleBadge } from './ThemeArt';
 import { StageBar } from './StageBar';
 
@@ -107,7 +108,10 @@ function TileFace({ i, room, theme, onArt }: { i: number; room: RoomState; theme
  * so there is nothing to calibrate, ever. All game data stays live HTML.
  */
 export function ThemedBoard({ room }: { room: RoomState }) {
-  const theme = BOARD_THEMES[room.boardStyle] ?? BOARD_THEMES.grandprix;
+  // Subscribes to drop-in discovery: the board re-renders with folder art
+  // (e.g. discworld) the moment the list lands, no code changes.
+  const discovered = useDiscoveredThemes();
+  const theme = themeFor(room.boardStyle, discovered);
   return (
     <div className="select-none">
       <StageBar room={room} />

@@ -36,6 +36,8 @@ function blip(freq: number, at: number, dur = 0.12, type: OscillatorType = 'sine
 
 /** Dice rattle: 4 quick square ticks. Call on ROLL tap (user gesture). */
 export function sndRoll() { [0, 0.07, 0.14, 0.24].forEach((d, i) => blip(220 + i * 90, d, 0.08, 'square', 0.06)); }
+/** Single rattle tick — call on every shuffle step while holding ROLL. */
+export function sndTick() { blip(220 + Math.random() * 420, 0, 0.05, 'square', 0.05); }
 /** Cash register-ish: two ascending sines. */
 export function sndCash() { blip(660, 0); blip(990, 0.09); }
 /** Deed purchase: soft triad. */

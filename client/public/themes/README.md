@@ -1,5 +1,15 @@
 # Board artwork — spec (cells-as-backgrounds)
 
+## Drop-in themes (no code changes)
+
+Make a new folder here named after your theme (e.g. `discworld/`) and add
+`<name>-center.webp` (1600px, no text — see below). The server discovers it
+automatically (`GET /api/themes`) and it appears in the board dropdown on
+the landing and TV screens with a center-art preview. Optional per-tile art
+(`<name>-tile-<key>.webp`, keys below) lights up as you add files; missing
+keys fall back to plain colors. A server restart is never required to *list*
+a new theme; already-saved rooms keep working regardless.
+
 The board is a uniform 11×11 HTML grid — geometry can never drift. Generated
 art appears only as **cell backgrounds** (one center image, one image per
 corner, one per street color/special). Everything dynamic (names, prices,

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { Landing } from './pages/Landing';
 import { HostScreen } from './pages/HostScreen';
 import { PlayScreen } from './pages/PlayScreen';
@@ -8,17 +8,27 @@ import { useGame } from './store';
 
 export function App() {
   const [swUpdate, setSwUpdate] = useState(false);
+  return (
+    <BrowserRouter>
+      <Shell swUpdate={swUpdate} setSwUpdate={setSwUpdate} />
+    </BrowserRouter>
+  );
+}
+
+function Shell({ swUpdate, setSwUpdate }: { swUpdate: boolean; setSwUpdate: (v: boolean) => void }) {
   const room = useGame((s) => s.room);
-  // During active play the TV is all board: hide the site nav on host routes.
-  const onHostRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/host/');
+  // useLocation (not window.location at first render) so the nav hides and
+  // shows as you move between home, TV and phone routes.
+  const { pathname } = useLocation();
+  const onHostRoute = pathname.startsWith('/host/');
   const hideNav = onHostRoute && (room?.status === 'playing' || room?.status === 'paused');
   useEffect(() => {
     const onUpdate = () => setSwUpdate(true);
     window.addEventListener('sw-updated', onUpdate);
     return () => window.removeEventListener('sw-updated', onUpdate);
-  }, []);
+  }, [setSwUpdate]);
   return (
-    <BrowserRouter>
+    <>
       {!hideNav && (
         <nav className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
           <Link to="/" className="font-display font-bold">🎲 Monopoly Party</Link>
@@ -40,6 +50,6 @@ export function App() {
           <button onClick={() => setSwUpdate(false)} className="rounded-xl bg-white/10 px-3 py-1.5 text-sm">Later</button>
         </div>
       )}
-    </BrowserRouter>
+    </>
   );
 }

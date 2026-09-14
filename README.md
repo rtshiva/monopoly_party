@@ -36,7 +36,30 @@ Phones on the same Wi-Fi open `http://<YOUR-LAN-IP>:3001/` (find it with
 the TV's QR. Allow Node through the firewall when asked.
 
 Snapshots live in `server/data/` (survives restarts). Override with env:
-`PORT=8080`, `ROOMS_FILE=D:\backup\rooms.json`.
+`PORT=8080`, `ROOMS_FILE=D:\backup\rooms.json`. For multi-instance deploys,
+set `REDIS_URL=redis://localhost:6379` — snapshots are mirrored to Redis key
+`monopoly:rooms:v1` (loaded first on boot, file fallback) while the file stays
+as crash-safe local backup. Set `DATABASE_URL=postgres://user:pass@host:5432/db`
+to also append every game-feed event to Postgres table `game_events`
+(auto-created); read it back via `GET /api/history/:code?limit=100`. Both
+integrations are best-effort: with neither env var set, the app behaves
+exactly as before.
+
+## Debugging a live game night
+
+Leave these on (they're the defaults) and they pay for themselves at the
+next bug report — turn everything off later with the flags shown:
+
+- **Server journal** (`server/data/debug.log`, JSONL): every boot, seat
+  claim/offline, timer freeze/resolve, auction open/resolve, bot turn, room
+  purge, plus per-broadcast rev + payload sizes. Never contains keys or PINs.
+  `DEBUG_LOG=0` disables; `LOG_FILE=/path/debug.log` moves it.
+- **Bot traces**: `BOT_DEBUG=1` prints each bot turn's attempts to stdout.
+- **Phone/TV overlay**: open any screen with `?debug=1` for a live panel
+  (connection, room rev/turn, recent ack errors, delta fallbacks, and a
+  dice-mismatch tripwire). Nothing leaves the device.
+- **Snapshot**: `GET /api/debug/summary` returns the room roster + journal
+  tail. Paste it together with a `?debug=1` screenshot when reporting.
 
 ## Run with Docker
 
@@ -74,4 +97,5 @@ which seat. After a server restart, reclaim seats with the TV PINs.
 - `/play/:code` — phone controller (roll, buy, properties, end turn)
 
 ## Rules (playable today)
-Start $1500, GO +$200, doubles = extra roll (3rd → jail), jail pay $50 or wait, buy/pass (pass → 30s auction), rent auto (full sets + house/hotel tiers), tax, chance/chest-lite, mortgage 50%, player trades (properties + cash, 60s offers), houses/hotels with even build, 60s turns with auto-resolve (15s for offline seats), bankrupt deeds go to bank auction, rematch from the TV screen, sounds + PWA, last-player-wins.
+Start $1500, GO +$200, doubles = extra roll (3rd → jail), jail pay $50 or wait, buy/pass (pass → 30s auction), rent auto (full sets + house/hotel tiers), tax, chance/chest-lite, mortgage 50%, player trades (properties + cash, 60s offers), houses/hotels with even build, 60s turns with auto-resolve (15s for offline seats), bankrupt deeds go to bank auction, rematch from the TV screen, sounds + PWA, last-player-wins. Host can add 🤖 bots
+(server-driven seats: roll, buy/pass, build, mortgage-rescue) from the TV screen.

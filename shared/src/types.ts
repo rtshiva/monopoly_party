@@ -35,18 +35,34 @@ export interface Player {
   bankrupt: boolean;
   connected: boolean;
   isHost: boolean;
+  /** Server-driven seat (no socket/key). Acts on a think delay via core/bots. */
+  isBot: boolean;
   hasRolled: boolean;
   seatPin: string; // 4-digit takeover PIN, public to the room (shown on TV)
   controllerLabel: string | null; // human label of the device currently controlling this seat
 }
 
-export interface LogEntry { id: string; text: string; at: number; tone?: 'info' | 'good' | 'bad' | 'money' }
+/** Activity-feed category: powers the All/Moves/Purchases/Trades/Builds/Money filters. */
+export type LogCat = 'move' | 'purchase' | 'trade' | 'build' | 'money' | 'info';
+
+export interface LogEntry {
+  id: string; text: string; at: number; tone?: 'info' | 'good' | 'bad' | 'money';
+  /** Turn number at write time (log() stamps room.turnCount). Absent on old snapshots. */
+  turn?: number;
+  /** Category for filters. Absent on old snapshots — clients fall back to tone. */
+  cat?: LogCat;
+}
 
 export type RoomStatus = 'lobby' | 'playing' | 'paused' | 'finished';
 
-/** TV board skins. Old saves holding retired ids are migrated to grandprix on load. */
-export const BOARD_STYLES = ['grandprix', 'city', 'coastal', 'mountain', 'dinosaur', 'space'] as const;
-export type BoardStyle = (typeof BOARD_STYLES)[number];
+/** TV board skins. Built-ins ship in the client registry; drop-in themes
+ *  (a folder with `<prefix>-center.webp` under client/public/themes/) are
+ *  discovered at runtime — any string id is representable, with the built-ins
+ *  kept for autocomplete. Unknown ids render on neutral colors. */
+export const BOARD_STYLES = ['classic', 'grandprix', 'city', 'coastal', 'mountain', 'dinosaur', 'space'] as const;
+export type BoardStyle = (typeof BOARD_STYLES)[number] | (string & {});
+/** Default skin for new rooms and unknown saved values. */
+export const DEFAULT_BOARD_STYLE: BoardStyle = 'classic';
 
 export interface TradeOffer {
   id: string;
@@ -92,6 +108,20 @@ export interface RoomState {
   log: LogEntry[];
   winnerId: string | null;
   turnCount: number;
+  /** Ephemeral hold-to-roll presence: seat id currently shaking the dice (null when idle).
+   *  Never restored from snapshots — a reboot always clears it. */
+  rollingId: string | null;
+  /** Monotonic broadcast revision. Bumped on every emit(); deltas reference it. */
+  rev: number;
+}
+
+/** Incremental update: only the top-level keys listed in `changed`. */
+export interface RoomDelta {
+  code: string;
+  rev: number; // revision AFTER applying patch
+  baseRev: number; // revision the patch applies cleanly onto
+  changed: Array<keyof RoomState>;
+  patch: Partial<RoomState>;
 }
 
 export const START_CASH = 1500;
@@ -105,3 +135,56 @@ export const AUCTION_DURATION_MS = 30000;
 export const MIN_BID = 10;
 export const TURN_MS = 60000;
 export const OFFLINE_TURN_MS = 15000;
+
+// ---------------------------------------------------------------------------
+// Typed socket error codes — use these instead of raw strings in handlers and
+// on the client. Adding a new error requires updating this union, which makes
+// it discoverable and prevents silent string-mismatch bugs.
+// ---------------------------------------------------------------------------
+export type GameError =
+  // Room / session
+  | 'NO_ROOM'
+  | 'ROOM_FULL'
+  | 'GAME_OVER'
+  | 'NEED_2'
+  // Auth / control
+  | 'NO_CONTROL'
+  | 'NOT_HOST'
+  | 'BAD_SEAT'
+  | 'BAD_PIN'
+  // Turn flow
+  | 'NOT_YOUR_TURN'
+  | 'ALREADY_ROLLED'
+  | 'ROLL_FIRST'
+  | 'PENDING_BUY'
+  | 'TIME_UP'
+  | 'AUCTION_LIVE'
+  | 'NEGATIVE'
+  | 'STALE_OFFER'
+  | 'ALREADY_OWNED'
+  // Economy
+  | 'NO_CASH'
+  | 'BAD_TILE'
+  | 'HAS_HOUSES'
+  | 'EVEN_BUILD'
+  | 'MAX_HOUSES'
+  | 'MORTGAGED'
+  | 'NOT_FULL_SET'
+  | 'TILE_LOCKED'
+  | 'NO_CARD'
+  | 'NO_CARDS'
+  // Trades
+  | 'BAD_TRADE'
+  | 'NO_OFFER'
+  | 'NOT_YOUR_OFFER'
+  // Auctions
+  | 'NO_AUCTION'
+  | 'BID_TOO_LOW'
+  // Lobby
+  | 'NAME_TAKEN'
+  | 'BAD_STYLE';
+
+/** Standard socket acknowledgement shape used by every handler. */
+export type SocketResult<T extends Record<string, unknown> = Record<string, never>> =
+  | ({ ok: true } & T)
+  | { ok: false; error?: GameError };

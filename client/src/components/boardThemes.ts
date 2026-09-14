@@ -1,4 +1,5 @@
 import type { BoardStyle, TileColor } from '@monopoly/shared';
+import { DEFAULT_BOARD_STYLE } from '@monopoly/shared';
 
 export interface BoardTheme {
   id: BoardStyle;
@@ -37,7 +38,31 @@ export type TileArtKey =
 
 /** Six skins. Rules and streets never change — only the look. */
 export const BOARD_THEMES: Record<BoardStyle, BoardTheme> = {
-  grandprix: {
+  classic: {
+    id: 'classic', name: 'Classic', short: 'Classic', icon: '🎩',
+    tagline: 'THE ORIGINAL. DEEDS · DICE · DESTINY.',
+    boardBg: '#e3ecd9', tileBg: '#fffdf4', ink: '#1e293b', subInk: '#64748b',
+    artImage: '/themes/classic/classic-center.webp',
+    tileArt: {
+      brown: '/themes/classic/classic-tile-brown.webp',
+      lightblue: '/themes/classic/classic-tile-lightblue.webp',
+      pink: '/themes/classic/classic-tile-pink.webp',
+      orange: '/themes/classic/classic-tile-orange.webp',
+      red: '/themes/classic/classic-tile-red.webp',
+      yellow: '/themes/classic/classic-tile-yellow.webp',
+      green: '/themes/classic/classic-tile-green.webp',
+      blue: '/themes/classic/classic-tile-blue.webp',
+      railroad: '/themes/classic/classic-tile-railroad.webp',
+      utility: '/themes/classic/classic-tile-utility.webp',
+      tax: '/themes/classic/classic-tile-tax.webp',
+      chance: '/themes/classic/classic-tile-chance.webp',
+      chest: '/themes/classic/classic-tile-chest.webp',
+      go: '/themes/classic/classic-tile-go.webp',
+      jail: '/themes/classic/classic-tile-jail.webp',
+      parking: '/themes/classic/classic-tile-parking.webp',
+      gotojail: '/themes/classic/classic-tile-gotojail.webp',
+    },
+  },  grandprix: {
     id: 'grandprix', name: 'Grand Prix Circuit', short: 'Grand', icon: '🏁',
     tagline: 'SAME GAME. A FASTER JOURNEY.',
     boardBg: '#ece1c9', tileBg: '#fffdf4', ink: '#1e293b', subInk: '#64748b',
@@ -129,3 +154,68 @@ export const BOARD_THEMES: Record<BoardStyle, BoardTheme> = {
     boardBg: '#e4e7ec', tileBg: '#fbfcfe', ink: '#1e293b', subInk: '#64748b',
   },
 };
+
+/** One drop-in theme folder, as reported by GET /api/themes. */
+export interface DiscoveredTheme {
+  id: string;
+  name: string;
+  center: string;
+  tileArt: Partial<Record<TileArtKey, string>>;
+  tiles?: string[];
+  missing?: string[];
+  warnings?: string[];
+}
+
+/** Neutral light defaults for discovered themes without registry metadata. */
+export function generatedTheme(d: DiscoveredTheme): BoardTheme {
+  return {
+    id: d.id,
+    name: d.name,
+    short: d.name.split(/[\s-_]+/)[0]?.slice(0, 10) || d.id,
+    icon: '✨',
+    tagline: 'COMMUNITY THEME.',
+    boardBg: '#eef2f7',
+    tileBg: '#fffdf4',
+    ink: '#1e293b',
+    subInk: '#64748b',
+    artImage: d.center,
+    tileArt: d.tileArt,
+  };
+}
+
+/**
+ * Merge drop-in discovery over the built-in registry. A discovered folder
+ * whose center art matches a built-in (city, dinosaur-park, space-city…)
+ * supplements that entry instead of duplicating it; anything else (e.g.
+ * discworld) becomes a new selectable theme with zero code changes. Pure.
+ */
+export function mergeDiscovered(
+  builtins: Record<string, BoardTheme>,
+  discovered: DiscoveredTheme[],
+): BoardTheme[] {
+  const byId = new Map<string, BoardTheme>();
+  for (const d of discovered) {
+    if (!d || typeof d.id !== 'string' || !d.id) continue;
+    byId.set(d.id, generatedTheme(d));
+  }
+  for (const b of Object.values(builtins)) {
+    const dupeKey = [...byId.keys()].find(
+      (k) => k !== b.id && byId.get(k)?.artImage && byId.get(k)?.artImage === b.artImage,
+    );
+    const base = dupeKey ? byId.get(dupeKey)! : byId.get(b.id);
+    if (dupeKey) byId.delete(dupeKey);
+    byId.set(
+      b.id,
+      base
+        ? { ...base, ...b, id: b.id, tileArt: { ...base.tileArt, ...b.tileArt } }
+        : b,
+    );
+  }
+  return [...byId.values()];
+}
+
+/** Theme for a room style id — discovered or built-in, default fallback. */
+export function themeFor(style: string, discovered: DiscoveredTheme[] = []): BoardTheme {
+  const merged = mergeDiscovered(BOARD_THEMES, discovered);
+  return merged.find((t) => t.id === style) ?? merged.find((t) => t.id === DEFAULT_BOARD_STYLE) ?? BOARD_THEMES.grandprix;
+}

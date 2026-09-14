@@ -7,6 +7,9 @@ import { TurnCountdown } from './TurnCountdown';
 /** Shared center-stage: title, dice, turn clock, auction/trades, card flip. */
 export function StageBar({ room }: { room: RoomState }) {
   const topBid = room.auction ? [...room.auction.bids].sort((a, b) => b.amount - a.amount)[0] : null;
+  // Hold-to-roll presence: someone's phone is shaking right now — wobble the
+  // TV dice (current values, no result implied) and name the shaker.
+  const roller = room.rollingId ? room.players.find((p) => p.id === room.rollingId) ?? null : null;
   return (
     <div className="glass mb-3 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 rounded-2xl p-3 text-center">
       <div>
@@ -15,9 +18,13 @@ export function StageBar({ room }: { room: RoomState }) {
           Room <span className="font-mono font-extrabold text-white">{room.code}</span> · Turn {room.turnCount} · {room.players.length} players
         </div>
       </div>
-      <DicePair d1={room.dice[0]} d2={room.dice[1]} rollKey={room.lastRoll} size={44} />
+      <DicePair d1={room.dice[0]} d2={room.dice[1]} rollKey={room.lastRoll} size={44} shuffling={!!roller} />
       <div className="text-sm">
-        {room.lastRoll && <div className="text-amber-200">{room.lastRoll}</div>}
+        {roller ? (
+          <div className="font-bold text-amber-200">🎲 {roller.name} is shaking…</div>
+        ) : (
+          room.lastRoll && <div className="text-amber-200">{room.lastRoll}</div>
+        )}
         {room.status === 'playing' && (
           <div className="mt-1 rounded-full bg-white/10 px-4 py-1">
             👉 {room.players[room.turnIndex % room.players.length]?.name}'s turn

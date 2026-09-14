@@ -1,10 +1,12 @@
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { BOARD } from '@monopoly/shared';
+import { DEFAULT_BOARD_STYLE } from '@monopoly/shared';
+import { useDiscoveredThemes } from '../useThemes';
 import type { BoardStyle, Player, RoomState } from '@monopoly/shared';
 import { ThemedBoard } from '../components/ThemedBoard';
 
-const STYLES: BoardStyle[] = ['grandprix', 'city', 'coastal', 'mountain', 'dinosaur', 'space'];
+const STYLES: BoardStyle[] = ['classic', 'grandprix', 'city', 'coastal', 'mountain', 'dinosaur', 'space'];
 const TOKEN_ORDER: Player['token'][] = ['car', 'dog', 'hat', 'ship'];
 
 /**
@@ -36,6 +38,7 @@ function mockRoom(style: BoardStyle): RoomState {
     bankrupt: false,
     connected: n !== 3,
     isHost: n === 0,
+    isBot: false,
     hasRolled: n === 1,
     seatPin: ['1111', '2222', '3333', '4444'][n],
     controllerLabel: ['TV', 'Phone-A', 'Phone-B', null][n],
@@ -93,12 +96,18 @@ function mockRoom(style: BoardStyle): RoomState {
     ],
     winnerId: null,
     turnCount: 12,
+    rollingId: null,
+    rev: 0,
   };
 }
 
 export function BoardTest() {
-  const { style = 'grandprix' } = useParams();
-  const valid = (STYLES as string[]).includes(style) ? (style as BoardStyle) : 'grandprix';
+  const { style = 'classic' } = useParams();
+  // Any id is previewable (registry, drop-in, or default fallback); the link
+  // row covers every known skin including discovered folders.
+  const discovered = useDiscoveredThemes();
+  const allIds = [...STYLES, ...discovered.map((d) => d.id).filter((id) => !(STYLES as string[]).includes(id))];
+  const valid = (style || DEFAULT_BOARD_STYLE) as BoardStyle;
   const room = useMemo(() => mockRoom(valid), [valid]);
   return (
     <div className="mx-auto max-w-7xl px-3 py-4 lg:px-6">
@@ -106,7 +115,7 @@ export function BoardTest() {
         <Link to="/" className="underline">← home</Link>
         <span className="text-white/60">Board test: every marker on. Add <code>?calibrate=1</code> for red outlines.</span>
         <span className="ml-auto flex gap-1">
-          {STYLES.map((s) => (
+          {allIds.map((s) => (
             <Link key={s} to={`/board-test/${s}`} className={`rounded-lg px-2 py-1 text-xs font-bold ${s === valid ? 'bg-amber-300 text-black' : 'bg-white/10'}`}>{s}</Link>
           ))}
         </span>

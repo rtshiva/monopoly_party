@@ -14,3 +14,14 @@ body {
 .btn-gold { background: linear-gradient(135deg,#fde68a,#f5c518 55%,#b45309); color:#1a1005; font-weight:800; }
 .board-cell { font-size: 10px; line-height: 1.1; }
 @media (min-width: 1024px){ .board-cell{ font-size: 11px; } }
+
+/* 3D dice hold-to-shake rattle: small rotational oscillation while the cube
+   snaps between preview faces (see DiceFace.tsx). Pure CSS, offline-safe. */
+@keyframes dice-wobble {
+  0%, 100% { transform: rotate(-9deg) translateY(0); }
+  50% { transform: rotate(9deg) translateY(-6%); }
+}
+.dice-wobble { animation: dice-wobble 0.45s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .dice-wobble { animation: none; }
+}

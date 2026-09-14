@@ -4,20 +4,23 @@ import { QRCodeSVG } from 'qrcode.react';
 import { motion } from 'framer-motion';
 import type { Socket } from 'socket.io-client';
 import { emitWithAck, freshSocket } from '../socket';
-import { loadControl, saveControl, useGame } from '../store';
+import { loadControl, saveControl, useGame, saveSession, sessionPidFor } from '../store';
 import { ThemedBoard } from '../components/ThemedBoard';
-import { BOARD_THEMES, type BoardTheme } from '../components/boardThemes';
+import { ThemeSelect } from '../components/ThemeSelect';
 import { ClaimPanel } from '../components/ClaimPanel';
 import { ConnPill } from '../components/ConnPill';
-import { BOARD, TOKENS } from '@monopoly/shared';
+import { DebugPanel } from '../components/DebugPanel';
+import { debugEnabled } from '../debug';
+import { BOARD, TOKENS, applyRoomDelta } from '@monopoly/shared';
+import type { RoomDelta, RoomState } from '@monopoly/shared';
 
 export function HostScreen() {
   const { code = '' } = useParams();
-  const [sp] = useSearchParams();
+  const [sp, setSp] = useSearchParams();
   const { room, setRoom } = useGame();
   const [err, setErr] = useState('');
   const upCode = code.toUpperCase();
-  const [pid, setPid] = useState(() => sp.get('pid') || localStorage.getItem('monopoly.pid') || '');
+  const [pid, setPid] = useState(() => sp.get('pid') || sessionPidFor(upCode) || '');
   const [sockState, setSockState] = useState<Socket | null>(null);
   // Chrome (header, pickers, host buttons, invite) auto-hides once play
   // starts so the TV is all board; the floating button brings it back.
@@ -43,12 +46,26 @@ export function HostScreen() {
     // The dashboard is a pure spectator view: it never takes a seat, so a
     // takeover elsewhere can never "evict" this screen. Host powers below
     // work whenever this browser holds the host key.
-    s.emit('watchRoom', { code: upCode }, (res: { ok: boolean; room: RoomState }) => {
+    // Re-watch on every transport reconnect: an auto-reconnected socket never
+    // rejoined the room, so without this the TV board freezes on stale state.
+    // Single sync path — socket.io connects asynchronously, so 'connect'
+    // fires for the initial mount as well as every reconnect.
+    const sync = () => {
       if (!alive) return;
-      if (res?.ok) setRoom(res.room);
-      else setErr('Room not found. Create one from the home page.');
-    });
+      s.emit('watchRoom', { code: upCode }, (res: { ok: boolean; room: RoomState }) => {
+        if (!alive) return;
+        if (res?.ok) setRoom(res.room);
+        else setErr('Room not found. Create one from the home page.');
+      });
+    };
+    s.on('connect', sync);
     s.on('roomState', (r) => { if (alive) setRoom(r); });
+    // Delta fast-path with full-state fallback (see PlayScreen).
+    s.on('roomDelta', (d: RoomDelta) => {
+      if (!alive) return;
+      const merged = applyRoomDelta(useGame.getState().room, d);
+      if (merged) setRoom(merged);
+    });
     return () => { alive = false; s.disconnect(); setSockState(null); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [upCode]);
@@ -69,14 +86,20 @@ export function HostScreen() {
   const [needLogin, setNeedLogin] = useState(false);
   const roomCode: string = room.code;
 
-  async function hostAction(ev: 'pauseGame' | 'resumeGame' | 'kickPlayer' | 'setBoardStyle', extra: Record<string, unknown> = {}) {
+  async function hostAction(ev: 'pauseGame' | 'resumeGame' | 'kickPlayer' | 'setBoardStyle' | 'addBot', extra: Record<string, unknown> = {}) {
     if (!pid) { setErr('Host seat not held on this screen.'); return; }
     try {
       const res = await emitWithAck<{ ok: boolean; error?: string }>(ev, { code: roomCode, playerId: pid, key: loadControl(pid), ...extra });
       if (!res?.ok) {
-        if (res?.error === 'NOT_HOST') {
+        if (res?.error === 'NOT_HOST' || res?.error === 'NO_CONTROL') {
           setNeedLogin(true);
-          setErr('Host controls moved to another device — reclaim them in 🔑 Host login below.');
+          setErr(res?.error === 'NO_CONTROL'
+            ? 'This screen lost the host seat (server restarted or it was claimed elsewhere) — reclaim it in 🔑 Host login below.'
+            : 'Host controls moved to another device — reclaim them in 🔑 Host login below.');
+        } else if (res?.error === 'ROOM_FULL') {
+          setErr('Table is full (8 max) — remove a seat before adding a bot.');
+        } else if (res?.error === 'GAME_OVER') {
+          setErr('That game already finished — start a new room for bots.');
         } else setErr('Host action failed.');
       } else setNeedLogin(false);
     } catch {
@@ -86,6 +109,7 @@ export function HostScreen() {
 
   return (
     <div className="mx-auto max-w-7xl px-3 py-4 lg:px-6">
+      {debugEnabled() && <DebugPanel />}
       {!hideChrome && (
         <div className="flex flex-wrap items-center gap-3">
           <div className="font-display text-xl font-bold">🎲 MONOPOLY PARTY <span className="ml-2 rounded-lg bg-amber-300 px-2 py-1 font-mono text-black">{room.code}</span></div>
@@ -106,21 +130,16 @@ export function HostScreen() {
         </div>
       )}
 
-      {amHost && !hideChrome && (
-        <div className="glass mt-3 flex items-center gap-2 rounded-2xl p-3">
-          <span className="font-bold">🎨 Board</span>
-          {(Object.values(BOARD_THEMES) as BoardTheme[]).map((t) => (
-            <button
-              key={t.id}
-              onClick={() => hostAction('setBoardStyle', { style: t.id })}
-              title={t.name}
-              className={`rounded-xl px-3 py-2 text-sm font-bold ${room.boardStyle === t.id ? 'bg-amber-300 text-black' : 'bg-white/10'}`}
-            >
-              {t.icon} {t.short}
-            </button>
-          ))}
-          <span className="text-xs text-white/50">Switches live on every screen.</span>
+      {amHost && (room.status === 'lobby' || room.status === 'playing') && !hideChrome && room.players.length < 8 && (
+        <div className="glass mt-3 flex items-center gap-3 rounded-2xl p-3">
+          <span className="font-bold">🤖 Bots</span>
+          <button onClick={() => hostAction('addBot')} title="Add a computer player" className="rounded-xl bg-white/15 px-4 py-2 text-sm font-bold">+ Add bot</button>
+          <span className="text-xs text-white/50">Server-driven seat: rolls, buys, builds. Remove with ✕ below.</span>
         </div>
+      )}
+
+      {amHost && !hideChrome && (
+        <ThemeSelect value={room.boardStyle} onPick={(style) => hostAction('setBoardStyle', { style })} />
       )}
 
       {room.auction && <AuctionPanel room={room} />}
@@ -146,8 +165,9 @@ export function HostScreen() {
             }}
             onClaimed={(newPid, newKey) => {
               saveControl(newPid, newKey);
-              try { localStorage.setItem('monopoly.pid', newPid); } catch { /* noop */ }
+              saveSession(upCode, newPid);
               setPid(newPid);
+              setSp({ pid: newPid }, { replace: true });
               setNeedLogin(false);
             }}
           />
@@ -163,10 +183,10 @@ export function HostScreen() {
             <div className="mt-1 text-sm text-white/60">Same Wi-Fi required. If this shows <code>localhost</code>, open the same page via your LAN IP (e.g. http://192.168.1.5:5173). Find it with <code>ipconfig</code>.</div>
             <div className="mt-3 flex flex-wrap justify-center gap-2 md:justify-start">
               {room.players.map((p) => (
-                <span key={p.id} className="rounded-full bg-white/10 px-3 py-1 text-sm">{TOKENS[p.token]} {p.name}</span>
+                <span key={p.id} className="rounded-full bg-white/10 px-3 py-1 text-sm">{TOKENS[p.token]} {p.name}{p.isBot ? ' 🤖' : ''}</span>
               ))}
             </div>
-            <StartButton code={room.code} count={room.players.length} hostId={pid} hostKey={loadControl(pid)} />
+            <StartButton code={room.code} count={room.players.length} hostId={pid} hostKey={loadControl(pid)} onAuthLost={() => setNeedLogin(true)} />
           </div>
         </div>
       )}
@@ -177,7 +197,7 @@ export function HostScreen() {
             <div className="font-display text-lg font-bold">🏆 {room.players.find((p) => p.id === room.winnerId)?.name} wins the game!</div>
             <div className="text-sm text-white/60">Same players, fresh $1500, shuffled order.</div>
           </div>
-          <RematchButton code={room.code} count={room.players.length} hostId={pid} hostKey={loadControl(pid)} />
+           <RematchButton code={room.code} count={room.players.length} hostId={pid} hostKey={loadControl(pid)} onAuthLost={() => setNeedLogin(true)} />
         </div>
       )}
 
@@ -193,7 +213,7 @@ export function HostScreen() {
                 <div key={p.id} className={`flex items-center gap-2 rounded-xl px-3 py-2 ${p.bankrupt ? 'bg-white/5 opacity-50' : 'bg-white/10'}`}>
                   <span className="w-6 font-bold">{i + 1}</span>
                   <span className="text-xl">{TOKENS[p.token]}</span>
-                  <span className="flex-1 truncate font-semibold">{p.name} {p.bankrupt ? '(💀)' : ''} {!p.connected ? '(📴)' : p.controllerLabel ? `📱${p.controllerLabel}` : ''}</span>
+                    <span className="flex-1 truncate font-semibold">{p.name}{p.isBot ? ' 🤖' : ''} {p.bankrupt ? '(💀)' : ''} {!p.connected ? '(📴)' : p.controllerLabel ? `📱${p.controllerLabel}` : ''}</span>
                   {!p.bankrupt && <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[11px] text-amber-200" title="Seat takeover PIN">PIN {p.seatPin}</span>}
                   <span className={`font-mono font-bold ${p.cash < 0 ? 'text-rose-300' : 'text-emerald-300'}`}>${p.cash}</span>
                   {amHost && hostSeat && p.id !== hostSeat.id && !p.bankrupt && (
@@ -217,7 +237,10 @@ export function HostScreen() {
             <div className="font-display font-bold">📜 Live feed</div>
             <div className="mt-2 max-h-72 space-y-1 overflow-y-auto text-sm">
               {room.log.map((l) => (
-                <div key={l.id} className="rounded-lg bg-black/20 px-2 py-1 text-white/80">{l.text}</div>
+                <div key={l.id} className="rounded-lg bg-black/20 px-2 py-1 text-white/80">
+                  <span className="mr-1.5 font-mono text-xs text-white/40">
+                    {new Date(l.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                  </span>{l.text}</div>
               ))}
             </div>
           </div>
@@ -235,8 +258,6 @@ export function HostScreen() {
     </div>
   );
 }
-
-type RoomState = import('@monopoly/shared').RoomState;
 
 function AuctionPanel({ room }: { room: RoomState }) {
   const [, setTick] = useState(0);
@@ -258,7 +279,7 @@ function AuctionPanel({ room }: { room: RoomState }) {
   );
 }
 
-function RematchButton({ code, count, hostId, hostKey }: { code: string; count: number; hostId: string; hostKey: string | null }) {
+function RematchButton({ code, count, hostId, hostKey, onAuthLost }: { code: string; count: number; hostId: string; hostKey: string | null; onAuthLost: () => void }) {
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   return (
@@ -270,7 +291,12 @@ function RematchButton({ code, count, hostId, hostKey }: { code: string; count: 
           if (!hostId || !hostKey) { setMsg('Host seat not held on this screen — reclaim it from a phone with the TV PIN.'); setBusy(false); return; }
           try {
             const res = await emitWithAck<{ ok: boolean; error?: string }>('startGame', { code, playerId: hostId, key: hostKey });
-            if (!res?.ok) setMsg(res?.error === 'NOT_HOST' ? 'This screen no longer holds the host seat.' : 'Could not restart (need 2+ players)');
+            if (!res?.ok) {
+              if (res?.error === 'NO_CONTROL') {
+                onAuthLost();
+                setMsg('This screen lost the host seat (server restarted or it was claimed elsewhere) — reclaim it in 🔑 Host login below, then rematch.');
+              } else setMsg(res?.error === 'NOT_HOST' ? 'This screen no longer holds the host seat.' : 'Could not restart (need 2+ players)');
+            }
           } catch {
             setMsg('Server not responding — is it running?');
           }
@@ -285,7 +311,7 @@ function RematchButton({ code, count, hostId, hostKey }: { code: string; count: 
   );
 }
 
-function StartButton({ code, count, hostId, hostKey }: { code: string; count: number; hostId: string; hostKey: string | null }) {
+function StartButton({ code, count, hostId, hostKey, onAuthLost }: { code: string; count: number; hostId: string; hostKey: string | null; onAuthLost: () => void }) {
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   return (
@@ -297,7 +323,12 @@ function StartButton({ code, count, hostId, hostKey }: { code: string; count: nu
           if (!hostId || !hostKey) { setMsg('Host seat not held on this screen — reclaim it from a phone with the TV PIN.'); setBusy(false); return; }
           try {
             const res = await emitWithAck<{ ok: boolean; error?: string }>('startGame', { code, playerId: hostId, key: hostKey });
-            if (!res?.ok) setMsg(res?.error === 'NEED_2' ? 'Need at least 2 players to start' : res?.error === 'NOT_HOST' ? 'This screen no longer holds the host seat.' : 'Could not start game');
+            if (!res?.ok) {
+              if (res?.error === 'NO_CONTROL') {
+                onAuthLost();
+                setMsg('This screen lost the host seat (server restarted or it was claimed elsewhere) — reclaim it in 🔑 Host login below, then start again.');
+              } else setMsg(res?.error === 'NEED_2' ? 'Need at least 2 players to start' : res?.error === 'NOT_HOST' ? 'This screen no longer holds the host seat.' : 'Could not start game');
+            }
           } catch {
             setMsg('Server not responding — is it running?');
           }

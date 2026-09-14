@@ -2,11 +2,11 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { emitWithAck } from '../socket';
-import { saveControl, useGame } from '../store';
+import { clearAllSessions, clearSession, recentSessions, saveControl, saveSession, useGame } from '../store';
 import { ClaimPanel, type ClaimEmit } from '../components/ClaimPanel';
+import { ThemeSelect } from '../components/ThemeSelect';
 import type { BoardStyle, RoomState, TokenKind } from '@monopoly/shared';
-import { BOARD_STYLES, TOKENS } from '@monopoly/shared';
-import { BOARD_THEMES } from '../components/boardThemes';
+import { DEFAULT_BOARD_STYLE, TOKENS } from '@monopoly/shared';
 
 const tokenList = Object.keys(TOKENS) as TokenKind[];
 
@@ -28,9 +28,21 @@ export function Landing() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [tables, setTables] = useState<OpenRoom[]>([]);
-  const [boardTheme, setBoardTheme] = useState<BoardStyle>('grandprix');
+  const [boardTheme, setBoardThemeState] = useState<BoardStyle>(
+    () => loadSaved('monopoly.theme') || DEFAULT_BOARD_STYLE,
+  );
+  // Sticky default: remember the host's last pick on this browser.
+  function setBoardTheme(s: string) {
+    setBoardThemeState(s);
+    try { localStorage.setItem('monopoly.theme', s); } catch { /* noop */ }
+  }
   const [expanded, setExpanded] = useState<string | null>(null);
   const [roomCache, setRoomCache] = useState<Record<string, RoomState>>({});
+  // Bumps to refresh the history list after clearing it.
+  const [, setHistTick] = useState(0);
+  // True once the server has answered at least one lobby poll. Until then we
+  // can't tell live rooms from ended ones, so recent seats stay unfiltered.
+  const [lobbyLive, setLobbyLive] = useState(false);
 
   // Live lobby browser: poll the server for open tables (stateless, cheap).
   useEffect(() => {
@@ -38,7 +50,7 @@ export function Landing() {
     const poll = async () => {
       try {
         const res = await emitWithAck<{ ok: boolean; rooms: OpenRoom[] }>('listRooms', {});
-        if (alive && res?.ok) setTables(res.rooms);
+        if (alive && res?.ok) { setTables(res.rooms); setLobbyLive(true); }
       } catch { /* offline: keep the last list */ }
     };
     poll();
@@ -54,10 +66,11 @@ export function Landing() {
   }
 
   // Expand a table row into an inline seat-login panel (no navigation needed).
+  // Always refetches on expand: seat PINs rotate on every claim, so a cached
+  // panel would show dead PINs and a stale roster.
   async function toggleSeats(code: string) {
     if (expanded === code) { setExpanded(null); return; }
     setExpanded(code);
-    if (roomCache[code]) return;
     try {
       const res = await emitWithAck<{ ok: boolean; room: RoomState }>('watchRoom', { code });
       if (res?.ok) setRoomCache((m) => ({ ...m, [code]: res.room }));
@@ -77,10 +90,7 @@ export function Landing() {
 
   function afterClaim(code: string, newPid: string, newKey: string) {
     saveControl(newPid, newKey);
-    try {
-      localStorage.setItem('monopoly.pid', newPid);
-      localStorage.setItem('monopoly.code', code);
-    } catch { /* noop */ }
+    saveSession(code, newPid);
     setControlKey(newKey);
     setPlayerId(newPid);
     setRoom(roomCache[code] ?? null);
@@ -93,8 +103,7 @@ export function Landing() {
       const res = await emitWithAck<{ ok: boolean; code: string; playerId: string; controlKey: string; room: never }>(
         'createRoom', { playerName: name || 'Host', token, deviceLabel, style: boardTheme });
       if (res?.ok) {
-        localStorage.setItem('monopoly.pid', res.playerId);
-        localStorage.setItem('monopoly.code', res.code);
+        saveSession(res.code, res.playerId);
         rememberIdentity();
         saveControl(res.playerId, res.controlKey);
         setControlKey(res.controlKey);
@@ -122,8 +131,7 @@ export function Landing() {
       const res = await emitWithAck<{ ok: boolean; error?: string; code: string; playerId: string; controlKey: string; room: never }>(
         'joinRoom', { code: roomCode.toUpperCase().trim(), playerName: name.trim(), token, deviceLabel });
       if (res?.ok) {
-        localStorage.setItem('monopoly.pid', res.playerId);
-        localStorage.setItem('monopoly.code', res.code);
+        saveSession(res.code, res.playerId);
         rememberIdentity();
         saveControl(res.playerId, res.controlKey);
         setControlKey(res.controlKey);
@@ -138,13 +146,40 @@ export function Landing() {
     setBusy(false);
   }
 
-  const lastGame = (() => {
-    const c = loadSaved('monopoly.code');
-    const p = loadSaved('monopoly.pid');
-    return c && p ? { code: c, pid: p } : null;
-  })();
+  // Seats this browser held recently, newest first — per room, so two tabs in
+  // two rooms never steal each other's rejoin target. Refreshes on every
+  // lobby poll render.
+  // Single-room households: the server list is newest-activity-first, so the
+  // newest table is waiting[0]. Recent seats for rooms that are gone from the
+  // server (ended / server restarted) are hidden once the lobby is live —
+  // otherwise dead gold buttons outrank the actual latest table.
+  const recents = recentSessions();
   const waiting = tables.filter((t) => t.status === 'lobby');
   const live = tables.filter((t) => t.status === 'playing');
+  const liveCodes = new Set(tables.map((t) => t.code));
+  const freshRecents = lobbyLive ? recents.filter((s) => liveCodes.has(s.code)) : recents;
+
+  // Validated rejoin: confirm the room still exists before navigating, so a
+  // stale seat button can never strand anyone on a dead table. Expired seats
+  // are forgotten and the user is pointed at the latest table instead.
+  async function rejoinRecent(code: string, pid: string) {
+    setBusy(true); setErr('');
+    try {
+      const res = await emitWithAck<{ ok: boolean; room: RoomState }>('watchRoom', { code });
+      if (res?.ok) {
+        saveSession(code, pid);
+        setRoom(res.room);
+        setPlayerId(pid);
+        nav(`/play/${code}?pid=${pid}`);
+      } else {
+        clearSession(code, pid);
+        setErr(`${code} has ended — join the latest table below.`);
+      }
+    } catch {
+      setErr('Server not responding — is it running?');
+    }
+    setBusy(false);
+  }
 
   return (
     <div className="mx-auto max-w-5xl px-4 pb-16 pt-10">
@@ -182,9 +217,14 @@ export function Landing() {
         </div>
       </div>
 
-      {waiting.length === 1 && (
+      {waiting.length >= 1 && (
         <div className="glass mt-4 rounded-3xl border-amber-300/40 p-6 text-center">
-          <div className="text-sm text-white/60">🎪 A table is waiting — no code needed</div>
+          <div className="text-sm text-white/60">
+            🎪 Latest table waiting — no code needed{' '}
+            {waiting.length > 1 && (
+              <span className="ml-1 rounded-full bg-amber-300/20 px-2 py-0.5 text-xs font-bold text-amber-200">newest of {waiting.length}</span>
+            )}
+          </div>
           <div className="font-display mt-1 text-2xl font-bold">{waiting[0].hostName}'s table <span className="font-mono text-lg text-amber-300">{waiting[0].code}</span></div>
           <div className="mt-1 text-sm text-white/60">{waiting[0].players}/{waiting[0].max} seated</div>
           {!name.trim() ? (
@@ -208,15 +248,7 @@ export function Landing() {
         <div className="glass rounded-3xl p-6">
           <h2 className="font-display text-xl font-bold">📺 Host on this screen</h2>
           <p className="mt-1 text-sm text-white/60">Use a laptop / TV browser. You'll get a QR for phones.</p>
-          <div className="mt-3 text-sm">Board theme
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              {BOARD_STYLES.map((s) => (
-                <button key={s} type="button" onClick={() => setBoardTheme(s)}
-                  className={`rounded-xl border px-2 py-2 text-sm font-bold ${boardTheme === s ? 'border-amber-300 bg-amber-300/20' : 'border-white/10 bg-white/5'}`}>
-                  {BOARD_THEMES[s].icon} {BOARD_THEMES[s].short}</button>
-              ))}
-            </div>
-          </div>
+          <ThemeSelect value={boardTheme} onPick={setBoardTheme} />
           <button disabled={busy} onClick={host}
             className="btn-gold mt-5 w-full rounded-2xl px-4 py-4 text-lg disabled:opacity-50">{busy ? 'Creating…' : 'Create room + show board'}</button>
         </div>
@@ -229,6 +261,12 @@ export function Landing() {
               <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} placeholder="K7Q2XD" maxLength={6}
                 className="mt-1 w-full rounded-xl border border-white/15 bg-black/30 px-4 py-3 font-mono text-2xl tracking-[0.3em] outline-none focus:border-amber-300" />
             </label>
+            {waiting.length > 0 && code !== waiting[0].code && (
+              <button type="button" onClick={() => setCode(waiting[0].code)}
+                className="mt-2 w-full rounded-xl bg-amber-300/15 px-3 py-2 text-sm font-bold text-amber-200">
+                ✨ Latest table: <span className="font-mono">{waiting[0].code}</span> ({waiting[0].hostName}'s) — tap to fill
+              </button>
+            )}
             <button disabled={busy} type="submit" className="mt-5 w-full rounded-2xl bg-emerald-300 px-4 py-4 text-lg font-extrabold text-emerald-950 disabled:opacity-50">
               {busy ? 'Joining…' : 'Join game'}
             </button>
@@ -237,17 +275,13 @@ export function Landing() {
         </div>
       </div>
 
-      {(lastGame || waiting.length > 0 || live.length > 0) && (
+      {(freshRecents.length > 0 || waiting.length > 0 || live.length > 0) && (
         <div className="glass mt-4 rounded-3xl p-6">
           <h2 className="font-display text-xl font-bold">🎪 Open tables <span className="text-sm font-normal text-white/50">— no code needed</span></h2>
           <div className="mt-1 text-xs text-white/50">Join takes a fresh seat{name.trim() ? <> as <b>{name.trim()}</b> {TOKENS[token]}</> : ' (set your name above first)'} · <b>Login ›</b> signs in as an existing seat with its TV PIN — same device or another browser.</div>
-          {lastGame && (
-            <button disabled={busy} onClick={() => nav(`/play/${lastGame.code}?pid=${lastGame.pid}`)}
-              className="btn-gold mt-3 w-full rounded-2xl px-4 py-3 disabled:opacity-50">↩️ Rejoin last game ({lastGame.code})</button>
-          )}
           {waiting.length > 0 && (
             <div className="mt-3">
-              <div className="text-sm font-bold text-white/70">⏳ Waiting to start</div>
+              <div className="text-sm font-bold text-white/70">⏳ Waiting to start <span className="font-normal text-white/40">— newest first</span></div>
               <div className="mt-1 space-y-2">
                 {waiting.map((t) => (
                   <TableRow
@@ -293,6 +327,24 @@ export function Landing() {
                   </TableRow>
                 ))}
               </div>
+            </div>
+          )}
+          {freshRecents.length > 0 && (
+            <div className="mt-3 space-y-2">
+              <div className="flex items-center gap-2 text-sm font-bold text-white/40">
+                <span className="flex-1">↩️ Your older seats <span className="font-normal">— history on this browser, newest first</span></span>
+                <button type="button"
+                  onClick={() => { if (window.confirm('Forget all saved seats on this browser? You can still rejoin tables with their code.')) { clearAllSessions(); setHistTick((n) => n + 1); } }}
+                  className="rounded-lg bg-white/10 px-2.5 py-1 text-xs font-bold text-white/70 hover:bg-white/15">
+                  🧹 Clear history</button>
+              </div>
+              {freshRecents.map((s) => (
+                <button key={`${s.code}:${s.pid}`} disabled={busy}
+                  onClick={() => rejoinRecent(s.code, s.pid)}
+                  className="w-full rounded-2xl bg-white/10 px-4 py-2.5 text-sm font-bold text-white/80 hover:bg-white/15 disabled:opacity-50">
+                  ↩️ Rejoin {s.code}
+                </button>
+              ))}
             </div>
           )}
         </div>

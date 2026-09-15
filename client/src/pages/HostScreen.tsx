@@ -148,6 +148,20 @@ export function HostScreen() {
           >
             <span>{mutedUi ? '🔇 TV Sound Off' : '🔊 TV Sound On'}</span>
           </button>
+          <button
+            type="button"
+            title="Toggle TV Fullscreen"
+            onClick={() => {
+              if (!document.fullscreenElement) {
+                void document.documentElement.requestFullscreen?.();
+              } else {
+                void document.exitFullscreen?.();
+              }
+            }}
+            className="rounded-xl bg-white/10 px-3 py-1.5 text-sm font-bold flex items-center gap-1.5 hover:bg-white/20"
+          >
+            <span>📺 Fullscreen</span>
+          </button>
           <div className="ml-auto text-sm text-white/60">{room.status === 'lobby' ? '🟡 Lobby — waiting for players' : room.status === 'playing' ? '🟢 Playing' : room.status === 'paused' ? '⏸ Paused' : '🏁 Finished'}</div>
         </div>
       )}
@@ -260,8 +274,10 @@ export function HostScreen() {
                 const isDanger = !p.bankrupt && p.cash <= 150;
                 const playerNet = netWorth(p, room);
                 return (
-                  <div
+                  <motion.div
                     key={p.id}
+                    layout
+                    transition={{ type: 'spring', stiffness: 350, damping: 28 }}
                     className={`relative flex items-center gap-2 rounded-xl px-3 py-2 border transition-all ${
                       p.bankrupt
                         ? 'bg-white/5 opacity-40 border-white/5'
@@ -321,7 +337,7 @@ export function HostScreen() {
                         ✕
                       </button>
                     )}
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>
@@ -371,10 +387,35 @@ function AuctionPanel({ room }: { room: RoomState }) {
   const top = [...a.bids].sort((x, y) => y.amount - x.amount)[0];
   const nameOf = (pid: string) => room.players.find((p) => p.id === pid)?.name ?? '?';
   return (
-    <div className="glass mt-3 rounded-3xl border-amber-300/50 p-4 text-center">
-      <div className="font-display text-lg font-bold">🔨 Auction: {BOARD[a.tile]?.name} <span className="ml-2 rounded-lg bg-amber-300 px-2 py-0.5 font-mono text-sm text-black">{secs}s</span></div>
-      <div className="mt-1 text-sm text-white/70">
-        {top ? <>Top bid <b className="text-emerald-300">${top.amount}</b> by <b>{nameOf(top.playerId)}</b> ({a.bids.length} bid{a.bids.length === 1 ? '' : 's'})</> : 'No bids yet — open your phone to bid!'}
+    <div className="glass mt-3 rounded-3xl border-2 border-amber-300/60 p-4 text-center shadow-[0_0_20px_rgba(251,191,36,0.2)]">
+      <div className="flex items-center justify-center gap-3">
+        <span className={`text-2xl ${secs <= 5 ? 'animate-bounce' : ''}`}>🔨</span>
+        <div className="font-display text-lg font-bold">
+          Auction: {BOARD[a.tile]?.name}
+        </div>
+        <div className="relative flex items-center justify-center w-8 h-8">
+          <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="3" />
+            <circle
+              cx="18"
+              cy="18"
+              r="15"
+              fill="none"
+              stroke={secs <= 5 ? '#f43f5e' : '#f59e0b'}
+              strokeWidth="3.5"
+              strokeDasharray={94.2}
+              strokeDashoffset={94.2 * (1 - Math.min(1, secs / 30))}
+              strokeLinecap="round"
+              className="transition-all duration-1000 ease-linear"
+            />
+          </svg>
+          <span className={`absolute font-mono text-xs font-black ${secs <= 5 ? 'text-rose-400 animate-pulse' : 'text-amber-200'}`}>
+            {secs}
+          </span>
+        </div>
+      </div>
+      <div className="mt-1 text-sm text-white/80">
+        {top ? <>Top bid <b className="text-emerald-300 font-mono">${top.amount}</b> by <b>{nameOf(top.playerId)}</b> ({a.bids.length} bid{a.bids.length === 1 ? '' : 's'})</> : 'No bids yet — open your phone to bid!'}
       </div>
     </div>
   );

@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
-import { BOARD, COLOR_HEX, TOKENS, tilePrice } from '@monopoly/shared';
+import { BOARD, TOKENS, tilePrice } from '@monopoly/shared';
 import type { Player, RoomState } from '@monopoly/shared';
 import type { ClaimEmit } from './ClaimPanel';
 import { TileArt } from './TileArt';
 import { getSetProgress } from './propsHelper';
 import { haptic } from '../haptics';
+import { FairnessBar } from './FairnessBar';
+import { TradeAssetStrip } from './TradeAssetStrip';
 
 interface Props {
   room: RoomState;
@@ -335,102 +337,3 @@ export function TradeTab({ room, me, emit }: Props) {
   );
 }
 
-function FairnessBar({ giveVal, getVal, fairTol }: { giveVal: number; getVal: number; fairTol: number }) {
-  const total = giveVal + getVal;
-  if (total === 0) return null;
-  const givePct = Math.min(95, Math.max(5, Math.round((giveVal / total) * 100)));
-  const diff = giveVal - getVal;
-  const absDiff = Math.abs(diff);
-  const fair = absDiff <= fairTol;
-  const favor = diff < 0 ? 'In your favor' : diff > 0 ? 'In their favor' : 'Even trade';
-
-  let statusBg = 'bg-emerald-400/15 text-emerald-200 border-emerald-400/30';
-  let barColor = 'bg-emerald-400';
-  if (!fair) {
-    if (absDiff > fairTol * 2) {
-      statusBg = 'bg-rose-500/20 text-rose-200 border-rose-500/30';
-      barColor = 'bg-rose-400';
-    } else {
-      statusBg = 'bg-amber-400/15 text-amber-200 border-amber-400/30';
-      barColor = 'bg-amber-400';
-    }
-  }
-
-  return (
-    <div className="mt-2 space-y-1.5">
-      {/* Visual balance bar */}
-      <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-white/10 border border-white/10">
-        <div className="absolute left-1/2 top-0 bottom-0 w-0.5 -translate-x-1/2 bg-white/40 z-10" />
-        <div
-          className={`h-full transition-all duration-300 ${barColor}`}
-          style={{ width: `${givePct}%` }}
-        />
-      </div>
-      <div className="flex justify-between text-[11px] text-white/60">
-        <span>Give: <b className="font-mono text-white/80">${giveVal}</b> ({givePct}%)</span>
-        <span className="font-semibold text-white/80">{fair ? '⚖️ Balanced' : favor}</span>
-        <span>Get: <b className="font-mono text-white/80">${getVal}</b> ({100 - givePct}%)</span>
-      </div>
-      <div className={`rounded-xl border px-3 py-1.5 text-center text-xs font-bold ${statusBg}`}>
-        {fair ? '✅ Fair trade' : `⚠️ Skewed by $${absDiff} (${favor})`}
-        <div className="text-[10px] font-normal opacity-80">
-          Deed face values + cash · 🃏 cards carry no fixed value
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TradeAssetStrip({
-  tiles,
-  cash,
-  cards,
-  owner,
-}: {
-  tiles: number[];
-  cash: number;
-  cards: number;
-  owner?: Player | null;
-}) {
-  if (tiles.length === 0 && cash === 0 && cards === 0) {
-    return <span className="text-xs text-white/40 italic">Nothing</span>;
-  }
-  return (
-    <div className="flex flex-wrap items-center gap-1.5 mt-1">
-      {tiles.map((i) => {
-        const t = BOARD[i];
-        const color = t.kind === 'property' ? COLOR_HEX[t.color] : '#888';
-        const isMort = owner?.mortgaged.includes(i) ?? false;
-        return (
-          <span
-            key={i}
-            className={`flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs font-semibold ${
-              isMort
-                ? 'border-rose-500/40 bg-rose-500/15 text-rose-200'
-                : 'border-white/15 bg-white/5 text-white'
-            }`}
-          >
-            <span className="h-2 w-1.5 rounded-full" style={{ background: color }} />
-            <span>{t.name}</span>
-            <span className="font-mono text-[10px] text-emerald-300 font-bold">${tilePrice(i)}</span>
-            {isMort && (
-              <span className="rounded bg-rose-500/30 px-1 py-0.2 text-[9px] font-extrabold text-rose-300">
-                MORTGAGED
-              </span>
-            )}
-          </span>
-        );
-      })}
-      {cash > 0 && (
-        <span className="rounded-lg border border-emerald-400/30 bg-emerald-400/15 px-2 py-0.5 text-xs font-bold font-mono text-emerald-300">
-          +${cash}
-        </span>
-      )}
-      {cards > 0 && (
-        <span className="rounded-lg border border-amber-300/30 bg-amber-300/15 px-2 py-0.5 text-xs font-bold text-amber-200">
-          🃏 ×{cards}
-        </span>
-      )}
-    </div>
-  );
-}

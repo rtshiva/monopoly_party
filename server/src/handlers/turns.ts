@@ -26,7 +26,7 @@ export function registerTurnHandlers(socket: Socket) {
 
   socket.on('rollStop', ({ code, playerId, key }: { code: string; playerId: string; key: unknown }, cb) => {
     const room = rooms.get(code);
-    if (!room) return cb?.({ ok: false });
+    if (!room || room.status !== 'playing') return cb?.({ ok: false });
     const me = requireControl(room, playerId, key);
     if (!me) return cb?.({ ok: false, error: 'NO_CONTROL' });
     if (clearRolling(room, me.id)) emit(room);
@@ -92,6 +92,10 @@ export function registerTurnHandlers(socket: Socket) {
     me.cash -= tile.price;
     me.properties.push(idx);
     room.pendingBuy = null;
+    if (me.doubles > 0 && !me.inJail) {
+      me.hasRolled = false;
+      log(room, `✨ Doubles! ${me.name} rolls again`, 'good', 'info');
+    }
     log(room, `✅ ${me.name} bought ${tile.name} for $${tile.price}`, 'good', 'purchase');
     cb?.({ ok: true });
     emit(room);
@@ -108,6 +112,10 @@ export function registerTurnHandlers(socket: Socket) {
     if (turnExpired(room)) return cb?.({ ok: false, error: 'TIME_UP' });
     const tile = room.pendingBuy;
     room.pendingBuy = null;
+    if (me.doubles > 0 && !me.inJail) {
+      me.hasRolled = false;
+      log(room, `✨ Doubles! ${me.name} rolls again`, 'good', 'info');
+    }
     // Passing queues behind a live auction instead of replacing it (which
     // used to destroy running bids and statisticians' deeds alike).
     const fate = queueOrOpenAuction(room, tile, me.id);

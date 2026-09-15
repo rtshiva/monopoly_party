@@ -38,8 +38,22 @@ export function applyTradeSwap(from: Player, me: Player, offer: TradeOffer) {
 
 export function pruneTrades(room: RoomState) {
   const now = Date.now();
-  if (room.trades.some((t) => t.expiresAt <= now)) {
+  const expired = room.trades.filter((t) => t.expiresAt <= now);
+  if (expired.length > 0) {
     room.trades = room.trades.filter((t) => t.expiresAt > now);
+    for (const t of expired) {
+      const from = room.players.find((p) => p.id === t.fromId)?.name ?? 'Player';
+      const to = room.players.find((p) => p.id === t.toId)?.name ?? 'Player';
+      room.log.unshift({
+        id: `log_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        text: `⌛ Trade offer from ${from} to ${to} expired`,
+        at: Date.now(),
+        tone: 'info',
+        turn: room.turnCount,
+        cat: 'trade',
+      });
+    }
+    room.log = room.log.slice(0, 80);
   }
 }
 

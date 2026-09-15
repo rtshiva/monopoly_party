@@ -30,6 +30,8 @@ const { botTimers } = await import('../dist/store.js');
 const {
   openAuction, queueOrOpenAuction, resolveAuction, injectAuctionClock,
 } = await import('../dist/core/auction.js');
+const { pruneTrades } = await import('../dist/core/trade.js');
+const { UNMORTGAGE_RATE } = await import('@monopoly/shared');
 
 const results = [];
 const check = (n, c, x = '') => { results.push(`${c ? 'PASS' : 'FAIL'} ${n} ${x}`); if (!c) process.exitCode = 1; };
@@ -584,6 +586,35 @@ injectAuctionClock(
   const tc = r.turnCount;
   botAct(r.code, tc);
   check('bots frozen during auction', !botTimers.has(r.code) && r.turnCount === tc);
+  cleanup(r);
+}
+
+// --- flow review fixes ---------------------------------------------------------
+{
+  check('UNMORTGAGE_RATE is 0.6', UNMORTGAGE_RATE === 0.6);
+}
+{
+  // Bot with exactly $50 pays jail fine (matches human payJail rule).
+  const r = mkRoom({ players: [mkPlayer(0, { isBot: true, inJail: true, cash: 50 }), mkPlayer(1)] });
+  const me = r.players[0];
+  const trace = [];
+  botTakeTurn(r, me, trace);
+  check('bot with $50 pays out of jail', trace.some((e) => e.t === 'jail' && e.ok && e.detail === 'paid-50') && me.cash === 0 && !me.inJail);
+  cleanup(r);
+}
+{
+  // pruneTrades logs expired offers to room.log.
+  const r = mkRoom({
+    players: [mkPlayer(0), mkPlayer(1)],
+    trades: [{
+      id: 't_exp', fromId: 'u_p0', toId: 'u_p1',
+      giveTiles: [], giveCash: 50, giveCards: 0, wantTiles: [], wantCash: 0, wantCards: 0,
+      createdAt: Date.now() - 70000, expiresAt: Date.now() - 10000,
+    }],
+  });
+  pruneTrades(r);
+  check('pruneTrades drops expired offer', r.trades.length === 0);
+  check('pruneTrades logs expiration', r.log.some((l) => l.cat === 'trade' && l.text.includes('expired') && l.text.includes('A to B')));
   cleanup(r);
 }
 

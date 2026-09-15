@@ -135,6 +135,7 @@ export const AUCTION_DURATION_MS = 30000;
 export const MIN_BID = 10;
 export const TURN_MS = 60000;
 export const OFFLINE_TURN_MS = 15000;
+export const UNMORTGAGE_RATE = 0.6;
 
 // ---------------------------------------------------------------------------
 // Typed socket error codes — use these instead of raw strings in handlers and

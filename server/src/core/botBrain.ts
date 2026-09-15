@@ -6,7 +6,7 @@
  * bankrupt, advance). The scheduler in bots.ts owns all timers and the
  * broadcast. Pure scans (shouldBuy/pick*) are unit-tested directly.
  */
-import { BOARD, JAIL_FINE } from '@monopoly/shared';
+import { BOARD, JAIL_FINE, UNMORTGAGE_RATE } from '@monopoly/shared';
 import type { Player, RoomState } from '@monopoly/shared';
 import { log } from './broadcast.js';
 import { advanceTurn } from './player.js';
@@ -76,7 +76,7 @@ export function pickUnmortgageTile(room: RoomState, me: Player): number | null {
   for (const tile of me.mortgaged) {
     const t = BOARD[tile] as { price: number } | undefined;
     if (!t || typeof t.price !== 'number') continue;
-    const fee = Math.round(t.price * 0.6);
+    const fee = Math.round(t.price * UNMORTGAGE_RATE);
     if (me.cash < fee + BOT_UNMORTGAGE_BUFFER) continue;
     if (fee < bestFee) { bestFee = fee; best = tile; }
   }
@@ -111,7 +111,7 @@ export function botTakeTurn(room: RoomState, me: Player, trace: BotTrace[] = [])
       me.jailTurns = 0;
       log(room, `🃏 ${me.name} played a Get-Out-of-Jail-Free card`, 'good');
       trace.push({ t: 'jail', ok: true, detail: 'card' });
-    } else if (me.cash > JAIL_FINE) {
+    } else if (me.cash >= JAIL_FINE) {
       me.cash -= JAIL_FINE;
       me.inJail = false;
       me.jailTurns = 0;

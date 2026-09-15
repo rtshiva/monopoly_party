@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BOARD, TOKENS, tilePrice } from '@monopoly/shared';
+import { BOARD, COLOR_HEX, TOKENS, tilePrice } from '@monopoly/shared';
 import type { Player, RoomState } from '@monopoly/shared';
 import type { ClaimEmit } from './ClaimPanel';
 import { TileArt } from './TileArt';
@@ -166,56 +166,112 @@ export function TradeTab({ room, me, emit }: Props) {
     <div className="mt-2 space-y-3">
       {incoming.length > 0 && (
         <div className="space-y-2">
-          {incoming.map((t) => (
-            <div key={t.id} className="glass rounded-2xl border-amber-300/50 p-3">
-              <div className="font-bold">🤝 {nameOf(t.fromId)} offers you <span className="text-xs text-white/50">({secsLeft(t.expiresAt)}s left)</span></div>
-              <div className="mt-1 text-sm">Gives: <b>{t.giveTiles.map(tileName).join(', ') || '—'}</b>{t.giveCash > 0 && <b> + ${t.giveCash}</b>}{t.giveCards > 0 && <b> + 🃏×{t.giveCards}</b>}</div>
-              <div className="text-sm">Wants: <b>{t.wantTiles.map(tileName).join(', ') || '—'}</b>{t.wantCash > 0 && <b> + ${t.wantCash}</b>}{t.wantCards > 0 && <b> + 🃏×{t.wantCards}</b>}</div>
-              {(() => {
-                const incGive = t.wantTiles.reduce((s, x) => s + tilePrice(x), 0) + t.wantCash;
-                const incGet = t.giveTiles.reduce((s, x) => s + tilePrice(x), 0) + t.giveCash;
-                const incTol = Math.max(50, Math.round(Math.max(incGive, incGet) * 0.1));
-                return <FairnessBar giveVal={incGive} getVal={incGet} fairTol={incTol} />;
-              })()}
-              <div className="mt-2 grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => { haptic([30, 50, 30]); emit('tradeRespond', { tradeId: t.id, accept: true }); }}
-                  className="rounded-xl bg-emerald-300 py-2 text-xs font-extrabold text-emerald-950 shadow active:scale-95"
-                >
-                  Accept
-                </button>
-                <button
-                  type="button"
-                  onClick={() => startCounterOffer(t)}
-                  className="rounded-xl bg-amber-300 py-2 text-xs font-extrabold text-amber-950 shadow active:scale-95"
-                >
-                  Counter 🔄
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { haptic(25); emit('tradeRespond', { tradeId: t.id, accept: false }); }}
-                  className="rounded-xl bg-white/15 py-2 text-xs font-bold active:scale-95"
-                >
-                  Decline
-                </button>
+          {incoming.map((t) => {
+            const sender = room.players.find((p) => p.id === t.fromId);
+            const secs = secsLeft(t.expiresAt);
+            const pct = Math.max(0, Math.min(100, (secs / 60) * 100));
+            const incGive = t.wantTiles.reduce((s, x) => s + tilePrice(x), 0) + t.wantCash;
+            const incGet = t.giveTiles.reduce((s, x) => s + tilePrice(x), 0) + t.giveCash;
+            const incTol = Math.max(50, Math.round(Math.max(incGive, incGet) * 0.1));
+            const hasMortgaged = sender?.mortgaged.some((i) => t.giveTiles.includes(i));
+
+            return (
+              <div key={t.id} className="glass rounded-2xl border-amber-300/50 p-3">
+                <div className="flex items-center justify-between font-bold">
+                  <span>🤝 {nameOf(t.fromId)} offers you</span>
+                  <span className="font-mono text-xs text-white/60">{secs}s left</span>
+                </div>
+
+                {/* Expiry countdown timer bar */}
+                <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-white/10 mt-1.5 mb-2.5">
+                  <div
+                    className={`h-full transition-all duration-1000 ${
+                      secs <= 10 ? 'bg-rose-500 animate-pulse' : secs <= 25 ? 'bg-amber-400' : 'bg-emerald-400'
+                    }`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+
+                <div className="space-y-2 text-xs">
+                  <div>
+                    <div className="font-bold text-emerald-300">📥 You Receive:</div>
+                    <TradeAssetStrip tiles={t.giveTiles} cash={t.giveCash} cards={t.giveCards} owner={sender} />
+                  </div>
+                  <div>
+                    <div className="font-bold text-sky-300">📤 You Give:</div>
+                    <TradeAssetStrip tiles={t.wantTiles} cash={t.wantCash} cards={t.wantCards} owner={me} />
+                  </div>
+                </div>
+
+                {hasMortgaged && (
+                  <div className="mt-2 rounded-xl border border-rose-500/30 bg-rose-500/15 px-2.5 py-1 text-[11px] font-bold text-rose-200">
+                    ⚠️ Warning: Incoming property is mortgaged (requires fee to unmortgage).
+                  </div>
+                )}
+
+                <FairnessBar giveVal={incGive} getVal={incGet} fairTol={incTol} />
+
+                <div className="mt-2.5 grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { haptic([30, 50, 30]); emit('tradeRespond', { tradeId: t.id, accept: true }); }}
+                    className="rounded-xl bg-emerald-300 py-2 text-xs font-extrabold text-emerald-950 shadow active:scale-95"
+                  >
+                    Accept
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => startCounterOffer(t)}
+                    className="rounded-xl bg-amber-300 py-2 text-xs font-extrabold text-amber-950 shadow active:scale-95"
+                  >
+                    Counter 🔄
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { haptic(25); emit('tradeRespond', { tradeId: t.id, accept: false }); }}
+                    className="rounded-xl bg-white/15 py-2 text-xs font-bold active:scale-95"
+                  >
+                    Decline
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
       {outgoing.length > 0 && (
         <div className="space-y-2">
-          {outgoing.map((t) => (
-            <div key={t.id} className="glass flex items-center gap-2 rounded-2xl p-3 text-sm">
-              <div className="flex-1">⏳ To <b>{nameOf(t.toId)}</b>: {t.giveTiles.map(tileName).join(', ') || '—'}
-                {t.giveCash > 0 && ` + $${t.giveCash}`}{t.giveCards > 0 && ` + 🃏×${t.giveCards}`} for {t.wantTiles.map(tileName).join(', ') || '—'}
-                {t.wantCash > 0 && ` + $${t.wantCash}`}{t.wantCards > 0 && ` + 🃏×${t.wantCards}`} <span className="text-white/50">({secsLeft(t.expiresAt)}s)</span></div>
-              <button onClick={() => emit('tradeCancel', { tradeId: t.id })}
-                className="rounded-xl bg-white/15 px-3 py-1.5 text-xs font-bold">Cancel</button>
-            </div>
-          ))}
+          {outgoing.map((t) => {
+            const receiver = room.players.find((p) => p.id === t.toId);
+            return (
+              <div key={t.id} className="glass rounded-2xl p-3 text-sm">
+                <div className="flex items-center justify-between font-bold text-xs">
+                  <span>⏳ Offer to {nameOf(t.toId)}</span>
+                  <span className="font-mono text-white/50">{secsLeft(t.expiresAt)}s left</span>
+                </div>
+                <div className="mt-2 space-y-1.5 text-xs">
+                  <div>
+                    <span className="text-white/60">You offer:</span>
+                    <TradeAssetStrip tiles={t.giveTiles} cash={t.giveCash} cards={t.giveCards} owner={me} />
+                  </div>
+                  <div>
+                    <span className="text-white/60">You requested:</span>
+                    <TradeAssetStrip tiles={t.wantTiles} cash={t.wantCash} cards={t.wantCards} owner={receiver} />
+                  </div>
+                </div>
+                <div className="mt-2.5 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => emit('tradeCancel', { tradeId: t.id })}
+                    className="rounded-xl bg-white/15 px-3 py-1.5 text-xs font-bold hover:bg-white/20 active:scale-95"
+                  >
+                    Cancel Offer
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -321,6 +377,60 @@ function FairnessBar({ giveVal, getVal, fairTol }: { giveVal: number; getVal: nu
           Deed face values + cash · 🃏 cards carry no fixed value
         </div>
       </div>
+    </div>
+  );
+}
+
+function TradeAssetStrip({
+  tiles,
+  cash,
+  cards,
+  owner,
+}: {
+  tiles: number[];
+  cash: number;
+  cards: number;
+  owner?: Player | null;
+}) {
+  if (tiles.length === 0 && cash === 0 && cards === 0) {
+    return <span className="text-xs text-white/40 italic">Nothing</span>;
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+      {tiles.map((i) => {
+        const t = BOARD[i];
+        const color = t.kind === 'property' ? COLOR_HEX[t.color] : '#888';
+        const isMort = owner?.mortgaged.includes(i) ?? false;
+        return (
+          <span
+            key={i}
+            className={`flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs font-semibold ${
+              isMort
+                ? 'border-rose-500/40 bg-rose-500/15 text-rose-200'
+                : 'border-white/15 bg-white/5 text-white'
+            }`}
+          >
+            <span className="h-2 w-1.5 rounded-full" style={{ background: color }} />
+            <span>{t.name}</span>
+            <span className="font-mono text-[10px] text-emerald-300 font-bold">${tilePrice(i)}</span>
+            {isMort && (
+              <span className="rounded bg-rose-500/30 px-1 py-0.2 text-[9px] font-extrabold text-rose-300">
+                MORTGAGED
+              </span>
+            )}
+          </span>
+        );
+      })}
+      {cash > 0 && (
+        <span className="rounded-lg border border-emerald-400/30 bg-emerald-400/15 px-2 py-0.5 text-xs font-bold font-mono text-emerald-300">
+          +${cash}
+        </span>
+      )}
+      {cards > 0 && (
+        <span className="rounded-lg border border-amber-300/30 bg-amber-300/15 px-2 py-0.5 text-xs font-bold text-amber-200">
+          🃏 ×{cards}
+        </span>
+      )}
     </div>
   );
 }

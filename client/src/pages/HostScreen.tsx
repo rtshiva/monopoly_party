@@ -112,6 +112,7 @@ export function HostScreen() {
   // key moved elsewhere). The board itself always works — only the buttons
   // below need the key.
   const [needLogin, setNeedLogin] = useState(false);
+  const [showPins, setShowPins] = useState(true);
   const roomCode: string = room.code;
 
   async function hostAction(ev: 'pauseGame' | 'resumeGame' | 'endGame' | 'kickPlayer' | 'setBoardStyle' | 'addBot', extra: Record<string, unknown> = {}) {
@@ -271,7 +272,17 @@ export function HostScreen() {
         </motion.div>
         <div className="flex flex-col gap-3">
           <div className="glass rounded-2xl p-4">
-            <div className="font-display font-bold">🏆 Leaderboard</div>
+            <div className="flex items-center justify-between">
+              <div className="font-display font-bold">🏆 Leaderboard</div>
+              <button
+                type="button"
+                onClick={() => setShowPins((v) => !v)}
+                title={showPins ? 'Hide takeover PINs from TV' : 'Show takeover PINs on TV'}
+                className="rounded-lg bg-white/10 px-2 py-0.5 text-xs text-white/70 hover:bg-white/20 transition-colors flex items-center gap-1"
+              >
+                <span>{showPins ? '👁️ Hide PINs' : '🔒 Show PINs'}</span>
+              </button>
+            </div>
             <div className="mt-2 space-y-2">
               {sorted.map((p, i) => {
                 const pOriginalIndex = room.players.findIndex((rp) => rp.id === p.id);
@@ -320,7 +331,7 @@ export function HostScreen() {
                     </span>
                     {!p.bankrupt && (
                       <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[11px] text-amber-200" title="Seat takeover PIN">
-                        PIN {p.seatPin}
+                        {showPins ? `PIN ${p.seatPin}` : '••••'}
                       </span>
                     )}
                     <div className="text-right font-mono min-w-16">

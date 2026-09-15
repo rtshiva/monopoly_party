@@ -55,6 +55,16 @@ export function PlayScreen() {
   // Tracks the live transport. Starts false: a cached room from an earlier
   // visit must never look playable before the first fresh sync lands.
   const [sockUp, setSockUp] = useState(false);
+  const prevSockUp = useRef(false);
+  const [showReconnectToast, setShowReconnectToast] = useState(false);
+  useEffect(() => {
+    if (sockUp && !prevSockUp.current) {
+      setShowReconnectToast(true);
+      const timer = window.setTimeout(() => setShowReconnectToast(false), 3000);
+      return () => clearTimeout(timer);
+    }
+    prevSockUp.current = sockUp;
+  }, [sockUp]);
 
   const upCode = code.toUpperCase();
   // State (freshly switched seats) wins over the URL, which goes stale after a switch.
@@ -419,6 +429,16 @@ export function PlayScreen() {
       <ConnPill sock={sockState} />
       {debugEnabled() && <DebugPanel />}
       <AnimatePresence>
+        {showReconnectToast && sockUp && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="mt-2 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500/20 border border-emerald-400/40 px-3 py-1.5 text-xs font-bold text-emerald-200 backdrop-blur-sm"
+          >
+            <span>✅ Connected back to game table</span>
+          </motion.div>
+        )}
         {room.status === 'lobby' && <Banner key="lobby" text="⏳ Waiting for host to start… show this screen is ready!" />}
         {room.status === 'finished' && (
           <Banner key="win" gold text={room.winnerId === me.id ? '🏆 YOU WIN! 🎉' : `🏁 ${room.players.find((p) => p.id === room.winnerId)?.name} wins`} />

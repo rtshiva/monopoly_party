@@ -15,30 +15,67 @@ const PIPS: Record<number, number[]> = {
 // Pip centers on the 100x100 face.
 const C = [24, 50, 76];
 
+export type DiceSkin = 'classic' | 'city' | 'coastal' | 'space' | 'gold' | string;
+
+interface DieColors {
+  body1: string;
+  body2: string;
+  body3: string;
+  pip1: string;
+  pip2: string;
+  pip3: string;
+  stroke: string;
+}
+
+const DICE_SKINS: Record<string, DieColors> = {
+  classic: {
+    body1: '#ffffff', body2: '#eef2f7', body3: '#c3cede',
+    pip1: '#3d4a6b', pip2: '#141b33', pip3: '#04060d', stroke: '#141b33',
+  },
+  city: { // Neon Cyberpunk
+    body1: '#1e1b4b', body2: '#0f172a', body3: '#020617',
+    pip1: '#38bdf8', pip2: '#0284c7', pip3: '#0369a1', stroke: '#38bdf8',
+  },
+  coastal: { // Warm Driftwood Beach
+    body1: '#fef3c7', body2: '#fde68a', body3: '#d97706',
+    pip1: '#0d9488', pip2: '#0f766e', pip3: '#115e59', stroke: '#0f766e',
+  },
+  space: { // Deep Cosmos
+    body1: '#2e1065', body2: '#1e1b4b', body3: '#090514',
+    pip1: '#e879f9', pip2: '#c026d3', pip3: '#86198f', stroke: '#c026d3',
+  },
+  gold: { // Golden VIP
+    body1: '#fef08a', body2: '#facc15', body3: '#ca8a04',
+    pip1: '#78350f', pip2: '#451a03', pip3: '#1c0a00', stroke: '#854d0e',
+  },
+};
+
 /**
  * One photoreal-ish die face as inline SVG: body gradient, top-left gloss,
  * indented radial pips, inner edge shading. Gradient/clip ids are unique per
  * instance so dozens of faces can share the DOM. Zero deps, offline-safe.
  */
-function DieSVG({ value }: { value: number }) {
+function DieSVG({ value, skin = 'classic' }: { value: number; skin?: DiceSkin }) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
   const body = `db${uid}`, pip = `dp${uid}`, gloss = `dg${uid}`, clip = `dc${uid}`;
   const pips = PIPS[value] ?? PIPS[1];
+  const colors = DICE_SKINS[skin] ?? DICE_SKINS.classic;
+
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%" aria-hidden>
       <defs>
         <linearGradient id={body} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#ffffff" />
-          <stop offset="0.55" stopColor="#eef2f7" />
-          <stop offset="1" stopColor="#c3cede" />
+          <stop offset="0" stopColor={colors.body1} />
+          <stop offset="0.55" stopColor={colors.body2} />
+          <stop offset="1" stopColor={colors.body3} />
         </linearGradient>
         <radialGradient id={pip} cx="0.38" cy="0.32" r="0.95">
-          <stop offset="0" stopColor="#3d4a6b" />
-          <stop offset="0.55" stopColor="#141b33" />
-          <stop offset="1" stopColor="#04060d" />
+          <stop offset="0" stopColor={colors.pip1} />
+          <stop offset="0.55" stopColor={colors.pip2} />
+          <stop offset="1" stopColor={colors.pip3} />
         </radialGradient>
         <radialGradient id={gloss} cx="0.5" cy="0.5" r="0.5">
-          <stop offset="0" stopColor="#ffffff" stopOpacity="0.55" />
+          <stop offset="0" stopColor="#ffffff" stopOpacity="0.45" />
           <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
         </radialGradient>
         <clipPath id={clip}><rect width="100" height="100" rx="18" /></clipPath>
@@ -49,10 +86,10 @@ function DieSVG({ value }: { value: number }) {
         {pips.map((i) => (
           <g key={i}>
             <circle cx={C[i % 3]} cy={C[Math.floor(i / 3)]} r="9.5" fill={`url(#${pip})`} />
-            <circle cx={C[i % 3] - 1.5} cy={C[Math.floor(i / 3)] - 1.5} r="2.2" fill="#ffffff" opacity="0.28" />
+            <circle cx={C[i % 3] - 1.5} cy={C[Math.floor(i / 3)] - 1.5} r="2.2" fill="#ffffff" opacity="0.35" />
           </g>
         ))}
-        <rect x="1.5" y="1.5" width="97" height="97" rx="16.5" fill="none" stroke="#141b33" strokeOpacity="0.25" strokeWidth="3" />
+        <rect x="1.5" y="1.5" width="97" height="97" rx="16.5" fill="none" stroke={colors.stroke} strokeOpacity="0.3" strokeWidth="3" />
       </g>
     </svg>
   );
@@ -114,7 +151,7 @@ function useReducedMotion() {
   return reduced;
 }
 
-function CubeFaces({ size }: { size: number }) {
+function CubeFaces({ size, skin = 'classic' }: { size: number; skin?: DiceSkin }) {
   const half = size / 2;
   return (
     <>
@@ -124,7 +161,7 @@ function CubeFaces({ size }: { size: number }) {
           className="absolute"
           style={{ width: size, height: size, ...faceTransform(v, half) }}
         >
-          <DieSVG value={v} />
+          <DieSVG value={v} skin={skin} />
         </div>
       ))}
     </>
@@ -137,32 +174,27 @@ export function isFacing(rot: { x: number; y: number }, value: number): boolean 
   return ((rot.x - t.x) % 360 + 360) % 360 === 0 && ((rot.y - t.y) % 360 + 360) % 360 === 0;
 }
 
-function DiceCube({ value, size, spinKey, delay = 0, shuffling = false }: {
-  value: number; size: number; spinKey: string | null; delay?: number; shuffling?: boolean;
+function DiceCube({ value, size, spinKey, delay = 0, shuffling = false, skin = 'classic' }: {
+  value: number; size: number; spinKey: string | null; delay?: number; shuffling?: boolean; skin?: DiceSkin;
 }) {
   const target = FACE_ROT[value] ?? FACE_ROT[1];
   const [rot, setRot] = useState(target);
   const [played, setPlayed] = useState(false);
   const rotRef = useRef(target);
-  const firstPaint = useRef(true);
-  const prevK = useRef(spinKey ?? 'start');
-  const prevShuffling = useRef(shuffling);
+  const lastKey = useRef(spinKey);
+  const lastShuffling = useRef(shuffling);
   const reduced = useReducedMotion();
-  const k = spinKey ?? 'start';
+
+  // Distinct roll identity: key change triggers a tumble even when value repeats
+  const k = spinKey ?? '';
 
   useEffect(() => {
-    if (firstPaint.current) {
-      firstPaint.current = false;
-      rotRef.current = target;
-      setRot(target);
-      return;
-    }
+    const kChanged = lastKey.current !== k;
+    const shufflingStopped = lastShuffling.current && !shuffling;
+    lastKey.current = k;
+    lastShuffling.current = shuffling;
 
-    const kChanged = prevK.current !== k;
-    const shufflingStopped = prevShuffling.current && !shuffling;
-    prevK.current = k;
-    prevShuffling.current = shuffling;
-
+    // While shuffling (hold-to-roll), snap immediately to preview face — no flight
     if (shuffling) {
       rotRef.current = target;
       setRot(target);
@@ -206,7 +238,7 @@ function DiceCube({ value, size, spinKey, delay = 0, shuffling = false }: {
             transition={shuffling || reduced || !played ? { duration: 0 } : flight}
             style={{ width: size, height: size, transformStyle: 'preserve-3d', position: 'relative' }}
           >
-            <CubeFaces size={size} />
+            <CubeFaces size={size} skin={skin} />
           </motion.div>
         </div>
       </motion.div>
@@ -226,13 +258,13 @@ function DiceCube({ value, size, spinKey, delay = 0, shuffling = false }: {
  * Two 3D dice. `rollKey` (the server's roll description) triggers the tumble;
  * `shuffling` rattles local preview faces while the ROLL button is held.
  */
-export function DicePair({ d1, d2, rollKey, size = 56, shuffling = false }: {
-  d1: number; d2: number; rollKey: string | null; size?: number; shuffling?: boolean;
+export function DicePair({ d1, d2, rollKey, size = 56, shuffling = false, skin = 'classic' }: {
+  d1: number; d2: number; rollKey: string | null; size?: number; shuffling?: boolean; skin?: DiceSkin;
 }) {
   return (
     <div className="flex items-start justify-center gap-4">
-      <DiceCube value={d1} size={size} spinKey={rollKey} delay={0} shuffling={shuffling} />
-      <DiceCube value={d2} size={size} spinKey={rollKey} delay={0.12} shuffling={shuffling} />
+      <DiceCube value={d1} size={size} spinKey={rollKey} delay={0} shuffling={shuffling} skin={skin} />
+      <DiceCube value={d2} size={size} spinKey={rollKey} delay={0.12} shuffling={shuffling} skin={skin} />
     </div>
   );
 }

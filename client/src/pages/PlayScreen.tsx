@@ -513,6 +513,7 @@ export function PlayScreen() {
       rollKey={room.lastRoll ? `${room.lastRoll}:${room.dice[0]}-${room.dice[1]}:${room.rev}` : null}
       size={48}
       shuffling={shaking && preview != null}
+      skin={room.boardStyle}
     />
   </div>
       <AnimatePresence>

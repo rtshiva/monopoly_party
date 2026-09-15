@@ -209,12 +209,33 @@ export function Landing() {
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Siva" maxLength={16}
               className="mt-1 w-full rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-lg outline-none focus:border-amber-300" />
           </label>
-          <div className="text-sm">Pick token
-            <div className="mt-1 grid grid-cols-8 gap-2">
-              {tokenList.map((t) => (
-                <button key={t} type="button" onClick={() => setToken(t)}
-                  className={`rounded-xl border p-2 text-2xl ${token === t ? 'border-amber-300 bg-amber-300/20' : 'border-white/10 bg-white/5'}`}>{TOKENS[t]}</button>
-              ))}
+          <div className="text-sm">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold">Pick token & avatar</span>
+              <span className="text-xs text-white/50">{TOKENS[token]} selected</span>
+            </div>
+            <div className="mt-1.5 grid grid-cols-8 gap-2">
+              {tokenList.map((t) => {
+                const isSelected = token === t;
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => {
+                      setToken(t);
+                      try { localStorage.setItem('monopoly.token', t); } catch { /* noop */ }
+                    }}
+                    title={`Play as ${t}`}
+                    className={`rounded-2xl border p-2 text-2xl transition-all transform active:scale-95 ${
+                      isSelected
+                        ? 'border-amber-300 bg-amber-300/25 shadow-[0_0_14px_rgba(252,211,77,0.35)] scale-105'
+                        : 'border-white/10 bg-white/5 hover:bg-white/15 hover:border-white/25 hover:scale-105'
+                    }`}
+                  >
+                    {TOKENS[t]}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

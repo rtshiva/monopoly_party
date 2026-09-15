@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { Socket } from 'socket.io-client';
 import { emitWithAck, freshSocket } from '../socket';
 import { loadControl, saveControl, useGame, saveSession, sessionPidFor } from '../store';
@@ -291,19 +291,26 @@ export function HostScreen() {
         </div>
       )}
 
-      {room.status === 'finished' && (
-        <>
-          <ConfettiCanvas />
-          <div className="glass mt-3 flex flex-col items-center gap-3 rounded-3xl p-5 text-center md:flex-row md:text-left">
-            <div className="flex-1">
-              <div className="font-display text-lg font-bold">🏆 {room.players.find((p) => p.id === room.winnerId)?.name} wins the game!</div>
-              <div className="text-sm text-white/60">Same players, fresh $1500, shuffled order.</div>
+      <AnimatePresence>
+        {room.status === 'finished' && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -10 }}
+            transition={{ duration: 0.45, ease: 'easeOut' }}
+          >
+            <ConfettiCanvas />
+            <div className="glass mt-3 flex flex-col items-center gap-3 rounded-3xl p-5 text-center md:flex-row md:text-left shadow-2xl">
+              <div className="flex-1">
+                <div className="font-display text-lg font-bold">🏆 {room.players.find((p) => p.id === room.winnerId)?.name} wins the game!</div>
+                <div className="text-sm text-white/60">Same players, fresh $1500, shuffled order.</div>
+              </div>
+              <RematchButton code={room.code} count={room.players.length} hostId={pid} hostKey={loadControl(pid)} onAuthLost={() => setNeedLogin(true)} />
             </div>
-            <RematchButton code={room.code} count={room.players.length} hostId={pid} hostKey={loadControl(pid)} onAuthLost={() => setNeedLogin(true)} />
-          </div>
-          <EndgameStats room={room} />
-        </>
-      )}
+            <EndgameStats room={room} />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_320px]">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>

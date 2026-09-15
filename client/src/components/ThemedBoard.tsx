@@ -242,6 +242,19 @@ export function ThemedBoard({ room }: { room: RoomState }) {
           >
             <ThemeArt theme={theme} />
             <BoardTheater room={room} />
+            {/* Dynamic Day/Night Lighting Overlay: subtle ambient atmosphere cycle */}
+            <div
+              className="pointer-events-none absolute inset-0 transition-opacity duration-1000 z-10"
+              style={{
+                background: (() => {
+                  const cycle = (room.turnCount % 40);
+                  if (cycle < 10) return 'linear-gradient(135deg, rgba(254, 240, 138, 0.08) 0%, transparent 60%)'; // Dawn warm gold
+                  if (cycle < 20) return 'transparent'; // High noon bright clear
+                  if (cycle < 30) return 'linear-gradient(135deg, rgba(249, 115, 22, 0.12) 0%, rgba(147, 51, 234, 0.08) 100%)'; // Dusk amber / purple
+                  return 'linear-gradient(135deg, rgba(30, 27, 75, 0.25) 0%, rgba(15, 23, 42, 0.35) 100%)'; // Midnight deep indigo
+                })(),
+              }}
+            />
           </div>
         </div>
       </div>

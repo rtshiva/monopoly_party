@@ -4,6 +4,7 @@ import type { Player, RoomState } from '@monopoly/shared';
 import type { ClaimEmit } from './ClaimPanel';
 import { TileArt } from './TileArt';
 import { getSetProgress } from './propsHelper';
+import { haptic } from '../haptics';
 
 interface Props {
   room: RoomState;
@@ -158,10 +159,16 @@ export function TradeTab({ room, me, emit }: Props) {
               <div className="font-bold">🤝 {nameOf(t.fromId)} offers you <span className="text-xs text-white/50">({secsLeft(t.expiresAt)}s left)</span></div>
               <div className="mt-1 text-sm">Gives: <b>{t.giveTiles.map(tileName).join(', ') || '—'}</b>{t.giveCash > 0 && <b> + ${t.giveCash}</b>}{t.giveCards > 0 && <b> + 🃏×{t.giveCards}</b>}</div>
               <div className="text-sm">Wants: <b>{t.wantTiles.map(tileName).join(', ') || '—'}</b>{t.wantCash > 0 && <b> + ${t.wantCash}</b>}{t.wantCards > 0 && <b> + 🃏×{t.wantCards}</b>}</div>
+              {(() => {
+                const incGive = t.wantTiles.reduce((s, x) => s + tilePrice(x), 0) + t.wantCash;
+                const incGet = t.giveTiles.reduce((s, x) => s + tilePrice(x), 0) + t.giveCash;
+                const incTol = Math.max(50, Math.round(Math.max(incGive, incGet) * 0.1));
+                return <FairnessBar giveVal={incGive} getVal={incGet} fairTol={incTol} />;
+              })()}
               <div className="mt-2 grid grid-cols-2 gap-2">
-                <button onClick={() => emit('tradeRespond', { tradeId: t.id, accept: true })}
+                <button onClick={() => { haptic([30, 50, 30]); emit('tradeRespond', { tradeId: t.id, accept: true }); }}
                   className="rounded-xl bg-emerald-300 py-2 font-extrabold text-emerald-950">Accept</button>
-                <button onClick={() => emit('tradeRespond', { tradeId: t.id, accept: false })}
+                <button onClick={() => { haptic(25); emit('tradeRespond', { tradeId: t.id, accept: false }); }}
                   className="rounded-xl bg-white/15 py-2 font-bold">Decline</button>
               </div>
             </div>
@@ -229,20 +236,61 @@ export function TradeTab({ room, me, emit }: Props) {
                     {wantCash > 0 && <div className="text-xs text-white/60">• ${wantCash} cash</div>}
                   </div>
                 </div>
-                <div className={`mt-2 rounded-xl px-3 py-2 text-center font-bold ${fair ? 'bg-emerald-300/15 text-emerald-200' : 'bg-amber-300/15 text-amber-200'}`}>
-                  {fair ? 'This looks like a fair trade!' : `Off by $${Math.abs(diff)} — consider adjusting.`}
-                  <div className="text-xs font-normal opacity-80">
-                    Value difference: ${Math.abs(diff)} {diff !== 0 && (diff < 0 ? '(in your favor)' : '(in their favor)')} · 🃏 cards carry no face value
-                  </div>
-                </div>
+                <FairnessBar giveVal={giveVal} getVal={getVal} fairTol={fairTol} />
               </div>
             )}
 
-            <button onClick={send} disabled={!hasOffer}
+            <button onClick={() => { haptic(30); send(); }} disabled={!hasOffer}
               className="mt-3 w-full rounded-xl bg-amber-300 py-3 font-extrabold text-black disabled:opacity-40">
               Send offer to {to.name} 🤝</button>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+function FairnessBar({ giveVal, getVal, fairTol }: { giveVal: number; getVal: number; fairTol: number }) {
+  const total = giveVal + getVal;
+  if (total === 0) return null;
+  const givePct = Math.min(95, Math.max(5, Math.round((giveVal / total) * 100)));
+  const diff = giveVal - getVal;
+  const absDiff = Math.abs(diff);
+  const fair = absDiff <= fairTol;
+  const favor = diff < 0 ? 'In your favor' : diff > 0 ? 'In their favor' : 'Even trade';
+
+  let statusBg = 'bg-emerald-400/15 text-emerald-200 border-emerald-400/30';
+  let barColor = 'bg-emerald-400';
+  if (!fair) {
+    if (absDiff > fairTol * 2) {
+      statusBg = 'bg-rose-500/20 text-rose-200 border-rose-500/30';
+      barColor = 'bg-rose-400';
+    } else {
+      statusBg = 'bg-amber-400/15 text-amber-200 border-amber-400/30';
+      barColor = 'bg-amber-400';
+    }
+  }
+
+  return (
+    <div className="mt-2 space-y-1.5">
+      {/* Visual balance bar */}
+      <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-white/10 border border-white/10">
+        <div className="absolute left-1/2 top-0 bottom-0 w-0.5 -translate-x-1/2 bg-white/40 z-10" />
+        <div
+          className={`h-full transition-all duration-300 ${barColor}`}
+          style={{ width: `${givePct}%` }}
+        />
+      </div>
+      <div className="flex justify-between text-[11px] text-white/60">
+        <span>Give: <b className="font-mono text-white/80">${giveVal}</b> ({givePct}%)</span>
+        <span className="font-semibold text-white/80">{fair ? '⚖️ Balanced' : favor}</span>
+        <span>Get: <b className="font-mono text-white/80">${getVal}</b> ({100 - givePct}%)</span>
+      </div>
+      <div className={`rounded-xl border px-3 py-1.5 text-center text-xs font-bold ${statusBg}`}>
+        {fair ? '✅ Fair trade' : `⚠️ Skewed by $${absDiff} (${favor})`}
+        <div className="text-[10px] font-normal opacity-80">
+          Deed face values + cash · 🃏 cards carry no fixed value
+        </div>
       </div>
     </div>
   );

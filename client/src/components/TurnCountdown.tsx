@@ -24,6 +24,14 @@ export function TurnCountdown({ deadline, className = '', onZero }: {
       onZero?.();
     }
   }, [secs, onZero]);
-  if (deadline == null || secs == null) return null;
-  return <span className={className}>⏱ {secs}s</span>;
+  const isUrgent = secs !== null && secs <= 5;
+  return (
+    <span
+      className={`${className} transition-colors ${
+        isUrgent ? 'bg-rose-500 text-white animate-pulse shadow-[0_0_10px_rgba(244,63,94,0.6)]' : ''
+      }`}
+    >
+      ⏱ {secs}s
+    </span>
+  );
 }

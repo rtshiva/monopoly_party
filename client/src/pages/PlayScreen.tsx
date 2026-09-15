@@ -19,6 +19,7 @@ import { DebugPanel } from '../components/DebugPanel';
 import { debugEnabled, dlogc } from '../debug';
 import { TurnCountdown } from '../components/TurnCountdown';
 import { isMuted, setMuted, sndBuy, sndCash, sndError, sndRoll, sndTick, sndWin } from '../sound';
+import { haptic } from '../haptics';
 import { BOARD, DEFAULT_BOARD_STYLE, GO_SALARY, TOKENS, applyRoomDelta, netWorth, ownerOf, rentFor, tilePrice } from '@monopoly/shared';
 import { TileArt } from '../components/TileArt';
 import { useDiscoveredThemes } from '../useThemes';
@@ -534,6 +535,7 @@ export function PlayScreen() {
                 setPreview([1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)]); sndTick();
               }}
               onCommit={() => {
+                haptic(35);
                 sndRoll();
                 dlogc('roll-commit', `preview was [${preview}]`);
                 setRolling(true);
@@ -552,7 +554,7 @@ export function PlayScreen() {
             <div className="glass rounded-2xl border-amber-300/50 p-4 text-center">
               <div className="font-bold">🏷️ For sale: {pendingName} — ${pendingPrice}</div>
               <div className="mt-2 grid grid-cols-2 gap-2">
-                <button disabled={!canBuy} onClick={() => emit('buyProperty', {}, sndBuy)}
+                <button disabled={!canBuy} onClick={() => emit('buyProperty', {}, () => { haptic(40); sndBuy(); })}
                   className="rounded-xl bg-emerald-300 py-3 font-extrabold text-emerald-950 disabled:opacity-40">
                   {canBuy ? `BUY $${pendingPrice}` : 'Not enough cash'}</button>
                 <button onClick={() => emit('passProperty')} className="rounded-xl bg-white/15 py-3 font-bold">Pass</button>
@@ -560,18 +562,88 @@ export function PlayScreen() {
             </div>
           )}
           {canRoll && me.hasRolled && room.pendingBuy == null && (
-            <button onClick={() => emit('endTurn')} className="w-full rounded-2xl bg-sky-300 py-4 text-xl font-extrabold text-sky-950">End turn ➡️</button>
+            <button onClick={() => { haptic(25); emit('endTurn'); }} className="w-full rounded-2xl bg-sky-300 py-4 text-xl font-extrabold text-sky-950">End turn ➡️</button>
           )}
           {me.inJail && (
-            <button onClick={() => emit('payJail')} className="w-full rounded-2xl bg-orange-300 py-3 font-extrabold text-orange-950">🔓 Pay $50 to leave jail</button>
-          )}
-          {me.inJail && me.jailCards > 0 && (
-            <button onClick={() => emit('useJailCard')} className="w-full rounded-2xl bg-emerald-300 py-3 font-extrabold text-emerald-950">🃏 Use Get-Out-of-Jail-Free ({me.jailCards})</button>
+            <div className="overflow-hidden rounded-2xl border border-rose-500/30 bg-gradient-to-b from-slate-900 via-slate-900/90 to-black p-4 shadow-xl">
+              {/* Header with prison bars motif */}
+              <div className="relative mb-3 flex items-center justify-between border-b border-white/10 pb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🔒</span>
+                  <div>
+                    <h3 className="text-xs font-black uppercase tracking-wider text-rose-300">Lockup / In Jail</h3>
+                    <p className="text-[11px] text-white/60">
+                      {me.jailTurns === 0 ? 'Attempt 1 of 2: Roll doubles or pay bail' : 'Attempt 2 of 2: Must escape or pay next turn'}
+                    </p>
+                  </div>
+                </div>
+                <div className="rounded-full border border-rose-800/60 bg-rose-950/80 px-2.5 py-0.5 text-[11px] font-bold text-rose-300">
+                  Attempt {me.jailTurns + 1}/2
+                </div>
+              </div>
+
+              {/* Jail Options Grid */}
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {/* Option 1: Pay Bail */}
+                <button
+                  type="button"
+                  disabled={me.cash < 50}
+                  onClick={() => { haptic(35); emit('payJail'); }}
+                  className={`flex flex-col items-start rounded-xl p-3 text-left transition-all ${
+                    me.cash >= 50
+                      ? 'bg-gradient-to-r from-amber-400 to-amber-300 text-amber-950 shadow-md active:scale-95'
+                      : 'border border-white/5 bg-white/5 text-white/30 cursor-not-allowed'
+                  }`}
+                >
+                  <div className="flex w-full items-center justify-between text-xs font-extrabold">
+                    <span>🔓 Pay Bail</span>
+                    <span className="rounded bg-black/20 px-1.5 py-0.5 text-[10px] font-mono">$50</span>
+                  </div>
+                  <div className="mt-1 text-[11px] opacity-80">
+                    {me.cash >= 50 ? 'Immediate release & roll freely' : 'Need $50 cash (mortgage or trade)'}
+                  </div>
+                </button>
+
+                {/* Option 2: Get-out-of-jail free card */}
+                <button
+                  type="button"
+                  disabled={me.jailCards <= 0}
+                  onClick={() => { haptic(35); emit('useJailCard'); }}
+                  className={`flex flex-col items-start rounded-xl p-3 text-left transition-all ${
+                    me.jailCards > 0
+                      ? 'bg-gradient-to-r from-emerald-400 to-teal-300 text-teal-950 shadow-md active:scale-95'
+                      : 'border border-white/5 bg-white/5 text-white/30 cursor-not-allowed'
+                  }`}
+                >
+                  <div className="flex w-full items-center justify-between text-xs font-extrabold">
+                    <span>🃏 Jail Free Card</span>
+                    <span className="rounded bg-black/20 px-1.5 py-0.5 text-[10px] font-mono">
+                      {me.jailCards > 0 ? `${me.jailCards} available` : '0 available'}
+                    </span>
+                  </div>
+                  <div className="mt-1 text-[11px] opacity-80">
+                    {me.jailCards > 0 ? 'Use your card to leave free' : 'Earn from Chance / Chest'}
+                  </div>
+                </button>
+              </div>
+
+              {/* Option 3 Info / Double Roll indicator */}
+              <div className="mt-2.5 flex items-center justify-between rounded-xl bg-white/5 px-3 py-2 text-[11px] text-white/70">
+                <span className="flex items-center gap-1.5">
+                  <span>🎲</span>
+                  <span>Roll for Doubles:</span>
+                  <strong className="text-amber-300 font-mono">16.7% odds</strong>
+                </span>
+                <span className="text-[10px] text-white/50">
+                  {canRoll && !me.hasRolled ? 'Hold ROLL below' : me.hasRolled ? 'Rolled this turn' : 'Wait for turn'}
+                </span>
+              </div>
+            </div>
           )}
           {me.cash < 0 && (
             <button
               onClick={() => {
-                if (armBankrupt) { setArmBankrupt(false); emit('bankrupt'); }
+                if (armBankrupt) { haptic([80, 50, 80]); setArmBankrupt(false); emit('bankrupt'); }
                 else setArmBankrupt(true);
               }}
               className={`w-full rounded-2xl py-3 font-extrabold ${armBankrupt ? 'bg-rose-600 text-white' : 'bg-rose-500'}`}>
@@ -642,13 +714,28 @@ function AuctionCard({ room, me, emit }: { room: RoomState; me: Player; emit: (e
         <button onClick={() => bid(Math.max(minNext, Number(amount) || 0))}
           className="rounded-xl bg-amber-300 px-4 py-2 font-extrabold text-black">Bid</button>
       </div>
-      <div className="mt-2 flex gap-2">
-        {[10, 50].map((d) => (
-          <button key={d} type="button" onClick={() => bid(Math.max(minNext, (top?.amount ?? 0) + d))}
-            className="flex-1 rounded-xl bg-white/10 py-1.5 text-xs font-bold">+${d} (${Math.max(minNext, (top?.amount ?? 0) + d)})</button>
-        ))}
+      <div className="mt-2 grid grid-cols-4 gap-1.5">
+        {[10, 25, 50, 100].map((d) => {
+          const target = Math.max(minNext, (top?.amount ?? 0) + d);
+          const canAfford = me.cash >= target;
+          return (
+            <button
+              key={d}
+              type="button"
+              disabled={!canAfford}
+              onClick={() => { haptic(25); bid(target); }}
+              className={`rounded-xl py-1.5 text-xs font-bold transition-all ${
+                canAfford
+                  ? 'bg-white/10 hover:bg-white/20 active:scale-95 text-white'
+                  : 'bg-white/5 text-white/30 cursor-not-allowed'
+              }`}
+            >
+              +${d} <span className="block text-[10px] opacity-70 font-mono">${target}</span>
+            </button>
+          );
+        })}
       </div>
-      <div className="mt-1 text-xs text-white/50">Your cash: ${me.cash} · highest bid wins at zero</div>
+      <div className="mt-1.5 text-xs text-white/50">Your cash: <span className="font-mono font-bold text-white/80">${me.cash}</span> · highest bid wins at zero</div>
     </div>
   );
 }

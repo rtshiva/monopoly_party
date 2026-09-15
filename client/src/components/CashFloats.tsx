@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { RoomState } from "@monopoly/shared";
 
-interface FloatItem {
+export interface FloatItem {
   id: string;
   amount: number;
 }

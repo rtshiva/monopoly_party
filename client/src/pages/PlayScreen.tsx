@@ -11,23 +11,26 @@ import { DicePair } from '../components/DiceFace';
 import { HoldToRollButton } from '../components/HoldToRollButton';
 import { ConnPill } from '../components/ConnPill';
 import { TradeTab } from '../components/TradeTab';
-import { minNextBid, nameOf, outbidBy, topBid } from '../auctionNotify';
 import { PropsTab } from '../components/PropsTab';
 import { resolveDiceFaces } from '../components/diceResolve';
 import { friendlyError } from '../friendlyError';
 import { DebugPanel } from '../components/DebugPanel';
 import { debugEnabled, dlogc } from '../debug';
 import { TurnCountdown } from '../components/TurnCountdown';
-import { isMuted, setMuted, sndBuy, sndCash, sndError, sndRoll, sndTick, sndWin } from '../sound';
+import { isMuted, sndBuy, sndCash, sndError, sndRoll, sndTick, sndWin } from '../sound';
 import { haptic } from '../haptics';
-import { BOARD, DEFAULT_BOARD_STYLE, GO_SALARY, TOKENS, applyRoomDelta, netWorth, ownerOf, rentFor, tilePrice } from '@monopoly/shared';
-import { TileArt } from '../components/TileArt';
+import { BOARD, DEFAULT_BOARD_STYLE, GO_SALARY, applyRoomDelta, netWorth, ownerOf, rentFor } from '@monopoly/shared';
 import { useDiscoveredThemes } from '../useThemes';
 import { EndgameStats } from '../components/EndgameStats';
-import { themeFor, type TileArtKey } from '../components/boardThemes';
-import { getSetProgress } from '../components/propsHelper';
+import { themeFor } from '../components/boardThemes';
 import { CardFlip } from '../components/CardFlip';
+import { PlayHeader } from '../components/PlayHeader';
+import { CurrentPositionCard } from '../components/CurrentPositionCard';
+import { JailCardView } from '../components/JailCardView';
+import { PartyReactionsBar } from '../components/PartyReactionsBar';
+import { AuctionCard } from '../components/AuctionCard';
 import type { Player, RoomDelta, RoomState } from '@monopoly/shared';
+
 
 export function PlayScreen() {
   const { code = '' } = useParams();
@@ -46,7 +49,6 @@ export function PlayScreen() {
   // Two-tap bankruptcy confirm (replaces window.confirm): first tap arms,
   // second fires. Disarms when the cash/turn situation changes underneath.
   const [armBankrupt, setArmBankrupt] = useState(false);
-  const [showCashHistory, setShowCashHistory] = useState(false);
   const diceTripRef = useRef('');
   const sockRef = useRef<Socket | null>(null);
   const [sockState, setSockState] = useState<Socket | null>(null);
@@ -58,7 +60,6 @@ export function PlayScreen() {
   const [sockUp, setSockUp] = useState(false);
   const prevSockUp = useRef(false);
   const [showReconnectToast, setShowReconnectToast] = useState(false);
-  const [reactionToast, setReactionToast] = useState<string | null>(null);
   useEffect(() => {
     if (sockUp && !prevSockUp.current) {
       setShowReconnectToast(true);
@@ -338,94 +339,19 @@ export function PlayScreen() {
     : myTile.kind === 'parking' ? 'Rest — nothing happens'
     : null;
 
-  const currentArtKey: TileArtKey | undefined = myTile.kind === 'property'
-    ? (myTile.color !== 'none' ? myTile.color : undefined)
-    : (myTile.kind === 'railroad' || myTile.kind === 'utility') ? myTile.kind : undefined;
-  const currentArtUrl = currentArtKey ? theme.tileArt?.[currentArtKey] : undefined;
-  const currentSetProgress = (myTile.kind === 'property' || myTile.kind === 'railroad' || myTile.kind === 'utility')
-    ? getSetProgress(me.position, room, me) : null;
-  const myRecentCashLogs = useMemo(() => {
-    return room.log
-      .filter((l) => l.cat === 'money' || l.tone === 'money' || l.text.includes(me.name))
-      .slice(0, 3)
-      .map((l) => l.text);
-  }, [room.log, me.name]);
   return (
     <div className="mx-auto max-w-md px-3 pb-28 pt-4">
       {/* header */}
-      <div className="glass flex items-center gap-3 rounded-2xl p-3">
-        <div className="text-3xl">{TOKENS[me.token]}</div>
-        <div className="flex-1">
-          <div className="font-bold">🎮 {me.name} <span className="ml-1 rounded bg-white/10 px-1 font-mono text-xs">{room.code}</span></div>
-          <div className="text-xs text-white/60">📍 {myTile.name} · {me.inJail ? '🔒 In jail' : 'Free'} · {hasControl ? 'controlling' : 'NOT controlling'}</div>
-        </div>
-        <button
-          type="button"
-          onClick={() => { haptic(15); setShowCashHistory((v) => !v); }}
-          className="text-right cursor-pointer rounded-xl px-1.5 py-0.5 hover:bg-white/5 active:scale-95 transition-all"
-        >
-          <div className={`font-mono text-xl font-extrabold flex items-center justify-end gap-1 ${me.cash < 0 ? 'text-rose-300' : 'text-emerald-300'}`}>
-            <span>${me.cash}</span>
-            <span className="text-[10px] text-white/50">{showCashHistory ? '▲' : '▼'}</span>
-          </div>
-          <div className="text-[11px] font-medium text-white/60">Net: <span className="font-mono text-emerald-300/90">${myNetWorth}</span></div>
-        </button>
-        {me.isHost && (room.status === 'playing' || room.status === 'paused') && (
-          <button
-            type="button"
-            title={room.status === 'playing' ? 'Pause game' : 'Resume game'}
-            onClick={() => emit(room.status === 'playing' ? 'pauseGame' : 'resumeGame')}
-            className="rounded-xl bg-white/15 px-2.5 py-1 text-sm font-bold"
-          >
-            {room.status === 'playing' ? '⏸' : '▶️'}
-          </button>
-        )}
-        <button type="button" title={mutedUi ? 'Unmute sounds' : 'Mute sounds'}
-          onClick={() => { const m = !mutedUi; setMuted(m); setMutedUi(m); }}
-          className="rounded-xl bg-white/10 px-2 py-1 text-lg">{mutedUi ? '🔇' : '🔊'}</button>
-      </div>
-
-      <AnimatePresence>
-        {showCashHistory && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden"
-          >
-            <div className="mt-2 rounded-2xl border border-white/10 bg-black/70 p-3 text-xs backdrop-blur-md shadow-xl">
-              <div className="flex items-center justify-between border-b border-white/10 pb-1.5 font-bold">
-                <span className="text-white/80">💳 Financial Breakdown</span>
-                <span className="font-mono text-emerald-300 font-extrabold">Net: ${myNetWorth}</span>
-              </div>
-              <div className="mt-2 grid grid-cols-2 gap-2 text-white/70">
-                <div className="rounded-xl bg-white/5 p-2">
-                  <div className="text-[10px] text-white/50">Liquid Cash</div>
-                  <div className="font-mono text-sm font-bold text-emerald-300">${me.cash}</div>
-                </div>
-                <div className="rounded-xl bg-white/5 p-2">
-                  <div className="text-[10px] text-white/50">Deeds & Buildings</div>
-                  <div className="font-mono text-sm font-bold text-white">${myNetWorth - me.cash}</div>
-                </div>
-              </div>
-              <div className="mt-2.5 border-t border-white/10 pt-1.5">
-                <div className="text-[10px] uppercase tracking-wider text-white/50 font-bold mb-1">Recent Transactions</div>
-                {myRecentCashLogs.length === 0 ? (
-                  <div className="text-white/40 italic py-0.5">No recent money events</div>
-                ) : (
-                  <div className="space-y-1">
-                    {myRecentCashLogs.map((log: string, idx: number) => (
-                      <div key={idx} className="truncate text-[11px] text-white/80">
-                        • {log}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PlayHeader
+        me={me}
+        room={room}
+        myTile={myTile}
+        hasControl={hasControl}
+        myNetWorth={myNetWorth}
+        mutedUi={mutedUi}
+        setMutedUi={setMutedUi}
+        emit={emit}
+      />
 
       {/* turn banner */}
       <ConnPill sock={sockState} />
@@ -526,66 +452,17 @@ export function PlayScreen() {
       </AnimatePresence>
 
       {/* current position */}
-      <div
-        className="relative mt-2 overflow-hidden rounded-2xl border border-white/15 p-3 shadow-lg"
-        style={{
-          ...(currentArtUrl
-            ? { backgroundImage: `url("${currentArtUrl}")`, backgroundSize: 'cover', backgroundPosition: 'center' }
-            : { background: 'rgba(255, 255, 255, 0.05)' }),
-        }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/80 to-black/85 backdrop-blur-[2px]" />
-        <div className="relative z-10">
-          <div className="flex items-center gap-3">
-            <TileArt tile={me.position} size={56} />
-            <div className="flex-1 min-w-0">
-              <div className="text-xs text-white/50">Current Position</div>
-              <div className="font-bold truncate">📍 {myTile.name}</div>
-              {(myTile.kind === 'property' || myTile.kind === 'railroad' || myTile.kind === 'utility') ? (
-                <div className="text-xs text-white/70">
-                  Price ${tilePrice(me.position)} · Rent ${tileRent} · Owner {isMine ? 'You' : (ownerName ?? '—')}
-                </div>
-              ) : (
-                <div className="text-xs text-white/70">{tileDetail}</div>
-              )}
-            </div>
-            {isMine ? (
-              <span className="rounded-lg bg-sky-300/20 border border-sky-300/30 px-2 py-1 text-xs font-bold text-sky-200 shrink-0">🏠 Your Property</span>
-            ) : room.pendingBuy === me.position && isMyTurn ? (
-              <span className="rounded-lg bg-amber-300/20 border border-amber-300/30 px-2 py-1 text-xs font-bold text-amber-200 shrink-0">🏷️ For Sale</span>
-            ) : ownerName ? (
-              <span className="rounded-lg bg-white/10 px-2 py-1 text-xs font-bold text-white/70 shrink-0">{ownerName}'s</span>
-            ) : null}
-          </div>
-
-          {/* Strategic Set Advice */}
-          {currentSetProgress && currentSetProgress.total > 1 && (
-            <div className="mt-2.5 pt-2 border-t border-white/10 flex flex-wrap items-center gap-1.5 text-xs">
-              {currentSetProgress.isComplete ? (
-                <span className="rounded-md bg-emerald-400/20 border border-emerald-400/30 px-2 py-0.5 font-bold text-emerald-200">
-                  ⭐ Complete monopoly! (${tileRent} rent)
-                </span>
-              ) : isMine ? (
-                <span className="rounded-md bg-sky-400/20 border border-sky-400/30 px-2 py-0.5 font-bold text-sky-200">
-                  You own {currentSetProgress.owned}/{currentSetProgress.total} in this group
-                </span>
-              ) : currentSetProgress.owned > 0 ? (
-                <span className="rounded-md bg-amber-400/20 border border-amber-400/30 px-2 py-0.5 font-bold text-amber-200">
-                  ✨ You own {currentSetProgress.owned}/{currentSetProgress.total} · Buying completes {currentSetProgress.owned + 1}/{currentSetProgress.total}!
-                </span>
-              ) : ownerName ? (
-                <span className="rounded-md bg-rose-400/20 border border-rose-400/30 px-2 py-0.5 font-bold text-rose-200">
-                  ⚠️ Owned by {ownerName}
-                </span>
-              ) : (
-                <span className="rounded-md bg-white/10 px-2 py-0.5 text-white/70">
-                  Unowned deed ({currentSetProgress.total} in set)
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+      <CurrentPositionCard
+        me={me}
+        room={room}
+        myTile={myTile}
+        tileRent={tileRent}
+        tileDetail={tileDetail ?? ''}
+        isMine={isMine}
+        isMyTurn={isMyTurn}
+        ownerName={ownerName}
+        theme={theme}
+      />
 
       {/* actions */}
       {room.status === 'playing' && !me.bankrupt && (
@@ -641,82 +518,7 @@ export function PlayScreen() {
           {canRoll && me.hasRolled && room.pendingBuy == null && (
             <button onClick={() => { haptic(25); emit('endTurn'); }} className="w-full rounded-2xl bg-sky-300 py-4 text-xl font-extrabold text-sky-950">End turn ➡️</button>
           )}
-          {me.inJail && (
-            <div className="overflow-hidden rounded-2xl border border-rose-500/30 bg-gradient-to-b from-slate-900 via-slate-900/90 to-black p-4 shadow-xl">
-              {/* Header with prison bars motif */}
-              <div className="relative mb-3 flex items-center justify-between border-b border-white/10 pb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">🔒</span>
-                  <div>
-                    <h3 className="text-xs font-black uppercase tracking-wider text-rose-300">Lockup / In Jail</h3>
-                    <p className="text-[11px] text-white/60">
-                      {me.jailTurns === 0 ? 'Attempt 1 of 2: Roll doubles or pay bail' : 'Attempt 2 of 2: Must escape or pay next turn'}
-                    </p>
-                  </div>
-                </div>
-                <div className="rounded-full border border-rose-800/60 bg-rose-950/80 px-2.5 py-0.5 text-[11px] font-bold text-rose-300">
-                  Attempt {me.jailTurns + 1}/2
-                </div>
-              </div>
-
-              {/* Jail Options Grid */}
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {/* Option 1: Pay Bail */}
-                <button
-                  type="button"
-                  disabled={me.cash < 50}
-                  onClick={() => { haptic(35); emit('payJail'); }}
-                  className={`flex flex-col items-start rounded-xl p-3 text-left transition-all ${
-                    me.cash >= 50
-                      ? 'bg-gradient-to-r from-amber-400 to-amber-300 text-amber-950 shadow-md active:scale-95'
-                      : 'border border-white/5 bg-white/5 text-white/30 cursor-not-allowed'
-                  }`}
-                >
-                  <div className="flex w-full items-center justify-between text-xs font-extrabold">
-                    <span>🔓 Pay Bail</span>
-                    <span className="rounded bg-black/20 px-1.5 py-0.5 text-[10px] font-mono">$50</span>
-                  </div>
-                  <div className="mt-1 text-[11px] opacity-80">
-                    {me.cash >= 50 ? 'Immediate release & roll freely' : 'Need $50 cash (mortgage or trade)'}
-                  </div>
-                </button>
-
-                {/* Option 2: Get-out-of-jail free card */}
-                <button
-                  type="button"
-                  disabled={me.jailCards <= 0}
-                  onClick={() => { haptic(35); emit('useJailCard'); }}
-                  className={`flex flex-col items-start rounded-xl p-3 text-left transition-all ${
-                    me.jailCards > 0
-                      ? 'bg-gradient-to-r from-emerald-400 to-teal-300 text-teal-950 shadow-md active:scale-95'
-                      : 'border border-white/5 bg-white/5 text-white/30 cursor-not-allowed'
-                  }`}
-                >
-                  <div className="flex w-full items-center justify-between text-xs font-extrabold">
-                    <span>🃏 Jail Free Card</span>
-                    <span className="rounded bg-black/20 px-1.5 py-0.5 text-[10px] font-mono">
-                      {me.jailCards > 0 ? `${me.jailCards} available` : '0 available'}
-                    </span>
-                  </div>
-                  <div className="mt-1 text-[11px] opacity-80">
-                    {me.jailCards > 0 ? 'Use your card to leave free' : 'Earn from Chance / Chest'}
-                  </div>
-                </button>
-              </div>
-
-              {/* Option 3 Info / Double Roll indicator */}
-              <div className="mt-2.5 flex items-center justify-between rounded-xl bg-white/5 px-3 py-2 text-[11px] text-white/70">
-                <span className="flex items-center gap-1.5">
-                  <span>🎲</span>
-                  <span>Roll for Doubles:</span>
-                  <strong className="text-amber-300 font-mono">16.7% odds</strong>
-                </span>
-                <span className="text-[10px] text-white/50">
-                  {canRoll && !me.hasRolled ? 'Hold ROLL below' : me.hasRolled ? 'Rolled this turn' : 'Wait for turn'}
-                </span>
-              </div>
-            </div>
-          )}
+          {me.inJail && <JailCardView me={me} canRoll={canRoll} emit={emit} />}
           {me.cash < 0 && (
             <button
               onClick={() => {
@@ -732,55 +534,8 @@ export function PlayScreen() {
 
       {err && <div className="mt-2 rounded-xl bg-rose-500/20 px-3 py-2 text-center text-sm text-rose-200">{err}</div>}
 
-      {/* Cycle 35: Player Emoji Reactions & Cycle 38: Banter Quick-Phrases */}
-      <div className="mt-3 rounded-2xl bg-white/5 border border-white/10 p-2">
-        <div className="flex items-center justify-between px-1 mb-1.5">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Party Reactions & Banter</span>
-          {reactionToast && (
-            <motion.span
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="text-xs font-extrabold text-amber-300"
-            >
-              Sent {reactionToast}!
-            </motion.span>
-          )}
-        </div>
-        <div className="flex items-center justify-between gap-1">
-          {['🎉', '😱', '💸', '💀', '👏', '🔥'].map((emoji) => (
-            <button
-              key={emoji}
-              type="button"
-              onClick={() => {
-                haptic(30);
-                sndTick();
-                setReactionToast(emoji);
-                setTimeout(() => setReactionToast(null), 2000);
-              }}
-              title={`React with ${emoji}`}
-              className="flex-1 rounded-xl bg-white/5 hover:bg-white/15 py-1 text-lg active:scale-90 transition-transform"
-            >
-              {emoji}
-            </button>
-          ))}
-        </div>
-        <div className="mt-1.5 flex gap-1.5 overflow-x-auto pb-0.5">
-          {['"Nice hotel!"', '"Let\'s deal!"', '"No way! 🙅"', '"GG! 🏆"'].map((phrase) => (
-            <button
-              key={phrase}
-              type="button"
-              onClick={() => {
-                haptic(25);
-                setReactionToast(phrase);
-                setTimeout(() => setReactionToast(null), 2000);
-              }}
-              className="shrink-0 rounded-lg bg-white/10 hover:bg-white/20 px-2 py-0.5 text-[11px] font-medium text-white/80 active:scale-95 transition-all"
-            >
-              {phrase}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Party Reactions & Banter */}
+      <PartyReactionsBar />
 
       {/* tabs */}
       <div className="mt-3 flex gap-1.5">
@@ -814,89 +569,6 @@ export function PlayScreen() {
   );
 }
 
-function AuctionCard({ room, me, emit }: { room: RoomState; me: Player; emit: (ev: string, extra?: Record<string, unknown>, onOk?: (res: { ok: boolean; error?: string; controlKey?: string }) => void) => void }) {
-  const [amount, setAmount] = useState('');
-  const a = room.auction!;
-  const top = topBid(a);
-  const minNext = minNextBid(a);
-  const outbid = outbidBy(a, me.id);
-  const prevOutbidRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (outbid && prevOutbidRef.current !== outbid) {
-      haptic([60, 40, 60]);
-      sndError();
-    }
-    prevOutbidRef.current = outbid;
-  }, [outbid]);
-  function bid(v: number) {
-    // Keep the typed amount when the server rejects (e.g. outbid mid-tap) —
-    // clearing it destroys the user's work for no reason.
-    emit('auctionBid', { amount: v }, () => setAmount(''));
-  }
-  return (
-    <div className="glass rounded-2xl border-amber-300/50 p-3 text-center">
-      <div className="flex items-center justify-center gap-2 font-bold">🔨 Auction: {BOARD[a.tile]?.name}
-        <TurnCountdown deadline={a.endsAt} className="rounded-full bg-amber-300/20 px-2 py-0.5 font-mono text-xs text-amber-200" />
-      </div>
-      <div className="text-sm text-white/70">{top ? <>Top: <b className="text-emerald-300">${top.amount}</b> ({nameOf(room, top.playerId)})</> : 'No bids yet — min $10'}</div>
-      {outbid && (
-        <div className="mt-1 rounded-xl bg-rose-500/20 px-2 py-1 text-sm font-bold text-rose-200">
-          Outbid by {nameOf(room, outbid)} — bid ${minNext}+ to retake!</div>
-      )}
-      <div className="mt-2 flex gap-2">
-        <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
-          inputMode="numeric" placeholder={`${minNext}`} className="min-w-0 flex-1 rounded-xl border border-white/15 bg-black/30 px-3 py-2 font-mono outline-none" />
-        <button onClick={() => bid(Math.max(minNext, Number(amount) || 0))}
-          className="rounded-xl bg-amber-300 px-4 py-2 font-extrabold text-black">Bid</button>
-      </div>
-      <div className="mt-2 grid grid-cols-4 gap-1.5">
-        {[10, 25, 50, 100].map((d) => {
-          const target = Math.max(minNext, (top?.amount ?? 0) + d);
-          const canAfford = me.cash >= target;
-          return (
-            <button
-              key={d}
-              type="button"
-              disabled={!canAfford}
-              onClick={() => { haptic(25); bid(target); }}
-              className={`rounded-xl py-1.5 text-xs font-bold transition-all ${
-                canAfford
-                  ? 'bg-white/10 hover:bg-white/20 active:scale-95 text-white'
-                  : 'bg-white/5 text-white/30 cursor-not-allowed'
-              }`}
-            >
-              +${d} <span className="block text-[10px] opacity-70 font-mono">${target}</span>
-            </button>
-          );
-        })}
-      </div>
-      <div className="mt-1.5 text-xs text-white/50">Your cash: <span className="font-mono font-bold text-white/80">${me.cash}</span> · highest bid wins at zero</div>
-
-      {/* Cycle 37: Past Auction History Drawer */}
-      {(() => {
-        const pastAuctions = room.log.filter((l) => l.text.toLowerCase().includes('auction'));
-        if (pastAuctions.length === 0) return null;
-        return (
-          <div className="mt-2 pt-2 border-t border-white/10 text-left">
-            <details className="group">
-              <summary className="text-[11px] font-bold text-amber-200/80 hover:text-amber-200 cursor-pointer flex items-center justify-between">
-                <span>📜 Match Auction History ({pastAuctions.length})</span>
-                <span className="group-open:rotate-180 transition-transform text-xs">▼</span>
-              </summary>
-              <div className="mt-1.5 max-h-28 overflow-y-auto space-y-1 pr-1">
-                {pastAuctions.map((item) => (
-                  <div key={item.id} className="rounded-lg bg-black/30 px-2 py-1 text-[10px] text-white/70">
-                    • {item.text}
-                  </div>
-                ))}
-              </div>
-            </details>
-          </div>
-        );
-      })()}
-    </div>
-  );
-}
 
 function Banner({ text, gold = false }: { text: string; gold?: boolean }) {
   return (

@@ -15,9 +15,11 @@ import { BOARD, TOKENS, applyRoomDelta, netWorth } from '@monopoly/shared';
 import type { RoomDelta, RoomState } from '@monopoly/shared';
 import { getPlayerColor } from '../components/playerTokens';
 import { CashFloatBadge, usePlayerCashDeltas } from '../components/CashFloats';
-import { isMuted, setMuted, sndBuy, sndCash, sndError, sndRoll, sndWin } from '../sound';
+import { getVolume, isMuted, setMuted, setVolume, sndBuy, sndCash, sndError, sndRoll, sndWin } from '../sound';
 import { ConfettiCanvas } from '../components/ConfettiCanvas';
 import { TvTradeSpotlight } from '../components/TvTradeSpotlight';
+import { isHighContrast, setHighContrast } from '../accessibility';
+import { EndgameStats } from '../components/EndgameStats';
 
 export function HostScreen() {
   const { code = '' } = useParams();
@@ -90,6 +92,8 @@ export function HostScreen() {
   const amHost = !!hostSeat && hostSeat.id === pid;
   const activePlay = room.status === 'playing' || room.status === 'paused';
   const [mutedUi, setMutedUi] = useState(isMuted());
+  const [volumeUi, setVolumeUi] = useState(getVolume());
+  const [contrastUi, setContrastUi] = useState(isHighContrast());
   const floats = usePlayerCashDeltas(room);
 
   // Trigger TV audio effects on key events if unmuted
@@ -143,14 +147,34 @@ export function HostScreen() {
         <div className="flex flex-wrap items-center gap-3">
           <div className="font-display text-xl font-bold">🎲 MONOPOLY PARTY <span className="ml-2 rounded-lg bg-amber-300 px-2 py-1 font-mono text-black">{room.code}</span></div>
           <button onClick={() => navigator.clipboard?.writeText(joinURL)} className="rounded-xl bg-white/10 px-3 py-2 text-sm hover:bg-white/20">📋 Copy invite link</button>
-          <button
-            type="button"
-            title={mutedUi ? 'Unmute TV sounds' : 'Mute TV sounds'}
-            onClick={() => { const m = !mutedUi; setMuted(m); setMutedUi(m); }}
-            className="rounded-xl bg-white/10 px-3 py-1.5 text-sm font-bold flex items-center gap-1.5 hover:bg-white/20"
-          >
-            <span>{mutedUi ? '🔇 TV Sound Off' : '🔊 TV Sound On'}</span>
-          </button>
+          <div className="flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-1.5 text-sm font-bold">
+            <button
+              type="button"
+              title={mutedUi ? 'Unmute TV sounds' : 'Mute TV sounds'}
+              onClick={() => { const m = !mutedUi; setMuted(m); setMutedUi(m); }}
+              className="flex items-center gap-1.5 hover:text-amber-200 transition-colors"
+            >
+              <span>{mutedUi ? '🔇' : '🔊'}</span>
+            </button>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={mutedUi ? 0 : volumeUi}
+              title={`TV Sound Volume (${Math.round((mutedUi ? 0 : volumeUi) * 100)}%)`}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                setVolume(val);
+                setVolumeUi(val);
+                if (val > 0 && mutedUi) {
+                  setMuted(false);
+                  setMutedUi(false);
+                }
+              }}
+              className="w-16 h-1.5 accent-amber-300 rounded-lg cursor-pointer bg-white/20"
+            />
+          </div>
           <button
             type="button"
             title="Toggle TV Fullscreen"
@@ -164,6 +188,20 @@ export function HostScreen() {
             className="rounded-xl bg-white/10 px-3 py-1.5 text-sm font-bold flex items-center gap-1.5 hover:bg-white/20"
           >
             <span>📺 Fullscreen</span>
+          </button>
+          <button
+            type="button"
+            title="Toggle high-contrast visibility mode for TV glare"
+            onClick={() => {
+              const next = !contrastUi;
+              setHighContrast(next);
+              setContrastUi(next);
+            }}
+            className={`rounded-xl px-3 py-1.5 text-sm font-bold flex items-center gap-1.5 transition-colors ${
+              contrastUi ? 'bg-amber-300 text-black font-extrabold shadow' : 'bg-white/10 text-white hover:bg-white/20'
+            }`}
+          >
+            <span>{contrastUi ? '☀️ High Contrast: ON' : '🌓 High Contrast'}</span>
           </button>
           <div className="ml-auto text-sm text-white/60">{room.status === 'lobby' ? '🟡 Lobby — waiting for players' : room.status === 'playing' ? '🟢 Playing' : room.status === 'paused' ? '⏸ Paused' : '🏁 Finished'}</div>
         </div>
@@ -263,6 +301,7 @@ export function HostScreen() {
             </div>
             <RematchButton code={room.code} count={room.players.length} hostId={pid} hostKey={loadControl(pid)} onAuthLost={() => setNeedLogin(true)} />
           </div>
+          <EndgameStats room={room} />
         </>
       )}
 

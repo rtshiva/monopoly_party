@@ -3,11 +3,19 @@
 
 let ctx: AudioContext | null = null;
 let muted = typeof localStorage !== 'undefined' && localStorage.getItem('monopoly.muted') === '1';
+let volume = typeof localStorage !== 'undefined' && localStorage.getItem('monopoly.volume') != null
+  ? Math.max(0, Math.min(1, parseFloat(localStorage.getItem('monopoly.volume')!)))
+  : 0.8;
 
 export function isMuted() { return muted; }
 export function setMuted(m: boolean) {
   muted = m;
   try { localStorage.setItem('monopoly.muted', m ? '1' : '0'); } catch { /* noop */ }
+}
+export function getVolume() { return volume; }
+export function setVolume(v: number) {
+  volume = Math.max(0, Math.min(1, v));
+  try { localStorage.setItem('monopoly.volume', volume.toString()); } catch { /* noop */ }
 }
 
 function ac(): AudioContext | null {
@@ -22,13 +30,14 @@ function ac(): AudioContext | null {
 function blip(freq: number, at: number, dur = 0.12, type: OscillatorType = 'sine', gain = 0.15) {
   const c = ac();
   if (!c) return;
+  const effectiveGain = Math.max(0.0001, gain * volume);
   const t = c.currentTime + at;
   const o = c.createOscillator();
   const g = c.createGain();
   o.type = type;
   o.frequency.value = freq;
-  g.gain.setValueAtTime(gain, t);
-  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  g.gain.setValueAtTime(effectiveGain, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   o.connect(g).connect(c.destination);
   o.start(t);
   o.stop(t + dur + 0.02);

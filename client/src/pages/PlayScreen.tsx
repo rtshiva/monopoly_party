@@ -23,6 +23,7 @@ import { haptic } from '../haptics';
 import { BOARD, DEFAULT_BOARD_STYLE, GO_SALARY, TOKENS, applyRoomDelta, netWorth, ownerOf, rentFor, tilePrice } from '@monopoly/shared';
 import { TileArt } from '../components/TileArt';
 import { useDiscoveredThemes } from '../useThemes';
+import { EndgameStats } from '../components/EndgameStats';
 import { themeFor, type TileArtKey } from '../components/boardThemes';
 import { getSetProgress } from '../components/propsHelper';
 import { CardFlip } from '../components/CardFlip';
@@ -441,7 +442,10 @@ export function PlayScreen() {
         )}
         {room.status === 'lobby' && <Banner key="lobby" text="⏳ Waiting for host to start… show this screen is ready!" />}
         {room.status === 'finished' && (
-          <Banner key="win" gold text={room.winnerId === me.id ? '🏆 YOU WIN! 🎉' : `🏁 ${room.players.find((p) => p.id === room.winnerId)?.name} wins`} />
+          <>
+            <Banner key="win" gold text={room.winnerId === me.id ? '🏆 YOU WIN! 🎉' : `🏁 ${room.players.find((p) => p.id === room.winnerId)?.name} wins`} />
+            <EndgameStats room={room} />
+          </>
         )}
         {room.status === 'playing' && !sockUp && <Banner key="sync" text="🔄 Reconnecting — turn status syncing with the server…" />}
         {room.status === 'playing' && sockUp && isMyTurn && !timeUp && (

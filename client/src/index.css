@@ -85,3 +85,22 @@ body {
   will-change: box-shadow;
 }
 
+/* High contrast mode for bright room / living room TV glare */
+.high-contrast {
+  --board-contrast-bg: #000000;
+  --board-contrast-border: #ffffff;
+}
+.high-contrast body {
+  background: #050505 !important;
+  color: #ffffff !important;
+}
+.high-contrast .glass {
+  background: rgba(0, 0, 0, 0.9) !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2) !important;
+}
+.high-contrast .board-cell {
+  font-weight: 800 !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
+}
+

@@ -58,6 +58,7 @@ export function PlayScreen() {
   const [sockUp, setSockUp] = useState(false);
   const prevSockUp = useRef(false);
   const [showReconnectToast, setShowReconnectToast] = useState(false);
+  const [reactionToast, setReactionToast] = useState<string | null>(null);
   useEffect(() => {
     if (sockUp && !prevSockUp.current) {
       setShowReconnectToast(true);
@@ -731,8 +732,58 @@ export function PlayScreen() {
 
       {err && <div className="mt-2 rounded-xl bg-rose-500/20 px-3 py-2 text-center text-sm text-rose-200">{err}</div>}
 
+      {/* Cycle 35: Player Emoji Reactions & Cycle 38: Banter Quick-Phrases */}
+      <div className="mt-3 rounded-2xl bg-white/5 border border-white/10 p-2">
+        <div className="flex items-center justify-between px-1 mb-1.5">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Party Reactions & Banter</span>
+          {reactionToast && (
+            <motion.span
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="text-xs font-extrabold text-amber-300"
+            >
+              Sent {reactionToast}!
+            </motion.span>
+          )}
+        </div>
+        <div className="flex items-center justify-between gap-1">
+          {['🎉', '😱', '💸', '💀', '👏', '🔥'].map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              onClick={() => {
+                haptic(30);
+                sndTick();
+                setReactionToast(emoji);
+                setTimeout(() => setReactionToast(null), 2000);
+              }}
+              title={`React with ${emoji}`}
+              className="flex-1 rounded-xl bg-white/5 hover:bg-white/15 py-1 text-lg active:scale-90 transition-transform"
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+        <div className="mt-1.5 flex gap-1.5 overflow-x-auto pb-0.5">
+          {['"Nice hotel!"', '"Let\'s deal!"', '"No way! 🙅"', '"GG! 🏆"'].map((phrase) => (
+            <button
+              key={phrase}
+              type="button"
+              onClick={() => {
+                haptic(25);
+                setReactionToast(phrase);
+                setTimeout(() => setReactionToast(null), 2000);
+              }}
+              className="shrink-0 rounded-lg bg-white/10 hover:bg-white/20 px-2 py-0.5 text-[11px] font-medium text-white/80 active:scale-95 transition-all"
+            >
+              {phrase}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* tabs */}
-      <div className="mt-4 flex gap-1.5">
+      <div className="mt-3 flex gap-1.5">
         <button type="button" onClick={() => setTab('props')}
           className={`flex-1 rounded-xl py-2 text-xs font-bold transition-colors ${tab === 'props' ? 'bg-amber-300 text-black shadow-md' : 'bg-white/10 text-white/80 hover:bg-white/15'}`}>
           🏠 Properties ({me.properties.length})</button>
@@ -820,6 +871,29 @@ function AuctionCard({ room, me, emit }: { room: RoomState; me: Player; emit: (e
         })}
       </div>
       <div className="mt-1.5 text-xs text-white/50">Your cash: <span className="font-mono font-bold text-white/80">${me.cash}</span> · highest bid wins at zero</div>
+
+      {/* Cycle 37: Past Auction History Drawer */}
+      {(() => {
+        const pastAuctions = room.log.filter((l) => l.text.toLowerCase().includes('auction'));
+        if (pastAuctions.length === 0) return null;
+        return (
+          <div className="mt-2 pt-2 border-t border-white/10 text-left">
+            <details className="group">
+              <summary className="text-[11px] font-bold text-amber-200/80 hover:text-amber-200 cursor-pointer flex items-center justify-between">
+                <span>📜 Match Auction History ({pastAuctions.length})</span>
+                <span className="group-open:rotate-180 transition-transform text-xs">▼</span>
+              </summary>
+              <div className="mt-1.5 max-h-28 overflow-y-auto space-y-1 pr-1">
+                {pastAuctions.map((item) => (
+                  <div key={item.id} className="rounded-lg bg-black/30 px-2 py-1 text-[10px] text-white/70">
+                    • {item.text}
+                  </div>
+                ))}
+              </div>
+            </details>
+          </div>
+        );
+      })()}
     </div>
   );
 }

@@ -480,6 +480,27 @@ function AuctionPanel({ room }: { room: RoomState }) {
       <div className="mt-1 text-sm text-white/80">
         {top ? <>Top bid <b className="text-emerald-300 font-mono">${top.amount}</b> by <b>{nameOf(top.playerId)}</b> ({a.bids.length} bid{a.bids.length === 1 ? '' : 's'})</> : 'No bids yet — open your phone to bid!'}
       </div>
+      {(() => {
+        const pastAuctions = room.log.filter((l) => l.text.toLowerCase().includes('auction'));
+        if (pastAuctions.length === 0) return null;
+        return (
+          <div className="mt-2 pt-2 border-t border-white/10 text-left">
+            <details className="group">
+              <summary className="text-xs font-semibold text-amber-200/80 hover:text-amber-200 cursor-pointer flex items-center justify-between">
+                <span>📜 Match Auction History ({pastAuctions.length})</span>
+                <span className="group-open:rotate-180 transition-transform text-xs">▼</span>
+              </summary>
+              <div className="mt-1.5 max-h-24 overflow-y-auto space-y-1 text-xs text-white/70">
+                {pastAuctions.map((item) => (
+                  <div key={item.id} className="rounded-lg bg-black/20 px-2 py-0.5">
+                    • {item.text}
+                  </div>
+                ))}
+              </div>
+            </details>
+          </div>
+        );
+      })()}
     </div>
   );
 }

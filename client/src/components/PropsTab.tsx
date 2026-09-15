@@ -6,6 +6,7 @@ import type { ClaimEmit } from './ClaimPanel';
 import { useDiscoveredThemes } from '../useThemes';
 import { themeFor, type TileArtKey } from './boardThemes';
 import { getSetProgress } from './propsHelper';
+import { DeedModal } from './DeedModal';
 
 interface Props {
   room: RoomState;
@@ -16,6 +17,7 @@ interface Props {
 /** Phone properties tab: portfolio strip, per-deed mortgage/build/sell, roster. */
 export function PropsTab({ room, me, emit }: Props) {
   const [filter, setFilter] = useState<'all' | 'build' | 'mortgaged'>('all');
+  const [inspectTile, setInspectTile] = useState<number | null>(null);
   const discovered = useDiscoveredThemes();
   const theme = themeFor(room.boardStyle ?? DEFAULT_BOARD_STYLE, discovered);
 
@@ -45,11 +47,18 @@ export function PropsTab({ room, me, emit }: Props) {
           </div>
           <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
             {me.properties.map((i) => (
-              <div key={i} className="flex shrink-0 items-center gap-2 rounded-xl bg-white/5 px-2 py-1.5">
+              <button
+                key={i}
+                type="button"
+                onClick={() => setInspectTile(i)}
+                className="flex shrink-0 items-center gap-2 rounded-xl bg-white/5 px-2.5 py-1.5 transition-all hover:bg-white/15 active:scale-95 text-left"
+              >
                 <TileArt tile={i} size={34} />
-                <div className="text-xs"><div className="font-bold">{BOARD[i].name}</div>
-                  <div className="font-mono text-emerald-300">${tilePrice(i)}</div></div>
-              </div>
+                <div className="text-xs">
+                  <div className="font-bold">{BOARD[i].name}</div>
+                  <div className="font-mono text-emerald-300">${tilePrice(i)}</div>
+                </div>
+              </button>
             ))}
           </div>
           {(buildable.length > 0 || mortgaged.length > 0) && (
@@ -142,15 +151,25 @@ export function PropsTab({ room, me, emit }: Props) {
                     )}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => emit('mortgage', { tile: i })}
-                  className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
-                    mort ? 'bg-amber-300 text-black shadow' : 'bg-white/15 text-white hover:bg-white/20'
-                  }`}
-                >
-                  {mort ? 'Unmortgage' : `Mortgage +$${Math.round(price / 2)}`}
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setInspectTile(i)}
+                    title="Inspect title deed details"
+                    className="rounded-xl bg-white/10 px-2 py-1.5 text-xs font-bold text-white/80 hover:bg-white/20 transition-colors"
+                  >
+                    🔍
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => emit('mortgage', { tile: i })}
+                    className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
+                      mort ? 'bg-amber-300 text-black shadow' : 'bg-white/15 text-white hover:bg-white/20'
+                    }`}
+                  >
+                    {mort ? 'Unmortgage' : `Mortgage +$${Math.round(price / 2)}`}
+                  </button>
+                </div>
               </div>
 
               {/* Set progress & missing deeds */}
@@ -231,6 +250,16 @@ export function PropsTab({ room, me, emit }: Props) {
         ))}
       </div>
       </div>
+
+      {inspectTile != null && (
+        <DeedModal
+          tileIndex={inspectTile}
+          room={room}
+          me={me}
+          onClose={() => setInspectTile(null)}
+          emit={emit}
+        />
+      )}
     </>
   );
 }

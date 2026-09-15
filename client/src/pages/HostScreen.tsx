@@ -16,6 +16,8 @@ import type { RoomDelta, RoomState } from '@monopoly/shared';
 import { getPlayerColor } from '../components/playerTokens';
 import { CashFloatBadge, usePlayerCashDeltas } from '../components/CashFloats';
 import { isMuted, setMuted, sndBuy, sndCash, sndError, sndRoll, sndWin } from '../sound';
+import { ConfettiCanvas } from '../components/ConfettiCanvas';
+import { TvTradeSpotlight } from '../components/TvTradeSpotlight';
 
 export function HostScreen() {
   const { code = '' } = useParams();
@@ -201,6 +203,7 @@ export function HostScreen() {
       )}
 
       {room.auction && <AuctionPanel room={room} />}
+      {room.status === 'playing' && room.trades.length > 0 && <TvTradeSpotlight room={room} />}
       <ConnPill sock={sockState} />
 
       {(!amHost || needLogin) && (
@@ -250,13 +253,16 @@ export function HostScreen() {
       )}
 
       {room.status === 'finished' && (
-        <div className="glass mt-3 flex flex-col items-center gap-3 rounded-3xl p-5 text-center md:flex-row md:text-left">
-          <div className="flex-1">
-            <div className="font-display text-lg font-bold">🏆 {room.players.find((p) => p.id === room.winnerId)?.name} wins the game!</div>
-            <div className="text-sm text-white/60">Same players, fresh $1500, shuffled order.</div>
+        <>
+          <ConfettiCanvas />
+          <div className="glass mt-3 flex flex-col items-center gap-3 rounded-3xl p-5 text-center md:flex-row md:text-left">
+            <div className="flex-1">
+              <div className="font-display text-lg font-bold">🏆 {room.players.find((p) => p.id === room.winnerId)?.name} wins the game!</div>
+              <div className="text-sm text-white/60">Same players, fresh $1500, shuffled order.</div>
+            </div>
+            <RematchButton code={room.code} count={room.players.length} hostId={pid} hostKey={loadControl(pid)} onAuthLost={() => setNeedLogin(true)} />
           </div>
-           <RematchButton code={room.code} count={room.players.length} hostId={pid} hostKey={loadControl(pid)} onAuthLost={() => setNeedLogin(true)} />
-        </div>
+        </>
       )}
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_320px]">

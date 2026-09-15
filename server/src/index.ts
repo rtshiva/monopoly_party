@@ -61,7 +61,12 @@ app.get('/api/history/:code', async (req, res) => {
 // Live diagnostics snapshot: room roster (no secrets), pending timers, and
 // the journal tail. The companion to ?debug=1 on the client — grab this plus
 // a phone's debug buffer when reporting a bug.
-app.get('/api/debug/summary', async (_req, res) => {
+// Optional auth via DEBUG_KEY env var (open by default on LAN).
+app.get('/api/debug/summary', async (req, res) => {
+  if (process.env.DEBUG_KEY) {
+    const key = req.headers['x-debug-key'] || req.query.key;
+    if (key !== process.env.DEBUG_KEY) return res.status(401).json({ ok: false, error: 'UNAUTHORIZED' });
+  }
   const { tailLog } = await import('./debug.js');
   const now = Date.now();
   res.json({

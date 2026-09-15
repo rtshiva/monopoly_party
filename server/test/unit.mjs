@@ -617,6 +617,23 @@ injectAuctionClock(
   check('pruneTrades logs expiration', r.log.some((l) => l.cat === 'trade' && l.text.includes('expired') && l.text.includes('A to B')));
   cleanup(r);
 }
+{
+  // pickMortgageTile prioritizes railroads and lone properties over full color sets.
+  // Brown set = [1, 3], Reading Railroad = 5, Oriental (light blue) = 6.
+  const r = mkRoom({
+    players: [mkPlayer(0, {
+      properties: [1, 3, 5, 6], // full brown set (1, 3) + RR (5) + lone light blue (6)
+      mortgaged: [],
+    })],
+  });
+  const me = r.players[0];
+  check('pickMortgageTile picks railroad first', pickMortgageTile(r, me) === 5);
+  me.mortgaged.push(5);
+  check('pickMortgageTile picks lone property second', pickMortgageTile(r, me) === 6);
+  me.mortgaged.push(6);
+  check('pickMortgageTile picks full set property last', pickMortgageTile(r, me) === 1);
+  cleanup(r);
+}
 
 for (const l of results) console.log(l);
 if (rooms.size !== 0) { console.log(`FAIL cleanup leaked ${rooms.size} room(s)`); process.exitCode = 1; }

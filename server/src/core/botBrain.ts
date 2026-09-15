@@ -84,16 +84,34 @@ export function pickUnmortgageTile(room: RoomState, me: Player): number | null {
 }
 
 /**
- * Mortgage rescue: first unmortgaged deed in a building-free set. Pure scan,
- * no mutation. Returns null when nothing can be mortgaged.
+ * Mortgage rescue: prioritize deeds that don't break complete color sets
+ * (railroads, utilities, and lone properties first; full-set properties last).
+ * Pure scan, no mutation. Returns null when nothing can be mortgaged.
  */
 export function pickMortgageTile(room: RoomState, me: Player): number | null {
-  for (const tile of me.properties) {
-    if (me.mortgaged.includes(tile)) continue;
-    if (setHasBuildings(room, tile)) continue;
-    return tile;
+  const eligible = me.properties.filter((tile) => !me.mortgaged.includes(tile) && !setHasBuildings(room, tile));
+  if (eligible.length === 0) return null;
+
+  // Rank deeds: non-property (railroad/utility) = 0, incomplete color set = 1, complete set = 2
+  function rank(tile: number): number {
+    const t = BOARD[tile];
+    if (!t || t.kind !== 'property') return 0;
+    const set = colorSetTiles(tile);
+    const hasFull = set.length > 0 && set.every((i) => me.properties.includes(i));
+    return hasFull ? 2 : 1;
   }
-  return null;
+
+  // Stable sort: lowest rank first (preserves deed order among ties)
+  let best = eligible[0];
+  let bestRank = rank(best);
+  for (let i = 1; i < eligible.length; i++) {
+    const r = rank(eligible[i]);
+    if (r < bestRank) {
+      bestRank = r;
+      best = eligible[i];
+    }
+  }
+  return best;
 }
 
 /**

@@ -20,6 +20,7 @@ import { ConfettiCanvas } from '../components/ConfettiCanvas';
 import { TvTradeSpotlight } from '../components/TvTradeSpotlight';
 import { isHighContrast, setHighContrast } from '../accessibility';
 import { EndgameStats } from '../components/EndgameStats';
+import { announceLogEvent, isAnnouncerEnabled, setAnnouncerEnabled } from '../announcer';
 
 export function HostScreen() {
   const { code = '' } = useParams();
@@ -94,9 +95,10 @@ export function HostScreen() {
   const [mutedUi, setMutedUi] = useState(isMuted());
   const [volumeUi, setVolumeUi] = useState(getVolume());
   const [contrastUi, setContrastUi] = useState(isHighContrast());
+  const [announcerUi, setAnnouncerUi] = useState(isAnnouncerEnabled());
   const floats = usePlayerCashDeltas(room);
 
-  // Trigger TV audio effects on key events if unmuted
+  // Trigger TV audio effects and speech announcer on key events if unmuted
   const prevRevRef = useRef<number | null>(null);
   useEffect(() => {
     if (!room || isMuted()) return;
@@ -107,10 +109,14 @@ export function HostScreen() {
         else if (latest.text.includes('bought') || latest.text.includes('built')) sndBuy();
         else if (latest.text.includes('wins the game')) sndWin();
         else if (latest.text.includes('bankrupt') || latest.text.includes('JAIL')) sndError();
+
+        if (announcerUi && !mutedUi) {
+          announceLogEvent(latest.text);
+        }
       }
     }
     prevRevRef.current = room.rev;
-  }, [room?.rev, room?.log]);
+  }, [room?.rev, room?.log, announcerUi, mutedUi]);
   const hideChrome = chromeHidden && activePlay;
   // Shown when this browser doesn't hold the host key (fresh window, or the
   // key moved elsewhere). The board itself always works — only the buttons
@@ -202,6 +208,27 @@ export function HostScreen() {
             }`}
           >
             <span>{contrastUi ? '☀️ High Contrast: ON' : '🌓 High Contrast'}</span>
+          </button>
+          <button
+            type="button"
+            title="Toggle TV speech announcer voice commentary"
+            onClick={() => {
+              const next = !announcerUi;
+              setAnnouncerEnabled(next);
+              setAnnouncerUi(next);
+              if (next) {
+                try {
+                  const u = new SpeechSynthesisUtterance('TV announcer activated!');
+                  u.rate = 1.05;
+                  window.speechSynthesis?.speak(u);
+                } catch { /* noop */ }
+              }
+            }}
+            className={`rounded-xl px-3 py-1.5 text-sm font-bold flex items-center gap-1.5 transition-colors ${
+              announcerUi ? 'bg-amber-300 text-black font-extrabold shadow' : 'bg-white/10 text-white hover:bg-white/20'
+            }`}
+          >
+            <span>{announcerUi ? '🎙️ Voice: ON' : '🎙️ Voice: OFF'}</span>
           </button>
           <div className="ml-auto text-sm text-white/60">{room.status === 'lobby' ? '🟡 Lobby — waiting for players' : room.status === 'playing' ? '🟢 Playing' : room.status === 'paused' ? '⏸ Paused' : '🏁 Finished'}</div>
         </div>

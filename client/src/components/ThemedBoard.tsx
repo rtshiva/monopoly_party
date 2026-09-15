@@ -187,11 +187,11 @@ function TileFace({
  * Generated art appears only as *cell backgrounds* (center + four corners),
  * so there is nothing to calibrate, ever. All game data stays live HTML.
  */
-export function ThemedBoard({ room }: { room: RoomState }) {
+export function ThemedBoard({ room, themeOverride }: { room: RoomState; themeOverride?: BoardTheme }) {
   // Subscribes to drop-in discovery: the board re-renders with folder art
   // (e.g. discworld) the moment the list lands, no code changes.
   const discovered = useDiscoveredThemes();
-  const theme = themeFor(room.boardStyle, discovered);
+  const theme = themeOverride ?? themeFor(room.boardStyle, discovered);
   const { visualPositions, hoppingPlayerId, landingBounceTile } = useAnimatedTokens(room);
   const floats = usePlayerCashDeltas(room);
 

@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { emitWithAck } from '../socket';
 import { clearAllSessions, clearSession, recentSessions, saveControl, saveSession, useGame } from '../store';
@@ -384,6 +384,14 @@ export function Landing() {
         ].map(([h, b]) => (
           <div key={h} className="glass rounded-2xl p-4"><div className="font-bold">{h}</div><div className="mt-1 text-white/60">{b}</div></div>
         ))}
+      </div>
+
+      <div className="mt-6 flex items-center justify-center gap-3 text-xs text-white/50">
+        <Link to="/board-test/classic" className="flex items-center gap-1.5 font-bold hover:text-amber-200 transition-colors">
+          <span>🎨 Custom Theme Studio</span>
+        </Link>
+        <span>·</span>
+        <span>LAN Party Monopoly</span>
       </div>
     </div>
   );

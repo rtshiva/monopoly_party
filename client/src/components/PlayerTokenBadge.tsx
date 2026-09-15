@@ -94,7 +94,11 @@ export function PlayerTokenGroup({
   if (players.length === 0) return null;
 
   return (
-    <div className="mt-0.5 inline-flex flex-wrap items-center justify-center gap-1 max-w-full px-1 py-0.5 rounded-full bg-black/50 backdrop-blur-md shadow-[0_2px_8px_rgba(0,0,0,0.7)] ring-1 ring-white/20">
+    <div
+      className={`mt-0.5 inline-grid items-center justify-center gap-0.5 max-w-full px-1 py-0.5 rounded-xl bg-black/60 backdrop-blur-md shadow-[0_2px_8px_rgba(0,0,0,0.8)] ring-1 ring-white/20 ${
+        players.length >= 3 ? 'grid-cols-2' : 'flex flex-wrap'
+      }`}
+    >
       {players.slice(0, 4).map((p) => {
         const pIndex = roomPlayers.findIndex((rp) => rp.id === p.id);
         const isCurrentTurn = p.id === activePlayerId;
@@ -113,7 +117,7 @@ export function PlayerTokenGroup({
         );
       })}
       {players.length > 4 && (
-        <span className="text-[9px] font-extrabold text-white px-1">
+        <span className="col-span-2 text-center text-[9px] font-extrabold text-amber-200">
           +{players.length - 4}
         </span>
       )}

@@ -16,11 +16,11 @@ function tileToRC(i: number): [number, number] {
   return [row, col];
 }
 
-const CORNER_STYLE: Record<string, { bg: string; icon: string }> = {
-  go: { bg: '#dcfce7', icon: '🏁' },
-  jail: { bg: '#ffedd5', icon: '🔒' },
-  parking: { bg: '#dbeafe', icon: '🅿️' },
-  gotojail: { bg: '#fee2e2', icon: '🚔' },
+const CORNER_STYLE: Record<string, { bg: string; icon: string; border: string; label: string }> = {
+  go: { bg: 'linear-gradient(135deg, #14532d 0%, #166534 100%)', icon: '🏁', border: '#4ade80', label: '+$200' },
+  jail: { bg: 'linear-gradient(135deg, #7c2d12 0%, #9a3412 100%)', icon: '🔒', border: '#fb923c', label: 'VISITING' },
+  parking: { bg: 'linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%)', icon: '🅿️', border: '#60a5fa', label: 'FREE' },
+  gotojail: { bg: 'linear-gradient(135deg, #881337 0%, #9f1239 100%)', icon: '🚔', border: '#f43f5e', label: 'ARREST' },
 };
 
 type CornerKind = 'go' | 'jail' | 'parking' | 'gotojail';
@@ -71,7 +71,12 @@ function TileFace({
         <div className="truncate rounded bg-black/55 px-1 text-[10px] font-bold text-white lg:text-[11px]">{t.name}</div>
         <div className="mt-[1px] inline-block rounded bg-black/55 px-1 text-[10px] text-amber-200">{sub}</div>
         {level > 0 && (
-          <div className="mt-[1px] inline-block rounded-full bg-emerald-950/70 px-1.5 py-0.5 text-[11px] shadow-[0_0_10px_rgba(52,211,153,0.45)] ring-1 ring-emerald-300/50">
+          <div
+            key={level}
+            className={`mt-[1px] inline-block rounded-full bg-emerald-950/80 px-1.5 py-0.5 text-[11px] shadow-[0_0_10px_rgba(52,211,153,0.45)] ring-1 ring-emerald-300/50 animate-building-drop ${
+              mortgaged ? 'opacity-40 grayscale' : ''
+            }`}
+          >
             {level === 5 ? '🏨' : '🏠'.repeat(Math.min(level, 4))}
           </div>
         )}
@@ -114,7 +119,12 @@ function TileFace({
       <div className="mt-[4px] truncate font-bold">{t.name}</div>
       <div style={{ color: theme.subInk }}>{sub}</div>
       {level > 0 && (
-        <div className="mt-[1px] inline-block rounded-full bg-emerald-950/70 px-1.5 py-0.5 text-[11px] text-white shadow-[0_0_10px_rgba(52,211,153,0.45)] ring-1 ring-emerald-300/50">
+        <div
+          key={level}
+          className={`mt-[1px] inline-block rounded-full bg-emerald-950/80 px-1.5 py-0.5 text-[11px] text-white shadow-[0_0_10px_rgba(52,211,153,0.45)] ring-1 ring-emerald-300/50 animate-building-drop ${
+            mortgaged ? 'opacity-40 grayscale' : ''
+          }`}
+        >
           {level === 5 ? '🏨' : '🏠'.repeat(Math.min(level, 4))}
         </div>
       )}
@@ -186,6 +196,8 @@ export function ThemedBoard({ room }: { room: RoomState }) {
               ? (t.color !== 'none' ? t.color : undefined)
               : t.kind;
             const art = artKey ? theme.tileArt?.[artKey] : undefined;
+            const owner = room.players.find((p) => p.properties.includes(i));
+            const isMortgaged = !!owner && owner.mortgaged.includes(i);
             return (
               <div
                 key={i}
@@ -196,14 +208,17 @@ export function ThemedBoard({ room }: { room: RoomState }) {
                   color: theme.ink,
                   ...(art ? { backgroundImage: `url("${art}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}),
                 }}
-                className={`relative overflow-hidden rounded-[7px] p-[2px] min-w-0 min-h-0 flex flex-col justify-between text-[10px] leading-tight lg:text-[11px] transition-shadow ${
+                className={`relative overflow-hidden rounded-[7px] p-[2px] min-w-0 min-h-0 flex flex-col justify-between text-[10px] leading-tight lg:text-[11px] transition-all ${
                   isPending ? 'ring-2 ring-amber-500 animate-pulse' : ''
                 } ${isLanding ? 'ring-2 ring-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.8)]' : ''} ${
-                  isCurrentTurn && !isLanding ? 'ring-2 ring-sky-500' : ''
-                } ${occupied && !isCurrentTurn && !isLanding ? 'shadow-[0_0_14px_rgba(186,230,253,0.55)]' : ''}`}
+                  isCurrentTurn && !isLanding ? 'ring-2 ring-sky-400 animate-turn-beacon z-20' : ''
+                } ${occupied && !isCurrentTurn && !isLanding ? 'shadow-[0_0_14px_rgba(186,230,253,0.55)]' : ''} ${
+                  isMortgaged ? 'opacity-70' : ''
+                }`}
                 title={t.name}
               >
                 {art && <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30" />}
+                {isMortgaged && <div className="mortgaged-hatch absolute inset-0 pointer-events-none z-10" />}
                 {room.players.map((p) => (visualPositions[p.id] ?? p.position) === i && floats[p.id] ? (
                   <CashFloatBadge key={p.id} items={floats[p.id]} />
                 ) : null)}

@@ -1,10 +1,22 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Landing } from './pages/Landing';
-import { HostScreen } from './pages/HostScreen';
-import { PlayScreen } from './pages/PlayScreen';
-import { BoardTest } from './pages/BoardTest';
 import { useGame } from './store';
+
+const Landing = lazy(() => import('./pages/Landing').then((m) => ({ default: m.Landing })));
+const HostScreen = lazy(() => import('./pages/HostScreen').then((m) => ({ default: m.HostScreen })));
+const PlayScreen = lazy(() => import('./pages/PlayScreen').then((m) => ({ default: m.PlayScreen })));
+const BoardTest = lazy(() => import('./pages/BoardTest').then((m) => ({ default: m.BoardTest })));
+
+function RouteFallback() {
+  return (
+    <div className="flex min-h-[60vh] flex-col items-center justify-center p-6">
+      <div className="flex items-center gap-3 rounded-2xl bg-white/5 border border-white/10 px-6 py-4 backdrop-blur-md shadow-2xl">
+        <div className="h-5 w-5 animate-spin rounded-full border-2 border-amber-300 border-t-transparent" />
+        <span className="font-display text-sm font-bold text-white/80">Loading game...</span>
+      </div>
+    </div>
+  );
+}
 
 export function App() {
   const [swUpdate, setSwUpdate] = useState(false);
@@ -35,13 +47,15 @@ function Shell({ swUpdate, setSwUpdate }: { swUpdate: boolean; setSwUpdate: (v: 
           <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/60">TV + phones · no install</span>
         </nav>
       )}
-      <Routes>
-        <Route path="/" element={<Landing />} />
-        <Route path="/host/:code" element={<HostScreen />} />
-        <Route path="/play/:code" element={<PlayScreen />} />
-        <Route path="/board-test/:style" element={<BoardTest />} />
-        <Route path="*" element={<div className="p-10 text-center">Not found — <Link className="underline" to="/">home</Link></div>} />
-      </Routes>
+      <Suspense fallback={<RouteFallback />}>
+        <Routes>
+          <Route path="/" element={<Landing />} />
+          <Route path="/host/:code" element={<HostScreen />} />
+          <Route path="/play/:code" element={<PlayScreen />} />
+          <Route path="/board-test/:style" element={<BoardTest />} />
+          <Route path="*" element={<div className="p-10 text-center">Not found — <Link className="underline" to="/">home</Link></div>} />
+        </Routes>
+      </Suspense>
       <footer className="pb-8 text-center text-xs text-white/40">Rooms live in server memory · refresh keeps your seat via saved player id</footer>
       {swUpdate && (
         <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-amber-300/40 bg-[#141b33]/95 px-4 py-3 shadow-xl backdrop-blur">

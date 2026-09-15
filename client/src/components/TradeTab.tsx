@@ -60,6 +60,18 @@ export function TradeTab({ room, me, emit }: Props) {
     }, (res) => { if (res?.ok) resetForm(); });
   }
 
+  function startCounterOffer(t: (typeof incoming)[0]) {
+    haptic(35);
+    setToId(t.fromId);
+    setGive([...t.wantTiles]);
+    setGiveCash(t.wantCash);
+    setGiveCards(t.wantCards);
+    setWant([...t.giveTiles]);
+    setWantCash(t.giveCash);
+    setWantCards(t.giveCards);
+    emit('tradeRespond', { tradeId: t.id, accept: false });
+  }
+
   // Fairness meter (client-side estimate from deed prices + cash; jail-free
   // cards have no face value and are excluded — noted under the verdict).
   const giveVal = give.reduce((s, t) => s + tilePrice(t), 0) + giveCash;
@@ -165,11 +177,28 @@ export function TradeTab({ room, me, emit }: Props) {
                 const incTol = Math.max(50, Math.round(Math.max(incGive, incGet) * 0.1));
                 return <FairnessBar giveVal={incGive} getVal={incGet} fairTol={incTol} />;
               })()}
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <button onClick={() => { haptic([30, 50, 30]); emit('tradeRespond', { tradeId: t.id, accept: true }); }}
-                  className="rounded-xl bg-emerald-300 py-2 font-extrabold text-emerald-950">Accept</button>
-                <button onClick={() => { haptic(25); emit('tradeRespond', { tradeId: t.id, accept: false }); }}
-                  className="rounded-xl bg-white/15 py-2 font-bold">Decline</button>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => { haptic([30, 50, 30]); emit('tradeRespond', { tradeId: t.id, accept: true }); }}
+                  className="rounded-xl bg-emerald-300 py-2 text-xs font-extrabold text-emerald-950 shadow active:scale-95"
+                >
+                  Accept
+                </button>
+                <button
+                  type="button"
+                  onClick={() => startCounterOffer(t)}
+                  className="rounded-xl bg-amber-300 py-2 text-xs font-extrabold text-amber-950 shadow active:scale-95"
+                >
+                  Counter 🔄
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { haptic(25); emit('tradeRespond', { tradeId: t.id, accept: false }); }}
+                  className="rounded-xl bg-white/15 py-2 text-xs font-bold active:scale-95"
+                >
+                  Decline
+                </button>
               </div>
             </div>
           ))}

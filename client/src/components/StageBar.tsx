@@ -1,8 +1,9 @@
 import { BOARD } from '@monopoly/shared';
 import type { RoomState } from '@monopoly/shared';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { DicePair } from './DiceFace';
 import { TurnCountdown } from './TurnCountdown';
+import { CardFlip } from './CardFlip';
 
 /** Shared center-stage: title, dice, turn clock, auction/trades, card flip. */
 export function StageBar({ room }: { room: RoomState }) {
@@ -48,15 +49,9 @@ export function StageBar({ room }: { room: RoomState }) {
       </div>
       <AnimatePresence>
         {room.lastCard && (
-          <motion.div
-            key={room.lastCard.at}
-            initial={{ rotateY: 90, opacity: 0 }}
-            animate={{ rotateY: 0, opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="max-w-xs rounded-xl border border-amber-300/50 bg-amber-300/10 px-3 py-1.5 text-xs text-amber-100"
-          >
-            {room.lastCard.kind === 'chance' ? '🃏' : '🎁'} {room.lastCard.text}
-          </motion.div>
+          <div className="w-full mt-1 flex justify-center">
+            <CardFlip card={room.lastCard} compact />
+          </div>
         )}
       </AnimatePresence>
     </div>

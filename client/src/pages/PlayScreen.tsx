@@ -25,6 +25,7 @@ import { TileArt } from '../components/TileArt';
 import { useDiscoveredThemes } from '../useThemes';
 import { themeFor, type TileArtKey } from '../components/boardThemes';
 import { getSetProgress } from '../components/propsHelper';
+import { CardFlip } from '../components/CardFlip';
 import type { Player, RoomDelta, RoomState } from '@monopoly/shared';
 
 export function PlayScreen() {
@@ -436,15 +437,9 @@ export function PlayScreen() {
   </div>
       <AnimatePresence>
         {room.lastCard && (
-          <motion.div
-            key={room.lastCard.at}
-            initial={{ rotateY: 90, opacity: 0 }}
-            animate={{ rotateY: 0, opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="mx-auto mt-2 max-w-xs rounded-2xl border border-amber-300/50 bg-amber-300/10 px-3 py-2 text-center text-sm text-amber-100"
-          >
-            {room.lastCard.kind === 'chance' ? '🃏' : '🎁'} {room.lastCard.text}
-          </motion.div>
+          <div className="mt-2 w-full flex justify-center">
+            <CardFlip card={room.lastCard} />
+          </div>
         )}
       </AnimatePresence>
 
@@ -693,6 +688,14 @@ function AuctionCard({ room, me, emit }: { room: RoomState; me: Player; emit: (e
   const top = topBid(a);
   const minNext = minNextBid(a);
   const outbid = outbidBy(a, me.id);
+  const prevOutbidRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (outbid && prevOutbidRef.current !== outbid) {
+      haptic([60, 40, 60]);
+      sndError();
+    }
+    prevOutbidRef.current = outbid;
+  }, [outbid]);
   function bid(v: number) {
     // Keep the typed amount when the server rejects (e.g. outbid mid-tap) —
     // clearing it destroys the user's work for no reason.

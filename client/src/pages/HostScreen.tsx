@@ -312,7 +312,7 @@ export function HostScreen() {
         )}
       </AnimatePresence>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_320px]">
+      <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_320px] items-start">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           <ThemedBoard room={room} />
         </motion.div>

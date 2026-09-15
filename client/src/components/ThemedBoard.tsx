@@ -66,22 +66,77 @@ function TileFace({
     : t.kind === 'go' ? '+$200' : KIND_LABEL[t.kind] ?? t.kind;
   if (onArt) {
     return (
-      <>
-        {color && <div className="mb-[1px] h-[5px] rounded-sm" style={{ background: color }} />}
-        <div className="truncate rounded bg-black/55 px-1 text-[10px] font-bold text-white lg:text-[11px]">{t.name}</div>
-        <div className="mt-[1px] inline-block rounded bg-black/55 px-1 text-[10px] text-amber-200">{sub}</div>
-        {level > 0 && (
-          <div
-            key={level}
-            className={`mt-[1px] inline-block rounded-full bg-emerald-950/80 px-1.5 py-0.5 text-[11px] shadow-[0_0_10px_rgba(52,211,153,0.45)] ring-1 ring-emerald-300/50 animate-building-drop ${
-              mortgaged ? 'opacity-40 grayscale' : ''
-            }`}
-          >
-            {level === 5 ? '🏨' : '🏠'.repeat(Math.min(level, 4))}
+      <div className="relative flex h-full w-full flex-col justify-between overflow-hidden min-h-0 min-w-0">
+        {/* Top: Color Bar + Name + Subtitle */}
+        <div className="flex flex-col min-w-0">
+          {color && <div className="mb-[1px] h-[5px] rounded-sm" style={{ background: color }} />}
+          <div className="truncate rounded bg-black/55 px-1 text-[10px] font-bold text-white lg:text-[11px] leading-tight">{t.name}</div>
+          <div className="mt-[1px] truncate inline-block self-start rounded bg-black/55 px-1 text-[9px] text-amber-200 leading-tight">{sub}</div>
+        </div>
+
+        {/* Center: Absolute Token Overlay (zero-flow layout footprint) */}
+        {here.length > 0 && (
+          <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+            <div className="pointer-events-auto">
+              <PlayerTokenGroup
+                players={here}
+                roomPlayers={room.players}
+                activePlayerId={activePlayer ? activePlayer.id : null}
+                hoppingPlayerId={hoppingPlayerId}
+                isLandingTile={isLandingTile}
+              />
+            </div>
           </div>
         )}
-        {here.length > 0 && (
-          <div className="mt-[1px]">
+
+        {/* Bottom: Buildings & Owner Badge (rigid h-4 height slot) */}
+        <div className="mt-auto flex h-4 items-center justify-between gap-0.5 min-w-0 pt-0.5 overflow-hidden">
+          {level > 0 ? (
+            <span
+              key={level}
+              className={`rounded-full bg-emerald-950/80 px-1 py-0.2 text-[9px] shadow-[0_0_8px_rgba(52,211,153,0.4)] ring-1 ring-emerald-300/40 animate-building-drop ${
+                mortgaged ? 'opacity-40 grayscale' : ''
+              }`}
+            >
+              {level === 5 ? '🏨' : '🏠'.repeat(Math.min(level, 4))}
+            </span>
+          ) : <span />}
+          <div className="flex items-center gap-0.5 min-w-0">
+            {owner && (() => {
+              const oIdx = room.players.findIndex((p) => p.id === owner.id);
+              const oCol = getPlayerColor(oIdx >= 0 ? oIdx : 0);
+              return (
+                <span
+                  className={`rounded-full px-1.5 py-0.2 text-[8px] font-extrabold border truncate max-w-[48px] ${
+                    mortgaged ? 'bg-zinc-600 border-zinc-400 text-white' : 'text-white'
+                  }`}
+                  style={mortgaged ? undefined : { background: oCol.bgRgba, borderColor: oCol.hex, boxShadow: `0 0 4px ${oCol.glowRgba}` }}
+                >
+                  {mortgaged ? 'M' : owner.name.slice(0, 6)}
+                </span>
+              );
+            })()}
+            {(inAuction || inTrade) && <span className="text-[9px]">{inAuction ? '🔨' : '🤝'}</span>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+  const corner = isCornerKind(t.kind) ? CORNER_STYLE[t.kind] : null;
+  return (
+    <div className="relative flex h-full w-full flex-col justify-between overflow-hidden min-h-0 min-w-0">
+      {/* Top: Color Bar + Corner Icon + Name + Subtitle */}
+      <div className="flex flex-col min-w-0">
+        {color && <div className="absolute inset-x-0 top-0 h-[5px]" style={{ background: color }} />}
+        {corner && <div className="absolute right-[1px] top-[1px] text-[11px]">{corner.icon}</div>}
+        <div className={`truncate font-bold leading-tight ${color ? 'mt-[5px]' : 'mt-[1px]'}`}>{t.name}</div>
+        <div className="truncate text-[9px] leading-tight" style={{ color: theme.subInk }}>{sub}</div>
+      </div>
+
+      {/* Center: Absolute Token Overlay (zero-flow layout footprint) */}
+      {here.length > 0 && (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+          <div className="pointer-events-auto">
             <PlayerTokenGroup
               players={here}
               roomPlayers={room.players}
@@ -90,14 +145,28 @@ function TileFace({
               isLandingTile={isLandingTile}
             />
           </div>
-        )}
-        <div className="mt-[1px] flex items-center gap-1">
+        </div>
+      )}
+
+      {/* Bottom: Buildings & Owner Badge (rigid h-4 height slot) */}
+      <div className="mt-auto flex h-4 items-center justify-between gap-0.5 min-w-0 pt-0.5 overflow-hidden">
+        {level > 0 ? (
+          <span
+            key={level}
+            className={`rounded-full bg-emerald-950/80 px-1 py-0.2 text-[9px] text-white shadow-[0_0_8px_rgba(52,211,153,0.4)] ring-1 ring-emerald-300/40 animate-building-drop ${
+              mortgaged ? 'opacity-40 grayscale' : ''
+            }`}
+          >
+            {level === 5 ? '🏨' : '🏠'.repeat(Math.min(level, 4))}
+          </span>
+        ) : <span />}
+        <div className="flex items-center gap-0.5 min-w-0">
           {owner && (() => {
             const oIdx = room.players.findIndex((p) => p.id === owner.id);
             const oCol = getPlayerColor(oIdx >= 0 ? oIdx : 0);
             return (
               <span
-                className={`rounded-full px-1.5 py-0.2 text-[8px] font-extrabold border ${
+                className={`rounded-full px-1.5 py-0.2 text-[8px] font-extrabold border truncate max-w-[48px] ${
                   mortgaged ? 'bg-zinc-600 border-zinc-400 text-white' : 'text-white'
                 }`}
                 style={mortgaged ? undefined : { background: oCol.bgRgba, borderColor: oCol.hex, boxShadow: `0 0 4px ${oCol.glowRgba}` }}
@@ -108,55 +177,8 @@ function TileFace({
           })()}
           {(inAuction || inTrade) && <span className="text-[9px]">{inAuction ? '🔨' : '🤝'}</span>}
         </div>
-      </>
-    );
-  }
-  const corner = isCornerKind(t.kind) ? CORNER_STYLE[t.kind] : null;
-  return (
-    <>
-      {color && <div className="absolute inset-x-0 top-0 h-[5px]" style={{ background: color }} />}
-      {corner && <div className="absolute right-[1px] top-[1px] text-[11px]">{corner.icon}</div>}
-      <div className="mt-[4px] truncate font-bold">{t.name}</div>
-      <div style={{ color: theme.subInk }}>{sub}</div>
-      {level > 0 && (
-        <div
-          key={level}
-          className={`mt-[1px] inline-block rounded-full bg-emerald-950/80 px-1.5 py-0.5 text-[11px] text-white shadow-[0_0_10px_rgba(52,211,153,0.45)] ring-1 ring-emerald-300/50 animate-building-drop ${
-            mortgaged ? 'opacity-40 grayscale' : ''
-          }`}
-        >
-          {level === 5 ? '🏨' : '🏠'.repeat(Math.min(level, 4))}
-        </div>
-      )}
-      {here.length > 0 && (
-        <div className="mt-[1px]">
-          <PlayerTokenGroup
-            players={here}
-            roomPlayers={room.players}
-            activePlayerId={activePlayer ? activePlayer.id : null}
-            hoppingPlayerId={hoppingPlayerId}
-            isLandingTile={isLandingTile}
-          />
-        </div>
-      )}
-      <div className="mt-[1px] flex items-center gap-1">
-        {owner && (() => {
-          const oIdx = room.players.findIndex((p) => p.id === owner.id);
-          const oCol = getPlayerColor(oIdx >= 0 ? oIdx : 0);
-          return (
-            <span
-              className={`rounded-full px-1.5 py-0.2 text-[8px] font-extrabold border ${
-                mortgaged ? 'bg-zinc-600 border-zinc-400 text-white' : 'text-white'
-              }`}
-              style={mortgaged ? undefined : { background: oCol.bgRgba, borderColor: oCol.hex, boxShadow: `0 0 4px ${oCol.glowRgba}` }}
-            >
-              {mortgaged ? 'M' : owner.name.slice(0, 6)}
-            </span>
-          );
-        })()}
-        {(inAuction || inTrade) && <span className="text-[9px]">{inAuction ? '🔨' : '🤝'}</span>}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -178,7 +200,7 @@ export function ThemedBoard({ room }: { room: RoomState }) {
       <StageBar room={room} />
       <div className="rounded-3xl p-2 shadow-xl" style={{ background: theme.boardBg }}>
         <div
-          className="grid gap-[3px] aspect-square w-full max-w-[860px] mx-auto"
+          className="grid gap-[3px] aspect-square w-full max-w-[860px] mx-auto min-h-0 overflow-hidden"
           style={{
             gridTemplateColumns: 'repeat(11, minmax(0, 1fr))',
             gridTemplateRows: 'repeat(11, minmax(0, 1fr))',
@@ -208,7 +230,7 @@ export function ThemedBoard({ room }: { room: RoomState }) {
                   color: theme.ink,
                   ...(art ? { backgroundImage: `url("${art}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}),
                 }}
-                className={`relative overflow-hidden rounded-[7px] p-[2px] min-w-0 min-h-0 flex flex-col justify-between text-[10px] leading-tight lg:text-[11px] transition-all ${
+                className={`relative overflow-hidden rounded-[7px] p-[2px] w-full h-full min-w-0 min-h-0 select-none flex flex-col justify-between text-[10px] leading-tight lg:text-[11px] transition-all ${
                   isPending ? 'ring-2 ring-amber-500 animate-pulse' : ''
                 } ${isLanding ? 'ring-2 ring-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.8)]' : ''} ${
                   isCurrentTurn && !isLanding ? 'ring-2 ring-sky-400 animate-turn-beacon z-20' : ''
@@ -222,17 +244,15 @@ export function ThemedBoard({ room }: { room: RoomState }) {
                 {room.players.map((p) => (visualPositions[p.id] ?? p.position) === i && floats[p.id] ? (
                   <CashFloatBadge key={p.id} items={floats[p.id]} />
                 ) : null)}
-                <div className="relative h-full w-full min-h-0 min-w-0 flex flex-col justify-between overflow-hidden">
-                  <TileFace
-                    i={i}
-                    room={room}
-                    theme={theme}
-                    onArt={!!art}
-                    visualPositions={visualPositions}
-                    hoppingPlayerId={hoppingPlayerId}
-                    isLandingTile={isLanding}
-                  />
-                </div>
+                <TileFace
+                  i={i}
+                  room={room}
+                  theme={theme}
+                  onArt={!!art}
+                  visualPositions={visualPositions}
+                  hoppingPlayerId={hoppingPlayerId}
+                  isLandingTile={isLanding}
+                />
               </div>
             );
           })}

@@ -95,7 +95,7 @@ export function PlayerTokenGroup({
 
   return (
     <div
-      className={`mt-0.5 inline-grid items-center justify-center gap-0.5 max-w-full px-1 py-0.5 rounded-xl bg-black/60 backdrop-blur-md shadow-[0_2px_8px_rgba(0,0,0,0.8)] ring-1 ring-white/20 ${
+      className={`inline-grid items-center justify-center gap-0.5 max-w-full px-1 py-0.5 rounded-xl bg-black/60 backdrop-blur-md shadow-[0_2px_8px_rgba(0,0,0,0.8)] ring-1 ring-white/20 ${
         players.length >= 3 ? 'grid-cols-2' : 'flex flex-wrap'
       }`}
     >

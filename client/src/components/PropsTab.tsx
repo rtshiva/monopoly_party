@@ -204,38 +204,60 @@ export function PropsTab({ room, me, emit }: Props) {
               )}
 
               {/* Building controls */}
-              {t.kind === 'property' && !mort && (
-                <div className="mt-2.5 flex items-center gap-2 border-t border-white/10 pt-2">
-                  {isFull && level < 5 && (
-                    <button
-                      type="button"
-                      onClick={() => emit('buyHouse', { tile: i })}
-                      className="flex-1 rounded-xl bg-emerald-400 px-2 py-1.5 text-xs font-extrabold text-emerald-950 shadow hover:bg-emerald-300"
-                    >
-                      {level === 4 ? `🏨 Hotel $${houseCost}` : `🏠 House $${houseCost}`}
-                    </button>
-                  )}
-                  {level > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => emit('sellHouse', { tile: i })}
-                      className="flex-1 rounded-xl bg-white/15 px-2 py-1.5 text-xs font-bold hover:bg-white/20"
-                    >
-                      Sell +${Math.floor(houseCost / 2)}
-                    </button>
-                  )}
-                  {isFull && set.some((x) => (room.buildings[x] ?? 0) > 0) && (
-                    <button
-                      type="button"
-                      onClick={() => emit('sellAllHouses', { tile: i })}
-                      className="flex-1 rounded-xl bg-amber-300/20 px-2 py-1.5 text-xs font-bold text-amber-200 hover:bg-amber-300/30"
-                    >
-                      Sell all in set
-                    </button>
-                  )}
-                  {!isFull && <div className="text-[11px] text-white/40">Full set unlocks houses</div>}
-                </div>
-              )}
+              {t.kind === 'property' && !mort && (() => {
+                const minLevel = isFull ? Math.min(...set.map((x) => room.buildings[x] ?? 0)) : 0;
+                const lowestTile = isFull ? set.find((x) => (room.buildings[x] ?? 0) === minLevel) : null;
+                const maxLevel = isFull ? Math.max(...set.map((x) => room.buildings[x] ?? 0)) : 0;
+                const highestTile = isFull ? set.find((x) => (room.buildings[x] ?? 0) === maxLevel) : null;
+
+                return (
+                  <div className="mt-2.5 flex items-center gap-2 border-t border-white/10 pt-2">
+                    {isFull && level < 5 && (
+                      <button
+                        type="button"
+                        disabled={me.cash < houseCost}
+                        onClick={() => emit('buyHouse', { tile: level === minLevel ? i : (lowestTile ?? i) })}
+                        className={`flex-1 rounded-xl px-2 py-1.5 text-xs font-extrabold shadow transition-all ${
+                          me.cash >= houseCost
+                            ? 'bg-emerald-400 text-emerald-950 hover:bg-emerald-300 active:scale-95'
+                            : 'bg-white/5 text-white/30 cursor-not-allowed'
+                        }`}
+                      >
+                        {level === 4 ? `🏨 Hotel $${houseCost}` : `🏠 House $${houseCost}`}
+                        {level > minLevel && lowestTile != null && (
+                          <span className="block text-[9px] font-normal opacity-80">
+                            (builds on {BOARD[lowestTile]?.name})
+                          </span>
+                        )}
+                      </button>
+                    )}
+                    {level > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => emit('sellHouse', { tile: level === maxLevel ? i : (highestTile ?? i) })}
+                        className="flex-1 rounded-xl bg-white/15 px-2 py-1.5 text-xs font-bold hover:bg-white/20 active:scale-95"
+                      >
+                        Sell +${Math.floor(houseCost / 2)}
+                        {level < maxLevel && highestTile != null && (
+                          <span className="block text-[9px] font-normal opacity-80">
+                            (sells from {BOARD[highestTile]?.name})
+                          </span>
+                        )}
+                      </button>
+                    )}
+                    {isFull && set.some((x) => (room.buildings[x] ?? 0) > 0) && (
+                      <button
+                        type="button"
+                        onClick={() => emit('sellAllHouses', { tile: i })}
+                        className="flex-1 rounded-xl bg-amber-300/20 px-2 py-1.5 text-xs font-bold text-amber-200 hover:bg-amber-300/30 active:scale-95"
+                      >
+                        Sell all in set
+                      </button>
+                    )}
+                    {!isFull && <div className="text-[11px] text-white/40">Full set unlocks houses</div>}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         );

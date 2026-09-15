@@ -72,4 +72,15 @@ describe("extractSpotlightEvent", () => {
     expect(ev?.kind).toBe("win");
     expect(ev?.detail).toContain("Alice wins the game!");
   });
+
+  it("extracts monopoly set completion fanfare", () => {
+    const r = baseRoom();
+    // Med Ave (1) and Baltic Ave (3) form the brown set
+    r.players[1].properties = [1, 3];
+    r.log = [{ id: "l4", at: Date.now(), text: "✅ Bob bought Baltic Ave for $60", tone: "good", cat: "purchase" }];
+    const ev = extractSpotlightEvent(r);
+    expect(ev?.kind).toBe("monopoly");
+    expect(ev?.title).toContain("MONOPOLY COMPLETE!");
+    expect(ev?.detail).toContain("Bob assembled the complete BROWN set");
+  });
 });

@@ -1,3 +1,4 @@
+import { BOARD, fullSetOf } from "@monopoly/shared";
 import type { RoomState } from "@monopoly/shared";
 
 export interface SpotlightEvent {
@@ -51,6 +52,28 @@ export function extractSpotlightEvent(room: RoomState | null): SpotlightEvent | 
   if (!latest) return null;
 
   const text = latest.text;
+
+  // Monopoly set completion: "✅ Bob bought Baltic Ave for $60" or "🔨 Bob won Baltic Ave for $60"
+  const buyMatch = text.match(/[✅🔨] (.*?) (?:bought|won) (.*?) for \$/);
+  if (buyMatch) {
+    const [, buyerName, propName] = buyMatch;
+    const buyer = room.players.find((p) => p.name === buyerName);
+    const tileIdx = BOARD.findIndex((t) => t.name.toLowerCase() === propName.toLowerCase());
+    if (buyer && tileIdx >= 0) {
+      const set = fullSetOf(tileIdx);
+      if (set.length > 0 && set.every((x) => buyer.properties.includes(x))) {
+        const colorName = BOARD[tileIdx].kind === 'property' ? BOARD[tileIdx].color : 'group';
+        return {
+          id: "monopoly-" + latest.id,
+          kind: "monopoly",
+          title: "🎉 MONOPOLY COMPLETE!",
+          detail: `${buyer.name} assembled the complete ${colorName.toUpperCase()} set! 🏠`,
+          badge: "SET UNLOCKED",
+          themeColor: "border-purple-500 bg-purple-500/25 text-purple-200 shadow-purple-500/50",
+        };
+      }
+    }
+  }
 
   // Rent payment: "💸 Bob paid $150 rent to Alice (St. Charles Place)"
   const rentMatch = text.match(/💸 (.*?) paid \$(\d+) rent to (.*?) \((.*?)\)/);

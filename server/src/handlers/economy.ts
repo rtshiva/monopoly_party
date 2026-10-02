@@ -6,6 +6,7 @@ import { bankruptPlayer } from '../core/bankruptcy.js';
 import { current } from '../core/player.js';
 import { requireControl } from '../core/seat.js';
 import { colorSetTiles, isBuyable, isTileLocked } from '../core/trade.js';
+import { applyBuildHouse, applyMortgage, applySellHouse, applyUnmortgage } from '../core/deeds.js';
 import { sellSetEvenly, setBuildingsTotal, setHasBuildings } from '../core/houses.js';
 
 export function registerEconomyHandlers(socket: Socket) {
@@ -30,13 +31,11 @@ export function registerEconomyHandlers(socket: Socket) {
       if (me.mortgaged.includes(tile)) {
         const fee = unmortgageFee(t.price);
         if (me.cash < fee) return cb?.({ ok: false, error: 'NO_CASH' });
-        me.cash -= fee;
-        me.mortgaged = me.mortgaged.filter((x) => x !== tile);
+        applyUnmortgage(room, me, tile);
         log(room, `🏦 ${me.name} unmortgaged ${t.name} (−$${fee})`, 'info', 'money');
       } else {
-        me.cash += Math.round(t.price / 2);
-        me.mortgaged.push(tile);
-        log(room, `🏦 ${me.name} mortgaged ${t.name} (+$${Math.round(t.price / 2)})`, 'money', 'money');
+        const payout = applyMortgage(room, me, tile);
+        log(room, `🏦 ${me.name} mortgaged ${t.name} (+$${payout})`, 'money', 'money');
       }
       cb?.({ ok: true });
       emit(room);
@@ -97,15 +96,14 @@ export function registerEconomyHandlers(socket: Socket) {
       const min = Math.min(...set.map((i) => room.buildings[i] ?? 0));
       if (level > min) return cb?.({ ok: false, error: 'EVEN_BUILD' });
       if (me.cash < t.houseCost) return cb?.({ ok: false, error: 'NO_CASH' });
-      me.cash -= t.houseCost;
-      room.buildings[tile] = level + 1;
+      const built = applyBuildHouse(room, me, tile);
       log(
         room,
-        `🏠 ${me.name} built ${level + 1 === 5 ? 'a HOTEL' : `house #${level + 1}`} on ${t.name} ($${t.houseCost})`,
+        `🏠 ${me.name} built ${built.level === 5 ? 'a HOTEL' : `house #${built.level}`} on ${t.name} ($${built.cost})`,
         'good',
         'build',
       );
-      cb?.({ ok: true, level: level + 1 });
+      cb?.({ ok: true, level: built.level });
       emit(room);
     },
   );
@@ -129,12 +127,9 @@ export function registerEconomyHandlers(socket: Socket) {
       // Even sell: only sell from a tile tied for the highest level in its set.
       const max = Math.max(...set.map((i) => room.buildings[i] ?? 0));
       if (level < max) return cb?.({ ok: false, error: 'EVEN_BUILD' });
-      const refund = Math.floor(t.houseCost / 2);
-      if (level === 1) delete room.buildings[tile];
-      else room.buildings[tile] = level - 1;
-      me.cash += refund;
-      log(room, `🏠 ${me.name} sold a house on ${t.name} (+$${refund})`, 'money', 'build');
-      cb?.({ ok: true, level: level - 1 });
+      const sold = applySellHouse(room, me, tile);
+      log(room, `🏠 ${me.name} sold a house on ${t.name} (+$${sold.refund})`, 'money', 'build');
+      cb?.({ ok: true, level: sold.level });
       emit(room);
     },
   );

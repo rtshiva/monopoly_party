@@ -12,6 +12,7 @@ import { log } from './broadcast.js';
 import { advanceTurn } from './player.js';
 import { doRoll } from './roll.js';
 import { bankruptPlayer } from './bankruptcy.js';
+import { applyMortgage } from './deeds.js';
 import { queueOrOpenAuction } from './auction.js';
 import { BOT_BUILD_BUFFER, pickBuildTile, pickMortgageTile, pickUnmortgageTile, shouldBuy } from './botPicks.js';
 
@@ -158,9 +159,8 @@ export function botTakeTurn(room: RoomState, me: Player, trace: BotTrace[] = [])
     const tile = pickMortgageTile(room, me);
     if (tile == null) break;
     const t = BOARD[tile] as { price: number; name: string };
-    me.cash += Math.round(t.price / 2);
-    me.mortgaged.push(tile);
-    log(room, `🏦 ${me.name} mortgaged ${t.name} (+$${Math.round(t.price / 2)})`, 'money', 'money');
+    const payout = applyMortgage(room, me, tile);
+    log(room, `🏦 ${me.name} mortgaged ${t.name} (+$${payout})`, 'money', 'money');
     trace.push({ t: 'mortgage', ok: true, detail: `${t.name} cash=${me.cash}` });
   }
   if (!Number.isFinite(me.cash) || me.cash < 0) {

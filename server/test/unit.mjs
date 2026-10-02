@@ -848,11 +848,41 @@ let bankArmCalls = 0;
   check('UNMORTGAGE_RATE is 0.6', UNMORTGAGE_RATE === 0.6);
   {
     // One fee formula everywhere: server charge, bot brain, client quote.
-    const { unmortgageFee } = await import('@monopoly/shared');
+    const { unmortgageFee, mortgagePayout, houseRefund } = await import('@monopoly/shared');
     check(
       'unmortgageFee pins 60% rounded',
       unmortgageFee(60) === 36 && unmortgageFee(200) === 120 && unmortgageFee(100) === 60,
     );
+    check('mortgagePayout pins half rounded', mortgagePayout(60) === 30 && mortgagePayout(200) === 100);
+    check('houseRefund pins half floored', houseRefund(50) === 25 && houseRefund(51) === 25);
+  }
+  {
+    // Deed mutation happy paths (handlers validate first; same contract as applyTradeSwap).
+    const { applyMortgage, applyUnmortgage, applyBuildHouse, applySellHouse } = await import('../dist/core/deeds.js');
+    const r = mkRoom({ players: [mkPlayer(0, { properties: [1, 3], cash: 1500 })], buildings: {} });
+    const me = r.players[0];
+    check(
+      'applyMortgage pays half + flags',
+      applyMortgage(r, me, 1) === 30 && me.cash === 1530 && me.mortgaged.join() === '1',
+    );
+    check(
+      'applyUnmortgage charges fee + unflags',
+      applyUnmortgage(r, me, 1) === 36 && me.cash === 1494 && me.mortgaged.length === 0,
+    );
+    check(
+      'applyBuildHouse levels up',
+      JSON.stringify(applyBuildHouse(r, me, 1)) === JSON.stringify({ level: 1, cost: 50 }) &&
+        me.cash === 1444 &&
+        r.buildings[1] === 1,
+    );
+    r.buildings[1] = 2;
+    check(
+      'applySellHouse unwinds + refunds',
+      JSON.stringify(applySellHouse(r, me, 1)) === JSON.stringify({ level: 1, refund: 25 }) &&
+        me.cash === 1469 &&
+        r.buildings[1] === 1,
+    );
+    cleanup(r);
   }
 }
 {

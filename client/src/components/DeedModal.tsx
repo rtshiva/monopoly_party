@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { BOARD, COLOR_HEX, fullSetOf, tilePrice, unmortgageFee } from '@monopoly/shared';
+import { BOARD, COLOR_HEX, fullSetOf, mortgagePayout, tilePrice, unmortgageFee } from '@monopoly/shared';
 import type { Player, RoomState, Tile } from '@monopoly/shared';
 
 interface DeedModalProps {
@@ -20,7 +20,7 @@ export function DeedModal({ tileIndex, room, me, onClose, emit }: DeedModalProps
   const isMortgaged = owner?.mortgaged.includes(tileIndex) ?? false;
   const level = room.buildings[tileIndex] ?? 0;
   const price = tilePrice(tileIndex);
-  const mortValue = Math.round(price / 2);
+  const mortValue = mortgagePayout(price);
 
   const set = fullSetOf(tileIndex);
   const isFullSet = set.length > 0 && owner && set.every((x) => owner.properties.includes(x));

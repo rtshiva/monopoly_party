@@ -1,18 +1,10 @@
 import { BOARD } from './board.js';
-import { GO_SALARY, JAIL_FINE, UNMORTGAGE_RATE } from './types.js';
+import { mortgagePayout } from './money.js';
+import { GO_SALARY, JAIL_FINE } from './types.js';
 import type { Player, RoomState } from './types.js';
 
 export function rollD6(): number {
   return 1 + Math.floor(Math.random() * 6);
-}
-
-/**
- * Unmortgage fee for a deed price (60% rounded). Single formula shared by the
- * server charge, the bot brain, and the client quote — a second spelling of
- * this math once underquoted players by ~8% (see DeedModal history).
- */
-export function unmortgageFee(price: number): number {
-  return Math.round(price * UNMORTGAGE_RATE);
 }
 
 export function ownerOf(state: RoomState, tile: number): string | null {
@@ -174,7 +166,7 @@ export function netWorth(player: Player, room: RoomState): number {
     const tile = BOARD[t];
     if (tile && 'price' in tile && typeof tile.price === 'number') {
       if (mortgaged.includes(t)) {
-        total += Math.round(tile.price / 2);
+        total += mortgagePayout(tile.price);
       } else {
         total += tile.price;
         if (tile.kind === 'property') {

@@ -5,7 +5,7 @@
  * set cannot be traded or mortgaged. Houses must be sold off evenly first.
  * All functions are pure state mutations / predicates — no I/O.
  */
-import { BOARD } from '@monopoly/shared';
+import { BOARD, houseRefund } from '@monopoly/shared';
 import type { Player, RoomState } from '@monopoly/shared';
 import { colorSetTiles } from './trade.js';
 
@@ -50,7 +50,7 @@ export function sellSetEvenly(room: RoomState, me: Player, tile: number): { sold
     if (top === -1 || topLevel <= 0) break;
     const t = BOARD[top];
     if (!t || t.kind !== 'property') break;
-    const half = Math.floor(t.houseCost / 2);
+    const half = houseRefund(t.houseCost);
     if (topLevel === 1) delete room.buildings[top];
     else room.buildings[top] = topLevel - 1;
     me.cash += half;

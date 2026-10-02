@@ -6,7 +6,7 @@
  * bankrupt, advance). The scheduler in bots.ts owns all timers and the
  * broadcast. Pure scans live in botPicks.ts and are unit-tested directly.
  */
-import { BOARD, JAIL_FINE } from '@monopoly/shared';
+import { BOARD, JAIL_FINE, unmortgageFee } from '@monopoly/shared';
 import type { Player, RoomState } from '@monopoly/shared';
 import { log } from './broadcast.js';
 import { advanceTurn } from './player.js';
@@ -144,7 +144,7 @@ export function botTakeTurn(room: RoomState, me: Player, trace: BotTrace[] = [])
     const um = pickUnmortgageTile(room, me);
     if (um == null) break;
     const t = BOARD[um] as { price: number; name: string };
-    const fee = Math.round(t.price * 0.6);
+    const fee = unmortgageFee(t.price);
     me.cash -= fee;
     me.mortgaged = me.mortgaged.filter((x) => x !== um);
     log(room, `🏦 ${me.name} unmortgaged ${t.name} (−$${fee})`, 'info', 'money');

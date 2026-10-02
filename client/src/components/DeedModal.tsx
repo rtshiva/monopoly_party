@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { BOARD, COLOR_HEX, UNMORTGAGE_RATE, fullSetOf, tilePrice } from '@monopoly/shared';
+import { BOARD, COLOR_HEX, fullSetOf, tilePrice, unmortgageFee } from '@monopoly/shared';
 import type { Player, RoomState, Tile } from '@monopoly/shared';
 
 interface DeedModalProps {
@@ -197,9 +197,7 @@ export function DeedModal({ tileIndex, room, me, onClose, emit }: DeedModalProps
                       : 'bg-white/15 text-white hover:bg-white/20'
                   }`}
                 >
-                  {isMortgaged
-                    ? `Unmortgage (Pay $${Math.round(price * UNMORTGAGE_RATE)})`
-                    : `Mortgage (Receive $${mortValue})`}
+                  {isMortgaged ? `Unmortgage (Pay $${unmortgageFee(price)})` : `Mortgage (Receive $${mortValue})`}
                 </button>
               </div>
             )}

@@ -5,7 +5,7 @@
  * stays in botBrain.ts, the buy/build/unmortgage/mortgage picks live here.
  * Leaf module — imports only shared/trade/houses, so no import cycle.
  */
-import { BOARD, UNMORTGAGE_RATE } from '@monopoly/shared';
+import { BOARD, unmortgageFee } from '@monopoly/shared';
 import type { Player, RoomState } from '@monopoly/shared';
 import { colorSetTiles } from './trade.js';
 import { setHasBuildings } from './houses.js';
@@ -50,7 +50,7 @@ export function pickBuildTile(room: RoomState, me: Player): number | null {
 }
 
 /**
- * Unmortgage pick: cheapest fee first (fee mirrors economy.ts: 60% of price).
+ * Unmortgage pick: cheapest fee first (shared unmortgageFee: 60% of price).
  * Pure scan, no mutation. Without this, bots mortgage-spiral into eternal
  * rent-free endgames that never conclude.
  */
@@ -61,7 +61,7 @@ export function pickUnmortgageTile(room: RoomState, me: Player): number | null {
   for (const tile of me.mortgaged) {
     const t = BOARD[tile] as { price: number } | undefined;
     if (!t || typeof t.price !== 'number') continue;
-    const fee = Math.round(t.price * UNMORTGAGE_RATE);
+    const fee = unmortgageFee(t.price);
     if (me.cash < fee + BOT_UNMORTGAGE_BUFFER) continue;
     if (fee < bestFee) {
       bestFee = fee;

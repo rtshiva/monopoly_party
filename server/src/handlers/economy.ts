@@ -1,5 +1,5 @@
 import type { Socket } from 'socket.io';
-import { BOARD, UNMORTGAGE_RATE } from '@monopoly/shared';
+import { BOARD, unmortgageFee } from '@monopoly/shared';
 import { rooms } from '../store.js';
 import { emit, log } from '../core/broadcast.js';
 import { bankruptPlayer } from '../core/bankruptcy.js';
@@ -28,7 +28,7 @@ export function registerEconomyHandlers(socket: Socket) {
       const t = BOARD[tile] as { price: number; name: string };
       if (!t || typeof t.price !== 'number') return cb?.({ ok: false, error: 'BAD_TILE' });
       if (me.mortgaged.includes(tile)) {
-        const fee = Math.round(t.price * UNMORTGAGE_RATE);
+        const fee = unmortgageFee(t.price);
         if (me.cash < fee) return cb?.({ ok: false, error: 'NO_CASH' });
         me.cash -= fee;
         me.mortgaged = me.mortgaged.filter((x) => x !== tile);

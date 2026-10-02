@@ -833,6 +833,14 @@ let bankArmCalls = 0;
 // --- flow review fixes ---------------------------------------------------------
 {
   check('UNMORTGAGE_RATE is 0.6', UNMORTGAGE_RATE === 0.6);
+  {
+    // One fee formula everywhere: server charge, bot brain, client quote.
+    const { unmortgageFee } = await import('@monopoly/shared');
+    check(
+      'unmortgageFee pins 60% rounded',
+      unmortgageFee(60) === 36 && unmortgageFee(200) === 120 && unmortgageFee(100) === 60,
+    );
+  }
 }
 {
   // Bot with exactly $50 pays jail fine (matches human payJail rule).

@@ -3,7 +3,7 @@ import { netWorth } from '@monopoly/shared';
 import { isKnownStyle } from '../themes.js';
 import type { BoardStyle } from '@monopoly/shared';
 import { rooms } from '../store.js';
-import { clearAuctionTimer, scheduleAuctionResolve } from '../core/auction.js';
+import { AUCTION_RESOLVE_BUFFER_MS, clearAuctionTimer, scheduleAuctionResolve } from '../core/auction.js';
 import { emit, log } from '../core/broadcast.js';
 import { current, resetPlayer } from '../core/player.js';
 import { requireControl } from '../core/seat.js';
@@ -77,7 +77,10 @@ export function registerGameHandlers(socket: Socket) {
     room.status = 'playing';
     if (room.auction) {
       room.auction.endsAt += pausedFor; // the auction clock freezes during pause
-      scheduleAuctionResolve(room.code, room.auction.id);
+      // Resume with the REMAINING window, not a fresh 30s: re-arming full
+      // duration on every resume would let the host stretch bidding forever.
+      const remaining = Math.max(0, room.auction.endsAt - Date.now()) + AUCTION_RESOLVE_BUFFER_MS;
+      scheduleAuctionResolve(room.code, room.auction.id, remaining);
     }
     armTurnTimer(room);
     log(room, `${me.name} (host) resumed the game`, 'good');

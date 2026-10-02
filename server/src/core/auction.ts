@@ -36,14 +36,18 @@ export function clearAuctionTimer(code: string) {
 /** Slack after endsAt before the server resolves (covers timer jitter). */
 export const AUCTION_RESOLVE_BUFFER_MS = 500;
 
-export function scheduleAuctionResolve(code: string, auctionId: string) {
+export function scheduleAuctionResolve(
+  code: string,
+  auctionId: string,
+  delayMs: number = AUCTION_DURATION_MS + AUCTION_RESOLVE_BUFFER_MS,
+) {
   clearAuctionTimer(code);
   auctionTimers.set(
     code,
     setTimeout(() => {
       auctionTimers.delete(code);
       resolveAuction(code, auctionId);
-    }, AUCTION_DURATION_MS + AUCTION_RESOLVE_BUFFER_MS),
+    }, delayMs),
   );
 }
 

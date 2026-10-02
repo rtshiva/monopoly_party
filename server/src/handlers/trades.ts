@@ -180,6 +180,8 @@ export function registerTradeHandlers(socket: Socket) {
     ) => {
       const room = rooms.get(code);
       if (!room) return cb?.({ ok: false, error: 'NO_ROOM' });
+      // Pause freezes the whole table — same guard as offer/respond.
+      if (room.status !== 'playing') return cb?.({ ok: false, error: 'GAME_OVER' });
       const me = requireControl(room, playerId, key);
       if (!me) return cb?.({ ok: false, error: 'NO_CONTROL' });
       const idx = room.trades.findIndex((t) => t.id === tradeId);

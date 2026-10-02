@@ -679,6 +679,10 @@ try {
     (await emit(s1, 'mortgage', { code, playerId: idA, key: keyA2, tile: 1 })).ok === false,
   );
   check('paused blocks payJail', (await emit(s1, 'payJail', { code, playerId: idA, key: keyA2 })).ok === false);
+  check(
+    'paused blocks tradeCancel',
+    (await emit(s1, 'tradeCancel', { code, playerId: idA, key: keyA2, tradeId: 'nope' })).error === 'GAME_OVER',
+  );
   check('resume works', (await emit(s1, 'resumeGame', { code, playerId: idA, key: keyA2 })).ok === true);
   await sleep(150);
   check('deadline re-armed on resume', room.turnDeadline > Date.now());

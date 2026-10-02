@@ -795,6 +795,17 @@ injectAuctionClock(
   check('bots frozen during auction', !botTimers.has(r.code) && r.turnCount === tc);
   cleanup(r);
 }
+{
+  // Custom resolve delay (used by resumeGame to restore the REMAINING window).
+  const { openAuction, scheduleAuctionResolve, clearAuctionTimer } = await import('../dist/core/auction.js');
+  const r = mkRoom();
+  openAuction(r, 1, 'u_p0');
+  clearAuctionTimer(r.code);
+  scheduleAuctionResolve(r.code, r.auction.id, 5);
+  await new Promise((res) => setTimeout(res, 50));
+  check('scheduleAuctionResolve honors custom delay', r.auction === null);
+  cleanup(r);
+}
 
 // --- bankruptcy clock injection: removeSeat re-arms without importing timers ---
 // (bankruptcy → timers → bankruptcy was a madge cycle; the hook is injected

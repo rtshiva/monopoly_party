@@ -963,6 +963,113 @@ let bankArmCalls = 0;
   check('every handler is contracted', undocumented.length === 0, undocumented.join(','));
 }
 {
+  // GameError production coverage: every union code must be produced
+  // somewhere in server/src (mirrors the contract test above). Dead codes
+  // like NAME_TAKEN fail here instead of rotting in the union.
+  const { GAME_ERRORS } = await import('@monopoly/shared');
+  // NOTE: collect into one shared array — walkSrc must return string parts,
+  // never a joined string (spreading a string splices every character).
+  const srcParts = [];
+  const walkSrc = (dirUrl) => {
+    for (const e of fs.readdirSync(dirUrl, { withFileTypes: true })) {
+      if (e.isDirectory()) walkSrc(new URL(`${e.name}/`, dirUrl));
+      else if (e.isFile() && /\.ts$/.test(e.name)) srcParts.push(fs.readFileSync(new URL(e.name, dirUrl), 'utf8'));
+    }
+  };
+  walkSrc(new URL('../src/', import.meta.url));
+  const serverSrc = srcParts.join('\n');
+  const unproduced = GAME_ERRORS.filter((c) => !serverSrc.includes(`'${c}'`));
+  check('every GameError is produced', unproduced.length === 0, unproduced.join(','));
+}
+{
+  // Migrate fuzz: 200 deterministically-seeded corrupt snapshots must heal
+  // (or reject on bad code) but never throw — a throw at boot is a crash loop.
+  const { migrateRoom } = await import('../dist/core/migrate.js');
+  let fseed = 0xc10c;
+  const frnd = () => {
+    fseed |= 0;
+    fseed = (fseed + 0x6d2b79f5) | 0;
+    let t = Math.imul(fseed ^ (fseed >>> 15), 1 | fseed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const fpick = (arr) => arr[Math.floor(frnd() * arr.length)];
+  const junk = [null, undefined, 42, -7, 1.5, NaN, Infinity, 'x', '', [], {}, [null], { a: 1 }, true];
+  const fields = [
+    'code',
+    'status',
+    'players',
+    'trades',
+    'auction',
+    'buildings',
+    'turnDeadline',
+    'auctionQueue',
+    'log',
+    'dice',
+    'turnIndex',
+    'turnCount',
+    'boardStyle',
+    'pendingBuy',
+    'winnerId',
+    'rollingId',
+    'rev',
+    'lastActivity',
+  ];
+  let threw = 0;
+  let insane = 0;
+  for (let i = 0; i < 200; i++) {
+    const room = {
+      code: 'FZ01AB',
+      status: 'playing',
+      players: [mkPlayer(0), mkPlayer(1)],
+      turnIndex: 0,
+      turnCount: 1,
+      dice: [1, 1],
+      lastRoll: null,
+      lastCard: null,
+      pendingBuy: null,
+      trades: [],
+      auction: null,
+      buildings: {},
+      turnDeadline: Date.now() + 60000,
+      auctionQueue: [],
+      lastActivity: Date.now(),
+      pausedAt: null,
+      boardStyle: 'classic',
+      log: [],
+      winnerId: null,
+      rollingId: null,
+      rev: 0,
+    };
+    const n = 1 + Math.floor(frnd() * 3);
+    for (let k = 0; k < n; k++) room[fpick(fields)] = fpick(junk);
+    if (Array.isArray(room.players) && frnd() < 0.5) room.players.push(fpick([null, 7, 'p', {}]));
+    if (room.auction && typeof room.auction === 'object' && frnd() < 0.4) {
+      room.auction.bids = fpick([null, 'x', [null]]);
+    }
+    let ok = false;
+    try {
+      ok = migrateRoom(room) === true;
+    } catch {
+      threw++;
+      continue;
+    }
+    if (ok) {
+      const sane =
+        Array.isArray(room.players) &&
+        Array.isArray(room.trades) &&
+        Array.isArray(room.auctionQueue) &&
+        Array.isArray(room.log) &&
+        room.buildings !== null &&
+        typeof room.buildings === 'object' &&
+        room.players.every((p) => p && typeof p === 'object' && Number.isFinite(p.cash));
+      if (!sane) insane++;
+    }
+  }
+  check('migrate fuzz never throws', threw === 0);
+  check('migrate fuzz output sane', insane === 0);
+}
+{
   const { rentFor, applyCardEffect, netWorth } = await import('@monopoly/shared');
   const own = (tile, bankrupt = false) => ({
     players: [{ id: 'o', properties: [tile, 3], mortgaged: [], bankrupt }],

@@ -19,7 +19,10 @@ export const BOT_THINK_MS = 2500;
 
 export function clearBotTimer(code: string) {
   const t = botTimers.get(code);
-  if (t) { clearTimeout(t); botTimers.delete(code); }
+  if (t) {
+    clearTimeout(t);
+    botTimers.delete(code);
+  }
 }
 
 /**
@@ -57,10 +60,17 @@ export function botAct(code: string, turnCount: number) {
   const trace: BotTrace[] = [];
   botTakeTurn(room, me, trace);
   if (process.env.BOT_DEBUG) {
-    for (const e of trace) console.log(`[bot] ${room.code} turn#${room.turnCount} ${me.name} ${e.t} ${e.ok ? 'ok' : 'FAIL'} ${e.detail}`);
+    // Flight recorder (AGENTS.md #6) — intentional observability, not a stray log.
+    for (const e of trace) {
+      // eslint-disable-next-line no-console
+      console.log(`[bot] ${room.code} turn#${room.turnCount} ${me.name} ${e.t} ${e.ok ? 'ok' : 'FAIL'} ${e.detail}`);
+    }
   }
   dlog({
-    evt: 'bot.turn', code: room.code, turn: room.turnCount, seat: me.id,
+    evt: 'bot.turn',
+    code: room.code,
+    turn: room.turnCount,
+    seat: me.id,
     msg: trace.map((e) => `${e.t}:${e.ok ? 'ok' : 'FAIL'}`).join(' '),
   });
   emit(room);

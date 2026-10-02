@@ -53,9 +53,17 @@ function mockRoom(style: BoardStyle, scenario: 'all' | 'bare' | 'hotels', lighti
   owned
     .filter((t) => !(t in buildings))
     .slice(0, scenario === 'bare' ? 0 : 2)
-    .forEach((t) => players.find((p) => p.properties.includes(t))!.mortgaged.push(t));
+    .forEach((t) => {
+      // Tiles come from the players' own deeds, so the holder always exists;
+      // the guard keeps the fixture crash-proof instead of asserting it.
+      const holder = players.find((p) => p.properties.includes(t));
+      if (holder) holder.mortgaged.push(t);
+    });
   const now = Date.now();
-  const p0 = players[0], p1 = players[1], p2 = players[2], p3 = players[3];
+  const p0 = players[0],
+    p1 = players[1],
+    p2 = players[2],
+    p3 = players[3];
   return {
     code: 'TEST',
     status: 'playing',
@@ -67,20 +75,36 @@ function mockRoom(style: BoardStyle, scenario: 'all' | 'bare' | 'hotels', lighti
     pendingBuy: pending,
     trades: [
       {
-        id: 'test-t1', fromId: p0.id, toId: p1.id,
-        giveTiles: p0.properties.slice(0, 1), giveCash: 50, giveCards: 0,
-        wantTiles: p1.properties.slice(0, 1), wantCash: 0, wantCards: 0,
-        createdAt: now, expiresAt: now + 60000,
+        id: 'test-t1',
+        fromId: p0.id,
+        toId: p1.id,
+        giveTiles: p0.properties.slice(0, 1),
+        giveCash: 50,
+        giveCards: 0,
+        wantTiles: p1.properties.slice(0, 1),
+        wantCash: 0,
+        wantCards: 0,
+        createdAt: now,
+        expiresAt: now + 60000,
       },
       {
-        id: 'test-t2', fromId: p2.id, toId: p3.id,
-        giveTiles: [], giveCash: 0, giveCards: 1,
-        wantTiles: [], wantCash: 25, wantCards: 0,
-        createdAt: now, expiresAt: now + 60000,
+        id: 'test-t2',
+        fromId: p2.id,
+        toId: p3.id,
+        giveTiles: [],
+        giveCash: 0,
+        giveCards: 1,
+        wantTiles: [],
+        wantCash: 25,
+        wantCards: 0,
+        createdAt: now,
+        expiresAt: now + 60000,
       },
     ],
     auction: {
-      id: 'test-a1', tile: auctionTile, startedBy: p0.id,
+      id: 'test-a1',
+      tile: auctionTile,
+      startedBy: p0.id,
       bids: [
         { playerId: p0.id, amount: 120, at: now - 9000 },
         { playerId: p1.id, amount: 200, at: now - 3000 },
@@ -140,16 +164,19 @@ export function BoardTest() {
   const [importJson, setImportJson] = useState('');
   const [importErr, setImportErr] = useState('');
 
-  const activeTheme: BoardTheme = useMemo(() => ({
-    ...baseTheme,
-    name,
-    icon,
-    boardBg,
-    tileBg,
-    ink,
-    subInk,
-    artImage: artImage || undefined,
-  }), [baseTheme, name, icon, boardBg, tileBg, ink, subInk, artImage]);
+  const activeTheme: BoardTheme = useMemo(
+    () => ({
+      ...baseTheme,
+      name,
+      icon,
+      boardBg,
+      tileBg,
+      ink,
+      subInk,
+      artImage: artImage || undefined,
+    }),
+    [baseTheme, name, icon, boardBg, tileBg, ink, subInk, artImage],
+  );
 
   const room = useMemo(() => mockRoom(valid, scenario, lightingCycle), [valid, scenario, lightingCycle]);
 
@@ -201,7 +228,9 @@ export function BoardTest() {
     <div className="mx-auto max-w-7xl px-3 py-4 lg:px-6">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
         <div className="flex items-center gap-2">
-          <Link to="/" className="rounded-lg bg-white/10 px-3 py-1.5 font-bold hover:bg-white/20 transition-colors">← Home</Link>
+          <Link to="/" className="rounded-lg bg-white/10 px-3 py-1.5 font-bold hover:bg-white/20 transition-colors">
+            ← Home
+          </Link>
           <span className="font-display font-bold text-base">🎨 Custom Theme Studio</span>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
@@ -350,11 +379,7 @@ export function BoardTest() {
               <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
             </label>
             {artImage && (
-              <button
-                type="button"
-                onClick={() => setArtImage('')}
-                className="text-xs text-rose-300 hover:underline"
-              >
+              <button type="button" onClick={() => setArtImage('')} className="text-xs text-rose-300 hover:underline">
                 Clear
               </button>
             )}
@@ -404,7 +429,9 @@ export function BoardTest() {
           <div className="mt-3 rounded-xl border border-white/15 bg-black/60 p-3">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold text-white/80">Paste Theme JSON Configuration</span>
-              <button onClick={() => setShowImport(false)} className="text-xs text-white/50 hover:text-white">✕</button>
+              <button onClick={() => setShowImport(false)} className="text-xs text-white/50 hover:text-white">
+                ✕
+              </button>
             </div>
             <textarea
               rows={3}
@@ -432,4 +459,3 @@ export function BoardTest() {
     </div>
   );
 }
-

@@ -94,7 +94,9 @@ export function dlogc(evt: string, msg = '') {
   buf.push({ at: Date.now(), evt, msg });
   if (buf.length > MAX) buf.splice(0, buf.length - MAX);
   try {
-    // Mirror to console so browser devtools/inspect captures all events
+    // Mirror to console so browser devtools/inspect captures all events.
+    // Intentional observability (AGENTS.md #6) — not a stray debug log.
+    // eslint-disable-next-line no-console
     console.log(`[debug] ${evt}${msg ? `: ${msg}` : ''}`);
   } catch {
     /* noop */

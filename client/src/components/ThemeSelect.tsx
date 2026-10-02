@@ -25,7 +25,9 @@ export function ThemeSelect({ value, onPick, label = '🎨 Board' }: Props) {
   function shuffle() {
     if (themes.length === 0) return;
     const pool = themes.filter((t) => t.id !== current.id);
-    const pick = (pool.length > 0 ? pool : themes)[Math.floor(Math.random() * (pool.length > 0 ? pool.length : themes.length))];
+    const pick = (pool.length > 0 ? pool : themes)[
+      Math.floor(Math.random() * (pool.length > 0 ? pool.length : themes.length))
+    ];
     setImgOk(true);
     onPick(pick.id);
   }
@@ -78,22 +80,21 @@ export function ThemeSelect({ value, onPick, label = '🎨 Board' }: Props) {
           <div className="truncate text-xs text-white/60">{current.tagline}</div>
           <div className="text-xs text-white/40">
             {current.artImage && imgOk ? 'Center art preview' : 'No center art — SVG scene shows'}
-            {discovered.length > 0 && ` · ${discovered.length} drop-in folder${discovered.length === 1 ? '' : 's'} found`}
+            {discovered.length > 0 &&
+              ` · ${discovered.length} drop-in folder${discovered.length === 1 ? '' : 's'} found`}
           </div>
           {found && (
             <div className="mt-1 text-xs">
-              <span className="font-bold text-emerald-300">
-                Artwork {(found.tiles?.length ?? 0)}/17
-              </span>
+              <span className="font-bold text-emerald-300">Artwork {found.tiles?.length ?? 0}/17</span>
               {(found.missing?.length ?? 0) > 0 && (
-                <span className="text-white/50"> · missing: {found.missing!.join(', ')}</span>
+                <span className="text-white/50"> · missing: {(found.missing ?? []).join(', ')}</span>
               )}
               {(found.warnings?.length ?? 0) > 0 && (
                 <div className="mt-1 space-y-0.5 text-amber-200">
-                  {found.warnings!.slice(0, 4).map((w) => (
+                  {(found.warnings ?? []).slice(0, 4).map((w) => (
                     <div key={w}>⚠️ {w}</div>
                   ))}
-                  {found.warnings!.length > 4 && <div>…+{found.warnings!.length - 4} more</div>}
+                  {(found.warnings ?? []).length > 4 && <div>…+{(found.warnings ?? []).length - 4} more</div>}
                 </div>
               )}
             </div>

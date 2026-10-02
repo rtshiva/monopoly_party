@@ -8,16 +8,21 @@ import { sndError } from '../sound';
 export interface AuctionCardProps {
   room: RoomState;
   me: Player;
-  emit: (ev: string, extra?: Record<string, unknown>, onOk?: (res: { ok: boolean; error?: string; controlKey?: string }) => void) => void;
+  emit: (
+    ev: string,
+    extra?: Record<string, unknown>,
+    onOk?: (res: { ok: boolean; error?: string; controlKey?: string }) => void,
+  ) => void;
 }
 
 export function AuctionCard({ room, me, emit }: AuctionCardProps) {
   const [amount, setAmount] = useState('');
-  const a = room.auction!;
-  const top = topBid(a);
-  const minNext = minNextBid(a);
-  const outbid = outbidBy(a, me.id);
   const prevOutbidRef = useRef<string | null>(null);
+  const a = room.auction;
+  // Parent only mounts this card while an auction is live; the guard makes
+  // the invariant explicit instead of asserting it. Hooks stay above so
+  // render-to-render hook order never changes.
+  const outbid = a ? outbidBy(a, me.id) : null;
 
   useEffect(() => {
     if (outbid && prevOutbidRef.current !== outbid) {
@@ -26,6 +31,10 @@ export function AuctionCard({ room, me, emit }: AuctionCardProps) {
     }
     prevOutbidRef.current = outbid;
   }, [outbid]);
+
+  if (!a) return null;
+  const top = topBid(a);
+  const minNext = minNextBid(a);
 
   function bid(v: number) {
     // Keep the typed amount when the server rejects (e.g. outbid mid-tap) —
@@ -39,10 +48,19 @@ export function AuctionCard({ room, me, emit }: AuctionCardProps) {
     <div className="glass rounded-2xl border-amber-300/50 p-3 text-center">
       <div className="flex items-center justify-center gap-2 font-bold">
         🔨 Auction: {BOARD[a.tile]?.name}
-        <TurnCountdown deadline={a.endsAt} className="rounded-full bg-amber-300/20 px-2 py-0.5 font-mono text-xs text-amber-200" />
+        <TurnCountdown
+          deadline={a.endsAt}
+          className="rounded-full bg-amber-300/20 px-2 py-0.5 font-mono text-xs text-amber-200"
+        />
       </div>
       <div className="text-sm text-white/70">
-        {top ? <>Top: <b className="text-emerald-300">${top.amount}</b> ({nameOf(room, top.playerId)})</> : 'No bids yet — min $10'}
+        {top ? (
+          <>
+            Top: <b className="text-emerald-300">${top.amount}</b> ({nameOf(room, top.playerId)})
+          </>
+        ) : (
+          'No bids yet — min $10'
+        )}
       </div>
       {outbid && (
         <div className="mt-1 rounded-xl bg-rose-500/20 px-2 py-1 text-sm font-bold text-rose-200">
@@ -73,7 +91,10 @@ export function AuctionCard({ room, me, emit }: AuctionCardProps) {
               key={d}
               type="button"
               disabled={!canAfford}
-              onClick={() => { haptic(25); bid(target); }}
+              onClick={() => {
+                haptic(25);
+                bid(target);
+              }}
               className={`rounded-xl py-1.5 text-xs font-bold transition-all ${
                 canAfford
                   ? 'bg-white/10 hover:bg-white/20 active:scale-95 text-white'

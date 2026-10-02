@@ -3,7 +3,9 @@ import ReactDOM from 'react-dom/client';
 import { App } from './App';
 import './index.css';
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+const rootEl = document.getElementById('root');
+if (!rootEl) throw new Error('Missing #root element');
+ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
     <App />
   </React.StrictMode>,
@@ -12,10 +14,16 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 // PWA: cache the app shell in production only (dev stays network-live).
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   const checkForUpdates = () => {
-    navigator.serviceWorker.getRegistration().then((reg) => reg?.update().catch(() => { /* offline ok */ }));
+    navigator.serviceWorker.getRegistration().then((reg) =>
+      reg?.update().catch(() => {
+        /* offline ok */
+      }),
+    );
   };
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(() => { /* offline ok */ });
+    navigator.serviceWorker.register('./sw.js').catch(() => {
+      /* offline ok */
+    });
   });
   // A swapped-in worker means fresher assets are cached: prompt, never force.
   navigator.serviceWorker.addEventListener('controllerchange', () => {

@@ -165,10 +165,15 @@ async function boot() {
     }
     recovered++;
   }
+  // Boot/recovery stdout — the only server signal outside the journal (AGENTS.md #6).
+  // eslint-disable-next-line no-console
   if (recovered > 0) console.log(`[server] recovered ${recovered} room(s) from snapshot`);
   dlog({ evt: 'boot', msg: `recovered=${recovered}` });
   const PORT = Number(process.env.PORT || 3001);
-  server.listen(PORT, () => console.log(`[server] listening on :${PORT}`));
+  server.listen(PORT, () => {
+    // eslint-disable-next-line no-console -- boot signal, see above
+    console.log(`[server] listening on :${PORT}`);
+  });
 }
 
 void boot();

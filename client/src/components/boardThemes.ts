@@ -33,15 +33,28 @@ export interface BoardTheme {
 /** Every tile surface that can carry generated art. */
 export type TileArtKey =
   | Exclude<TileColor, 'none'>
-  | 'railroad' | 'utility' | 'tax' | 'chance' | 'chest'
-  | 'go' | 'jail' | 'parking' | 'gotojail';
+  | 'railroad'
+  | 'utility'
+  | 'tax'
+  | 'chance'
+  | 'chest'
+  | 'go'
+  | 'jail'
+  | 'parking'
+  | 'gotojail';
 
 /** Six skins. Rules and streets never change — only the look. */
 export const BOARD_THEMES: Record<BoardStyle, BoardTheme> = {
   classic: {
-    id: 'classic', name: 'Classic', short: 'Classic', icon: '🎩',
+    id: 'classic',
+    name: 'Classic',
+    short: 'Classic',
+    icon: '🎩',
     tagline: 'THE ORIGINAL. DEEDS · DICE · DESTINY.',
-    boardBg: '#e3ecd9', tileBg: '#fffdf4', ink: '#1e293b', subInk: '#64748b',
+    boardBg: '#e3ecd9',
+    tileBg: '#fffdf4',
+    ink: '#1e293b',
+    subInk: '#64748b',
     artImage: '/themes/classic/classic-center.webp',
     tileArt: {
       brown: '/themes/classic/classic-tile-brown.webp',
@@ -62,16 +75,29 @@ export const BOARD_THEMES: Record<BoardStyle, BoardTheme> = {
       parking: '/themes/classic/classic-tile-parking.webp',
       gotojail: '/themes/classic/classic-tile-gotojail.webp',
     },
-  },  grandprix: {
-    id: 'grandprix', name: 'Grand Prix Circuit', short: 'Grand', icon: '🏁',
+  },
+  grandprix: {
+    id: 'grandprix',
+    name: 'Grand Prix Circuit',
+    short: 'Grand',
+    icon: '🏁',
     tagline: 'SAME GAME. A FASTER JOURNEY.',
-    boardBg: '#ece1c9', tileBg: '#fffdf4', ink: '#1e293b', subInk: '#64748b',
+    boardBg: '#ece1c9',
+    tileBg: '#fffdf4',
+    ink: '#1e293b',
+    subInk: '#64748b',
     artImage: '/themes/grandprix-center.webp',
   },
   city: {
-    id: 'city', name: 'City Street Circuit', short: 'City', icon: '🌆',
+    id: 'city',
+    name: 'City Street Circuit',
+    short: 'City',
+    icon: '🌆',
     tagline: 'EXPLORE · INVEST · BUILD. OWN THE CITY.',
-    boardBg: '#dfe7ef', tileBg: '#fbfdff', ink: '#1e293b', subInk: '#64748b',
+    boardBg: '#dfe7ef',
+    tileBg: '#fbfdff',
+    ink: '#1e293b',
+    subInk: '#64748b',
     artImage: '/themes/city/city-center.webp',
     tileArt: {
       brown: '/themes/city/city-tile-brown.webp',
@@ -94,9 +120,15 @@ export const BOARD_THEMES: Record<BoardStyle, BoardTheme> = {
     },
   },
   dinosaur: {
-    id: 'dinosaur', name: 'Dinosaur Park', short: 'Dino', icon: '🦕',
+    id: 'dinosaur',
+    name: 'Dinosaur Park',
+    short: 'Dino',
+    icon: '🦕',
     tagline: 'ROAR · INVEST · SURVIVE.',
-    boardBg: '#dde7cf', tileBg: '#fbfdf4', ink: '#1e293b', subInk: '#64748b',
+    boardBg: '#dde7cf',
+    tileBg: '#fbfdf4',
+    ink: '#1e293b',
+    subInk: '#64748b',
     artImage: '/themes/dinosaur-park/dinosaur-park-center.webp',
     tileArt: {
       brown: '/themes/dinosaur-park/dinosaur-park-tile-brown.webp',
@@ -119,9 +151,15 @@ export const BOARD_THEMES: Record<BoardStyle, BoardTheme> = {
     },
   },
   space: {
-    id: 'space', name: 'Space City', short: 'Space', icon: '🚀',
+    id: 'space',
+    name: 'Space City',
+    short: 'Space',
+    icon: '🚀',
     tagline: 'TO INFINITY · INVEST BEYOND.',
-    boardBg: '#1c2340', tileBg: '#fbfdff', ink: '#1e293b', subInk: '#64748b',
+    boardBg: '#1c2340',
+    tileBg: '#fbfdff',
+    ink: '#1e293b',
+    subInk: '#64748b',
     artImage: '/themes/space-city/space-city-center.webp',
     tileArt: {
       brown: '/themes/space-city/space-city-tile-brown.webp',
@@ -144,14 +182,26 @@ export const BOARD_THEMES: Record<BoardStyle, BoardTheme> = {
     },
   },
   coastal: {
-    id: 'coastal', name: 'Coastal Cruise', short: 'Coastal', icon: '🌊',
+    id: 'coastal',
+    name: 'Coastal Cruise',
+    short: 'Coastal',
+    icon: '🌊',
     tagline: 'SUN · SEA · INVEST. MAKE WAVES.',
-    boardBg: '#f3e8cf', tileBg: '#fffdf4', ink: '#1e293b', subInk: '#64748b',
+    boardBg: '#f3e8cf',
+    tileBg: '#fffdf4',
+    ink: '#1e293b',
+    subInk: '#64748b',
   },
   mountain: {
-    id: 'mountain', name: 'Mountain Rally', short: 'Mountain', icon: '⛰️',
+    id: 'mountain',
+    name: 'Mountain Rally',
+    short: 'Mountain',
+    icon: '⛰️',
     tagline: 'CLIMB · INVEST · CONQUER. A HIGHER GAME.',
-    boardBg: '#e4e7ec', tileBg: '#fbfcfe', ink: '#1e293b', subInk: '#64748b',
+    boardBg: '#e4e7ec',
+    tileBg: '#fbfcfe',
+    ink: '#1e293b',
+    subInk: '#64748b',
   },
 };
 
@@ -189,10 +239,7 @@ export function generatedTheme(d: DiscoveredTheme): BoardTheme {
  * supplements that entry instead of duplicating it; anything else (e.g.
  * discworld) becomes a new selectable theme with zero code changes. Pure.
  */
-export function mergeDiscovered(
-  builtins: Record<string, BoardTheme>,
-  discovered: DiscoveredTheme[],
-): BoardTheme[] {
+export function mergeDiscovered(builtins: Record<string, BoardTheme>, discovered: DiscoveredTheme[]): BoardTheme[] {
   const byId = new Map<string, BoardTheme>();
   for (const d of discovered) {
     if (!d || typeof d.id !== 'string' || !d.id) continue;
@@ -202,14 +249,11 @@ export function mergeDiscovered(
     const dupeKey = [...byId.keys()].find(
       (k) => k !== b.id && byId.get(k)?.artImage && byId.get(k)?.artImage === b.artImage,
     );
-    const base = dupeKey ? byId.get(dupeKey)! : byId.get(b.id);
+    // dupeKey came from byId's own key list, so the lookup is provably hit;
+    // the ?? fallback is a belt-and-braces net that can never trigger.
+    const base = (dupeKey ? byId.get(dupeKey) : undefined) ?? byId.get(b.id);
     if (dupeKey) byId.delete(dupeKey);
-    byId.set(
-      b.id,
-      base
-        ? { ...base, ...b, id: b.id, tileArt: { ...base.tileArt, ...b.tileArt } }
-        : b,
-    );
+    byId.set(b.id, base ? { ...base, ...b, id: b.id, tileArt: { ...base.tileArt, ...b.tileArt } } : b);
   }
   return [...byId.values()];
 }
@@ -217,5 +261,7 @@ export function mergeDiscovered(
 /** Theme for a room style id — discovered or built-in, default fallback. */
 export function themeFor(style: string, discovered: DiscoveredTheme[] = []): BoardTheme {
   const merged = mergeDiscovered(BOARD_THEMES, discovered);
-  return merged.find((t) => t.id === style) ?? merged.find((t) => t.id === DEFAULT_BOARD_STYLE) ?? BOARD_THEMES.grandprix;
+  return (
+    merged.find((t) => t.id === style) ?? merged.find((t) => t.id === DEFAULT_BOARD_STYLE) ?? BOARD_THEMES.grandprix
+  );
 }

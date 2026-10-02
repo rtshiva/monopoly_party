@@ -12,7 +12,10 @@ export function HostAuctionPanel({ room }: HostAuctionPanelProps) {
     return () => clearInterval(t);
   }, []);
 
-  const a = room.auction!;
+  const a = room.auction;
+  // Parent only mounts this panel while an auction is live; the guard makes
+  // the invariant explicit instead of asserting it.
+  if (!a) return null;
   const secs = Math.max(0, Math.round((a.endsAt - Date.now()) / 1000));
   const top = [...a.bids].sort((x, y) => y.amount - x.amount)[0];
   const nameOf = (pid: string) => room.players.find((p) => p.id === pid)?.name ?? '?';
@@ -22,9 +25,7 @@ export function HostAuctionPanel({ room }: HostAuctionPanelProps) {
     <div className="glass mt-3 rounded-3xl border-2 border-amber-300/60 p-4 text-center shadow-[0_0_20px_rgba(251,191,36,0.2)]">
       <div className="flex items-center justify-center gap-3">
         <span className={`text-2xl ${secs <= 5 ? 'animate-bounce' : ''}`}>🔨</span>
-        <div className="font-display text-lg font-bold">
-          Auction: {BOARD[a.tile]?.name}
-        </div>
+        <div className="font-display text-lg font-bold">Auction: {BOARD[a.tile]?.name}</div>
         <div className="relative flex items-center justify-center w-8 h-8">
           <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
             <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="3" />
@@ -41,7 +42,9 @@ export function HostAuctionPanel({ room }: HostAuctionPanelProps) {
               className="transition-all duration-1000 ease-linear"
             />
           </svg>
-          <span className={`absolute font-mono text-xs font-black ${secs <= 5 ? 'text-rose-400 animate-pulse' : 'text-amber-200'}`}>
+          <span
+            className={`absolute font-mono text-xs font-black ${secs <= 5 ? 'text-rose-400 animate-pulse' : 'text-amber-200'}`}
+          >
             {secs}
           </span>
         </div>
@@ -49,7 +52,8 @@ export function HostAuctionPanel({ room }: HostAuctionPanelProps) {
       <div className="mt-1 text-sm text-white/80">
         {top ? (
           <>
-            Top bid <b className="text-emerald-300 font-mono">${top.amount}</b> by <b>{nameOf(top.playerId)}</b> ({a.bids.length} bid{a.bids.length === 1 ? '' : 's'})
+            Top bid <b className="text-emerald-300 font-mono">${top.amount}</b> by <b>{nameOf(top.playerId)}</b> (
+            {a.bids.length} bid{a.bids.length === 1 ? '' : 's'})
           </>
         ) : (
           'No bids yet — open your phone to bid!'

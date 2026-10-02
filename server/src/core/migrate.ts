@@ -19,6 +19,13 @@ function clampCash(v: unknown): number {
  * itself is corrupt — callers must skip (not store) such rooms.
  */
 export function migrateRoom(room: RoomState): boolean {
+  // Containers first: a truthy non-array/object (or null entries inside)
+  // would throw below and crash boot into a restart loop. Drop the corrupt
+  // parts, keep the room.
+  if (!Array.isArray(room.trades)) room.trades = [];
+  else room.trades = room.trades.filter((t) => t !== null && typeof t === 'object');
+  if (!room.buildings || typeof room.buildings !== 'object') room.buildings = {};
+  if (!Array.isArray(room.auctionQueue)) room.auctionQueue = [];
   room.trades ??= [];
   room.buildings ??= {};
   room.auctionQueue ??= [];
@@ -52,7 +59,10 @@ export function migrateRoom(room: RoomState): boolean {
   room.winnerId ??= null;
   // Player fields added across milestones (pre-card / pre-timer snapshots).
   // Floor + clamp untrusted snapshot numbers at the read site: corrupt cash,
-  // position, cards or deeds must never reach game arithmetic.
+  // position, cards or deeds must never reach game arithmetic. Null entries
+  // are dropped (never dereferenced).
+  room.players = room.players.filter((p) => p !== null && typeof p === 'object');
+  if (room.turnIndex >= room.players.length) room.turnIndex = 0;
   for (const p of room.players) {
     p.cash = clampCash((p as { cash?: unknown }).cash);
     p.position = Number.isInteger(p.position) && p.position >= 0 && p.position <= 39 ? p.position : 0;
@@ -80,9 +90,12 @@ export function migrateRoom(room: RoomState): boolean {
     room.auction = null;
   }
   if (room.auction) {
-    room.auction.bids = room.auction.bids.filter(
-      (b) => Number.isInteger(b.amount) && b.amount >= 10 && b.amount <= 100000,
-    );
+    room.auction.bids = Array.isArray(room.auction.bids)
+      ? room.auction.bids.filter(
+          (b) =>
+            b !== null && typeof b === 'object' && Number.isInteger(b.amount) && b.amount >= 10 && b.amount <= 100000,
+        )
+      : [];
   }
   // Retired skins (maze/circuit) migrate forward; drop-in theme folders are
   // honoured so a reboot never resets a custom board. Unknown values reset.

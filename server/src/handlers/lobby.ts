@@ -87,6 +87,7 @@ export function registerLobbyHandlers(socket: Socket) {
       },
       cb,
     ) => {
+      if (typeof code !== 'string') return cb?.({ ok: false, error: 'NO_ROOM' });
       code = (code || '').toUpperCase().trim();
       const room = rooms.get(code);
       if (!room) return cb?.({ ok: false, error: 'NO_ROOM' });
@@ -108,6 +109,7 @@ export function registerLobbyHandlers(socket: Socket) {
   );
 
   socket.on('watchRoom', ({ code }: { code: string }, cb) => {
+    if (typeof code !== 'string') return cb?.({ ok: false, error: 'NO_ROOM' });
     code = (code || '').toUpperCase().trim();
     const room = rooms.get(code);
     if (!room) return cb?.({ ok: false, error: 'NO_ROOM' });

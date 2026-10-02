@@ -48,9 +48,12 @@ export function makePlayer(
   token: Player['token'],
   opts: { isHost?: boolean; isBot?: boolean; controllerLabel?: string | null } = {},
 ): Player {
+  // Socket payloads are untyped at runtime: a non-string name would throw on
+  // .slice below and crash the handler. Coerce to the role default instead.
+  const clean = typeof name === 'string' ? name.slice(0, 16) : opts.isHost ? 'Host' : 'Player';
   return {
     id: uid('p'),
-    name: uniqueName(players, name.slice(0, 16)),
+    name: uniqueName(players, clean),
     token: cleanToken(token, opts.isHost ? 'car' : 'dog'),
     cash: START_CASH,
     position: 0,

@@ -23,6 +23,7 @@ import { clearRolling } from '../core/rolling.js';
  */
 export function registerSessionHandlers(socket: Socket) {
   socket.on('rejoin', ({ code, playerId, key }: { code: string; playerId: string; key: unknown }, cb) => {
+    if (typeof code !== 'string') return cb?.({ ok: false, error: 'NO_ROOM' });
     const room = rooms.get((code || '').toUpperCase());
     if (!room) return cb?.({ ok: false, error: 'NO_ROOM' });
     const p = requireControl(room, playerId, key);
@@ -59,6 +60,7 @@ export function registerSessionHandlers(socket: Socket) {
       },
       cb,
     ) => {
+      if (typeof code !== 'string') return cb?.({ ok: false, error: 'NO_ROOM' });
       const room = rooms.get((code || '').toUpperCase());
       if (!room) return cb?.({ ok: false, error: 'NO_ROOM' });
       const seat = room.players.find((x) => x.id === playerId);

@@ -964,6 +964,11 @@ let bankArmCalls = 0;
   roster.push(a);
   const b = makePlayer(roster, 'Anu', 'dog', {});
   check('makePlayer uniqueName suffix', b.name === 'Anu 2' && a.cash === 1500 && a.seatPin.length === 4);
+  // Untyped socket payloads must never throw the seat factory: non-string
+  // names fall back to the role default instead of crashing on .slice.
+  const badHost = makePlayer([], 12345, 'car', { isHost: true });
+  const badGuest = makePlayer([], null, 'dog', {});
+  check('makePlayer coerces non-string names', badHost.name === 'Host' && badGuest.name === 'Player');
   b.cash = NaN;
   b.position = 999;
   b.properties = [1];
@@ -1126,6 +1131,56 @@ let bankArmCalls = 0;
       Array.isArray(bad.log),
   );
   check('migrateRoom rejects bad code', migrateRoom({ ...structuredClone(bad), code: '!!!' }) === false);
+}
+{
+  // Corrupt containers/entries must heal, never throw (else boot crash-loops).
+  const { migrateRoom } = await import('../dist/core/migrate.js');
+  const room = {
+    code: 'CD34EF',
+    status: 'playing',
+    players: [
+      null,
+      { id: 'p0', cash: 1500, position: 0, properties: [], mortgaged: [], jailCards: 0, jailTurns: 0, doubles: 0 },
+    ],
+    turnIndex: 0,
+    turnCount: 1,
+    dice: [1, 1],
+    lastRoll: null,
+    lastCard: null,
+    pendingBuy: null,
+    trades: [null, { giveCash: 10, wantCash: 0, giveCards: 0, wantCards: 0, giveTiles: [], wantTiles: [] }],
+    auction: {
+      id: 'a',
+      tile: 1,
+      startedBy: 'p0',
+      bids: [null, { playerId: 'p0', amount: 50, at: 1 }],
+      endsAt: Date.now() + 99999,
+    },
+    buildings: {},
+    turnDeadline: null,
+    auctionQueue: 'nope',
+    lastActivity: 1,
+    pausedAt: null,
+    boardStyle: 'classic',
+    log: [],
+    winnerId: null,
+    rollingId: null,
+    rev: 0,
+  };
+  let threw = false;
+  try {
+    migrateRoom(room);
+  } catch {
+    threw = true;
+  }
+  check(
+    'migrateRoom survives null entries',
+    threw === false &&
+      room.players.length === 1 &&
+      room.trades.length === 1 &&
+      room.auction.bids.length === 1 &&
+      Array.isArray(room.auctionQueue),
+  );
 }
 {
   // Bot survives corrupt cash instead of stalling on NaN.

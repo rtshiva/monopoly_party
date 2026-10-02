@@ -85,7 +85,7 @@ export function registerEconomyHandlers(socket: Socket) {
       if (!me) return cb?.({ ok: false, error: 'NO_CONTROL' });
       if (!Number.isFinite(me.cash)) return cb?.({ ok: false, error: 'NO_CASH' });
       const t = BOARD[tile];
-      if (!t || t.kind !== 'property') return cb?.({ ok: false, error: 'BAD_TILE' });
+      if (!Number.isInteger(tile) || !t || t.kind !== 'property') return cb?.({ ok: false, error: 'BAD_TILE' });
       if (!me.properties.includes(tile)) return cb?.({ ok: false, error: 'NOT_FULL_SET' });
       if (me.mortgaged.includes(tile)) return cb?.({ ok: false, error: 'MORTGAGED' });
       const set = colorSetTiles(tile);
@@ -120,7 +120,7 @@ export function registerEconomyHandlers(socket: Socket) {
       if (!me) return cb?.({ ok: false, error: 'NO_CONTROL' });
       if (!Number.isFinite(me.cash)) return cb?.({ ok: false, error: 'NO_CASH' });
       const t = BOARD[tile];
-      if (!t || t.kind !== 'property') return cb?.({ ok: false, error: 'BAD_TILE' });
+      if (!Number.isInteger(tile) || !t || t.kind !== 'property') return cb?.({ ok: false, error: 'BAD_TILE' });
       if (!me.properties.includes(tile)) return cb?.({ ok: false, error: 'NOT_FULL_SET' });
       const set = colorSetTiles(tile);
       if (!set.every((i) => me.properties.includes(i))) return cb?.({ ok: false, error: 'NOT_FULL_SET' });
@@ -149,7 +149,7 @@ export function registerEconomyHandlers(socket: Socket) {
       if (!me) return cb?.({ ok: false, error: 'NO_CONTROL' });
       if (!Number.isFinite(me.cash)) return cb?.({ ok: false, error: 'NO_CASH' });
       const t = BOARD[tile];
-      if (!t || t.kind !== 'property') return cb?.({ ok: false, error: 'BAD_TILE' });
+      if (!Number.isInteger(tile) || !t || t.kind !== 'property') return cb?.({ ok: false, error: 'BAD_TILE' });
       if (!me.properties.includes(tile)) return cb?.({ ok: false, error: 'NOT_FULL_SET' });
       const total = setBuildingsTotal(room, tile);
       if (total <= 0) return cb?.({ ok: false, error: 'BAD_TILE' });

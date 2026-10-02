@@ -933,6 +933,36 @@ let bankArmCalls = 0;
   check('MAX_LOG_ENTRIES is 80', MAX_LOG_ENTRIES === 80);
 }
 {
+  // Socket event contract (shared/events.ts): a typo'd event name is an 8s
+  // ack timeout, so the inventory is pinned — every contracted client event
+  // must have a socket.on handler, every broadcast a client listener, and no
+  // handler may exist outside the contract.
+  const { CLIENT_EVENTS, SERVER_EVENTS } = await import('@monopoly/shared');
+  const walkTs = (dirUrl) => {
+    const out = [];
+    for (const e of fs.readdirSync(dirUrl, { withFileTypes: true })) {
+      const child = new URL(e.name, dirUrl);
+      if (e.isDirectory()) out.push(...walkTs(new URL(`${e.name}/`, dirUrl)));
+      else if (e.isFile() && /\.(ts|tsx)$/.test(e.name) && !e.name.endsWith('.test.ts')) out.push(child);
+    }
+    return out;
+  };
+  const readAll = (dirUrl) =>
+    walkTs(dirUrl)
+      .map((u) => fs.readFileSync(u, 'utf8'))
+      .join('\n');
+  const handlersSrc = readAll(new URL('../src/handlers/', import.meta.url));
+  const clientSrc = readAll(new URL('../../client/src/', import.meta.url));
+  const hasHandler = (e) => new RegExp(`socket\\.on\\(\\s*'${e}'`).test(handlersSrc);
+  const missingHandlers = CLIENT_EVENTS.filter((e) => !hasHandler(e));
+  check('every client event has a handler', missingHandlers.length === 0, missingHandlers.join(','));
+  const unheard = SERVER_EVENTS.filter((e) => !clientSrc.includes(`.on('${e}'`));
+  check('every server event has a listener', unheard.length === 0, unheard.join(','));
+  const handled = [...handlersSrc.matchAll(/socket\.on\(\s*'([^']+)'/g)].map((m) => m[1]);
+  const undocumented = handled.filter((e) => !CLIENT_EVENTS.includes(e) && e !== 'disconnect');
+  check('every handler is contracted', undocumented.length === 0, undocumented.join(','));
+}
+{
   const { rentFor, applyCardEffect, netWorth } = await import('@monopoly/shared');
   const own = (tile, bankrupt = false) => ({
     players: [{ id: 'o', properties: [tile, 3], mortgaged: [], bankrupt }],

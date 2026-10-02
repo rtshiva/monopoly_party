@@ -32,6 +32,7 @@ export function registerTurnHandlers(socket: Socket) {
     if (room.status !== 'playing') return cb?.({ ok: false, error: 'GAME_OVER' });
     const me = requireControl(room, playerId, key);
     if (!me) return cb?.({ ok: false, error: 'NO_CONTROL' });
+    if (current(room).id !== me.id) return cb?.({ ok: false, error: 'NOT_YOUR_TURN' });
     const changed = clearRolling(room, me.id);
     cb?.({ ok: true });
     if (changed) emit(room);

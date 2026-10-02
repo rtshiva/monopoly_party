@@ -16,6 +16,9 @@ export function registerAuctionHandlers(socket: Socket) {
       if (!Number.isFinite(me.cash)) return cb?.({ ok: false, error: 'NO_CASH' });
       const auction = room.auction;
       if (!auction || Date.now() >= auction.endsAt) {
+        // Intentional emit-before-ack (the sole exception to the standard):
+        // the resolution broadcast must land before the NO_AUCTION ack, or the
+        // client renders a stale auction panel for a hammer that already fell.
         if (auction) resolveAuction(code, auction.id);
         return cb?.({ ok: false, error: 'NO_AUCTION' });
       }

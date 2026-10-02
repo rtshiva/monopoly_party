@@ -179,6 +179,10 @@ export function PlayScreen() {
     s.on('evicted', () => {
       if (!alive) return;
       dlogc('evicted', 'another device took this seat');
+      // The old key is dead server-side (takeover re-issues): drop it so
+      // stale-key taps fail cleanly until the seat is reclaimed in Switch.
+      clearControl(useGame.getState().playerId);
+      setControlKey(null);
       setErr('🔀 Another device took over this seat. Reclaim it in 🔀 Switch with the TV PIN.');
       setTab('switch');
     });

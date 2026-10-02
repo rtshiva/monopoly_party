@@ -15,8 +15,6 @@ export function friendlyError(code?: string): string {
       return 'Need at least 2 players';
     case 'BAD_TILE':
       return 'That property is not available';
-    case 'NAME_TAKEN':
-      return 'Name taken — try another';
     case 'BAD_STYLE':
       return 'Unknown board style';
     case 'NOT_YOUR_TURN':

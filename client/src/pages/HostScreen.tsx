@@ -229,6 +229,10 @@ export function HostScreen() {
               setPid(newPid);
               setSp({ pid: newPid }, { replace: true });
               setNeedLogin(false);
+              // The claim above ran on a one-shot socket: rejoin on the
+              // persistent spectator socket so this browser becomes the live
+              // controller instead of flapping offline on the claim disconnect.
+              sockState?.emit('rejoin', { code: upCode, playerId: newPid, key: newKey });
             }}
           />
         </div>

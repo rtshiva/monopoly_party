@@ -47,7 +47,6 @@ export type GameError =
   | 'BID_TOO_LOW'
   | 'BID_TOO_HIGH'
   // Lobby
-  | 'NAME_TAKEN'
   | 'BAD_STYLE'
   | 'NOTHING_TO_PASS';
 
@@ -90,11 +89,9 @@ export const GAME_ERRORS: GameError[] = [
   'NO_AUCTION',
   'BID_TOO_LOW',
   'BID_TOO_HIGH',
-  'NAME_TAKEN',
   'BAD_STYLE',
   'NOTHING_TO_PASS',
 ];
-
 /** Standard socket acknowledgement shape used by every handler. Failure
  * acks always carry a typed code — bare `{ ok: false }` is a compile error,
  * so unmapped client banners can never regress silently. */

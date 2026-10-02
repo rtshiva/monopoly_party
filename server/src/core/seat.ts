@@ -26,6 +26,12 @@ export function controllerSocketOf(code: string, playerId: string): string | und
   return seatSockets.get(code)?.get(playerId);
 }
 
+/** Sanitize a device label from an untrusted socket payload (max 24 chars). */
+export function cleanLabel(v: unknown): string {
+  const s = typeof v === 'string' && v.trim() ? v.trim() : 'Phone';
+  return s.slice(0, 24);
+}
+
 export function setControllerSocket(code: string, playerId: string, socketId: string) {
   let m = seatSockets.get(code);
   if (!m) {

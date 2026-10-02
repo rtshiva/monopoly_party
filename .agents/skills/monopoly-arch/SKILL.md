@@ -44,6 +44,7 @@ server/src/
 ```
 
 ### Rules
+
 - **One concern per file.** If a file grows beyond ~150 lines, ask whether it is doing too much.
 - **Handlers are thin.** Each socket handler file only: validates input, calls core functions, calls `emit()`. No game logic lives directly in handlers.
 - **`broadcast.ts` is the only IO boundary.** No other file may call `getIo()` directly.
@@ -57,6 +58,7 @@ server/src/
 The `shared/` package (`@monopoly/shared`) is imported by **both** client and server.
 
 ### Rules
+
 - **All functions in `shared/` must be pure or side-effect-free.**
   - They may read from `BOARD` and constants.
   - They must NOT mutate `RoomState` or call any server-side module.
@@ -68,7 +70,7 @@ The `shared/` package (`@monopoly/shared`) is imported by **both** client and se
 
 ## 3. Typed Error Codes
 
-All socket handler acknowledgements **must** use the `GameError` union from `shared/types.ts`.
+All socket handler acknowledgements **must** use the `GameError` union from `shared/errors.ts`.
 
 ```ts
 // ✅ Correct
@@ -80,7 +82,8 @@ cb?.({ ok: false, error: 'no_control' });
 ```
 
 **When adding a new error code:**
-1. Add it to the `GameError` union in `shared/src/types.ts` first.
+
+1. Add it to the `GameError` union in `shared/src/errors.ts` first.
 2. Use it in the handler.
 3. Handle it (or at least type-check it) on the client side.
 
@@ -108,7 +111,7 @@ socket.on('eventName', ({ code, playerId, key, ...payload }, cb) => {
 
   // 5. Acknowledge success, then broadcast
   cb?.({ ok: true });
-  emit(room);       // ← always last
+  emit(room); // ← always last
 });
 ```
 
@@ -121,7 +124,7 @@ socket.on('eventName', ({ code, playerId, key, ...payload }, cb) => {
 Before adding any new game mechanic:
 
 - [ ] Does it add state to `RoomState`? → Update `shared/src/types.ts` AND add a migration line in `migrateRoom()` in `index.ts`.
-- [ ] Does it add a new error code? → Add to `GameError` in `shared/src/types.ts`.
+- [ ] Does it add a new error code? → Add to `GameError` in `shared/src/errors.ts`.
 - [ ] Does it add server-only logic? → Put it in the appropriate `core/` module.
 - [ ] Does it add shared rule logic? → Put it in `shared/src/engine.ts` as a pure function.
 - [ ] Does it add a socket event? → Add it to the appropriate `handlers/` file.
@@ -132,6 +135,7 @@ Before adding any new game mechanic:
 ## 6. Long Function Warning
 
 `doRoll()` in `core/roll.ts` is already decomposed into three sub-functions. Follow this same pattern for any function that:
+
 - Has more than 5 return paths, OR
 - Handles more than 2 distinct concerns, OR
 - Exceeds ~80 lines.
@@ -167,15 +171,15 @@ ALLOWED_ORIGIN=https://yourdomain.com npm start
 
 ## 9. What NOT to do (Anti-Patterns)
 
-| Anti-Pattern | Why It's Banned | Correct Alternative |
-|---|---|---|
-| Adding game logic to `handlers/*.ts` directly | Makes handlers untestable and fat | Put in `core/` module, call from handler |
-| Adding a new utility to `broadcast.ts` | It's the IO boundary, not a utils file | Put utilities in the relevant `core/` module |
-| Mutating `RoomState` in `shared/engine.ts` | Breaks unit testability; can't be used on client | Return an effect object; apply in server |
-| Returning a raw string error: `{ error: 'my_new_code' }` | Untyped, breaks client error handling | Add to `GameError` union first |
-| Calling `getIo()` outside `broadcast.ts` | Makes IO untraceable | Import `emit()` from broadcast |
-| Recursive `makeCode()` | Unbounded call stack | Use iterative `do { } while ()` loop |
-| A file with multiple distinct concerns | God file — blocks parallel work | One file per domain |
+| Anti-Pattern                                             | Why It's Banned                                  | Correct Alternative                          |
+| -------------------------------------------------------- | ------------------------------------------------ | -------------------------------------------- |
+| Adding game logic to `handlers/*.ts` directly            | Makes handlers untestable and fat                | Put in `core/` module, call from handler     |
+| Adding a new utility to `broadcast.ts`                   | It's the IO boundary, not a utils file           | Put utilities in the relevant `core/` module |
+| Mutating `RoomState` in `shared/engine.ts`               | Breaks unit testability; can't be used on client | Return an effect object; apply in server     |
+| Returning a raw string error: `{ error: 'my_new_code' }` | Untyped, breaks client error handling            | Add to `GameError` union first               |
+| Calling `getIo()` outside `broadcast.ts`                 | Makes IO untraceable                             | Import `emit()` from broadcast               |
+| Recursive `makeCode()`                                   | Unbounded call stack                             | Use iterative `do { } while ()` loop         |
+| A file with multiple distinct concerns                   | God file — blocks parallel work                  | One file per domain                          |
 
 ---
 

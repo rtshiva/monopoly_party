@@ -3,6 +3,7 @@ import { BOARD, UNMORTGAGE_RATE } from '@monopoly/shared';
 import { rooms } from '../store.js';
 import { emit, log } from '../core/broadcast.js';
 import { bankruptPlayer } from '../core/bankruptcy.js';
+import { current } from '../core/player.js';
 import { requireControl } from '../core/seat.js';
 import { colorSetTiles, isBuyable, isTileLocked } from '../core/trade.js';
 import { sellSetEvenly, setBuildingsTotal, setHasBuildings } from '../core/houses.js';
@@ -62,6 +63,10 @@ export function registerEconomyHandlers(socket: Socket) {
     const me = requireControl(room, playerId, key);
     if (!me) return cb?.({ ok: false, error: 'NO_CONTROL' });
     if (!me.inJail || me.jailCards <= 0) return cb?.({ ok: false, error: 'NO_CARD' });
+    // Cards are played on your own turn: freeing yourself mid-round would
+    // skip the jail-roll risk everyone else takes. Checked after NO_CARD so
+    // cardless off-turn taps keep their existing error.
+    if (current(room).id !== me.id) return cb?.({ ok: false, error: 'NOT_YOUR_TURN' });
     me.jailCards--;
     me.inJail = false;
     me.jailTurns = 0;

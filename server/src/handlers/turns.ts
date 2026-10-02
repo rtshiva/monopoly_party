@@ -147,7 +147,7 @@ export function registerTurnHandlers(socket: Socket) {
     // An undecided purchase must go through Buy or Pass (which auctions it) —
     // ending the turn must not silently return the deed to the bank.
     if (room.pendingBuy != null) return cb?.({ ok: false, error: 'PENDING_BUY' });
-    if (me.cash < 0) return cb?.({ ok: false, error: 'NEGATIVE' });
+    if (!Number.isFinite(me.cash) || me.cash < 0) return cb?.({ ok: false, error: 'NEGATIVE' });
     if (room.auction) return cb?.({ ok: false, error: 'AUCTION_LIVE' });
     if (turnExpired(room)) return cb?.({ ok: false, error: 'TIME_UP' });
     advanceTurn(room);

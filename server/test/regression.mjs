@@ -428,6 +428,21 @@ try {
     if (du2.cash < 0) break;
   }
   check('jail card live use', true, sawCardUse ? 'observed live' : 'SKIP — jail+card not attained in 25 turns');
+  // Abuse path: a jailed card-holder acting off-turn must be rejected (skips jail-roll risk).
+  {
+    const cur = room.players[room.turnIndex % room.players.length]?.id;
+    const offHolder = room.players.find((p) => !p.bankrupt && p.inJail && p.jailCards > 0 && p.id !== cur);
+    if (offHolder) {
+      const hs = offHolder.id === idA ? s1 : s2;
+      const hk = offHolder.id === idA ? keyA : keyB;
+      check(
+        'off-turn jail card rejected',
+        (await emit(hs, 'useJailCard', { code, playerId: offHolder.id, key: hk })).error === 'NOT_YOUR_TURN',
+      );
+    } else {
+      check('off-turn jail card rejected', true, 'SKIP — no off-turn jailed card holder after drive');
+    }
+  }
 
   // Card trade live (opportunistic): anyone holding a card sells it for $10
   const cardHolder = room.players.find((p) => !p.bankrupt && p.jailCards > 0);

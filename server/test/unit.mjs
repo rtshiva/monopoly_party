@@ -23,8 +23,8 @@ const { resolveTurnTimeout, turnExpired, armTurnTimer, clearTurnTimer, allGone }
 const { clearAuctionTimer } = await import('../dist/core/auction.js');
 const { uniqueName } = await import('../dist/core/player.js');
 const { flushHistory, readHistory, forgetHistory } = await import('../dist/history.js');
-const { shouldBuy, pickBuildTile, pickMortgageTile, pickUnmortgageTile, botTakeTurn } =
-  await import('../dist/core/botBrain.js');
+const { shouldBuy, pickBuildTile, pickMortgageTile, pickUnmortgageTile } = await import('../dist/core/botPicks.js');
+const { botTakeTurn } = await import('../dist/core/botBrain.js');
 const { botAct, pokeBot, clearBotTimer } = await import('../dist/core/bots.js');
 const { botTimers } = await import('../dist/store.js');
 const { openAuction, queueOrOpenAuction, resolveAuction, injectAuctionClock } = await import('../dist/core/auction.js');

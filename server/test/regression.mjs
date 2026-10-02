@@ -55,6 +55,9 @@ async function waitHealth(child) {
 }
 
 const emit = (s, ev, d) => new Promise((res) => s.emit(ev, d, (r) => res(r ?? { ok: false })));
+// Hostile-client sweep helper: a crashed/hung handler never acks, so the
+// timeout distinguishes "rejected" from "server died on input".
+const emitTimeout = (s, ev, d, ms = 3000) => Promise.race([emit(s, ev, d), sleep(ms).then(() => 'TIMEOUT')]);
 const connect = () => {
   const s = io(BASE, { transports: ['websocket'] });
   return new Promise((res) => s.on('connect', () => res(s)));
@@ -114,6 +117,50 @@ try {
     'non-string join code rejected',
     (await emit(s2, 'joinRoom', { code: 12345, playerName: 'X', token: 'dog' })).error === 'NO_ROOM',
   );
+  // Wave 1 (garbage room code): every event must ack, never hang the handler.
+  // createRoom/disconnect excluded — the former would pollute later listRooms
+  // order assertions (its inputs are provably coerced), the latter is lifecycle.
+  {
+    const bad = { code: 12345, playerId: {}, key: [] };
+    const sweep = [
+      'rejoin',
+      'claimSeat',
+      'releaseSeat',
+      'joinRoom',
+      'watchRoom',
+      'listRooms',
+      'startGame',
+      'pauseGame',
+      'resumeGame',
+      'endGame',
+      'setBoardStyle',
+      'kickPlayer',
+      'addBot',
+      'rollStart',
+      'rollStop',
+      'rollDice',
+      'buyProperty',
+      'passProperty',
+      'endTurn',
+      'payJail',
+      'auctionBid',
+      'mortgage',
+      'bankrupt',
+      'useJailCard',
+      'buyHouse',
+      'sellHouse',
+      'sellAllHouses',
+      'tradeOffer',
+      'tradeRespond',
+      'tradeCancel',
+    ];
+    const hung = [];
+    for (const ev of sweep) {
+      const r = await emitTimeout(s2, ev, { ...bad });
+      if (r === 'TIMEOUT' || r === undefined || typeof r.ok !== 'boolean') hung.push(ev);
+    }
+    check('malformed payloads always ack', hung.length === 0, hung.join(','));
+  }
   // Pure spectators must never disturb seat presence (dashboard separation)
   const sW = await connect();
   await emit(sW, 'watchRoom', { code });
@@ -172,6 +219,61 @@ try {
     'wrong-turn roll rejected',
     (await emit(otherSock, 'rollDice', { code, playerId: otherId, key: otherKey })).error === 'NOT_YOUR_TURN',
   );
+  // Off-turn matrix: turn-gated events must reject a valid non-current seat.
+  // (buyProperty needs pendingBuy first, so it can't prove the turn gate here.)
+  {
+    const cur = room.players[room.turnIndex % room.players.length];
+    const off = room.players.find((p) => p.id !== cur?.id && !p.bankrupt) ?? cur;
+    const offSock = off.id === idA ? s1 : s2;
+    const offKey = off.id === idA ? keyA : keyB;
+    const offBase = { code, playerId: off.id, key: offKey };
+    check('off-turn pass rejected', (await emit(offSock, 'passProperty', { ...offBase })).error === 'NOT_YOUR_TURN');
+    check('off-turn endTurn rejected', (await emit(offSock, 'endTurn', { ...offBase })).error === 'NOT_YOUR_TURN');
+    check('off-turn payJail rejected', (await emit(offSock, 'payJail', { ...offBase })).error === 'NOT_YOUR_TURN');
+  }
+  // Wave 2 (valid room, garbage fields): ack liveness past the code guards.
+  // Mutation-capable events (releaseSeat/bankrupt/startGame/pause/resume/endGame/addBot/joinRoom)
+  // are excluded — they either have no field inputs or would disturb the suite.
+  {
+    const cur = room.players[room.turnIndex % room.players.length];
+    const off = room.players.find((p) => p.id !== cur?.id && !p.bankrupt) ?? cur;
+    const offSock = off.id === idA ? s1 : s2;
+    const base = { code, playerId: off.id, key: off.id === idA ? keyA : keyB };
+    const junkCases = [
+      ['watchRoom', {}],
+      ['listRooms', {}],
+      ['rejoin', { key: {} }],
+      ['claimSeat', { pin: [] }],
+      ['releaseSeat', { playerId: {} }],
+      ['kickPlayer', { targetId: {} }],
+      ['setBoardStyle', { style: [] }],
+      ['rollStart', {}],
+      ['rollStop', {}],
+      ['rollDice', {}],
+      ['buyProperty', {}],
+      ['passProperty', {}],
+      ['endTurn', {}],
+      ['payJail', {}],
+      ['useJailCard', {}],
+      ['auctionBid', { amount: 'x' }],
+      ['mortgage', { tile: {} }],
+      ['buyHouse', { tile: {} }],
+      ['sellHouse', { tile: {} }],
+      ['sellAllHouses', { tile: {} }],
+      [
+        'tradeOffer',
+        { to: [], giveTiles: 'x', giveCash: -1, giveCards: 99, wantTiles: {}, wantCash: NaN, wantCards: Infinity },
+      ],
+      ['tradeRespond', { tradeId: 42, accept: 'yes' }],
+      ['tradeCancel', { tradeId: 42 }],
+    ];
+    const hung = [];
+    for (const [ev, extra] of junkCases) {
+      const r = await emitTimeout(offSock, ev, { ...base, ...extra });
+      if (r === 'TIMEOUT' || r === undefined || typeof r.ok !== 'boolean') hung.push(ev);
+    }
+    check('garbage fields always ack', hung.length === 0, hung.join(','));
+  }
   const curSock = curId === idA ? s1 : s2;
   check('roll ok', (await emit(curSock, 'rollDice', { code, playerId: curId, key: curKey })).ok === true);
   await sleep(150);
@@ -679,6 +781,27 @@ try {
     (await emit(s1, 'mortgage', { code, playerId: idA, key: keyA2, tile: 1 })).ok === false,
   );
   check('paused blocks payJail', (await emit(s1, 'payJail', { code, playerId: idA, key: keyA2 })).ok === false);
+  // Pause matrix: every flow/economy/trade mutation must reject while frozen
+  // (roster/lobby management stays available by design and is not asserted here).
+  {
+    const pausedBase = { code, playerId: idA, key: keyA2 };
+    const frozen = [
+      ['buyProperty', {}],
+      ['passProperty', {}],
+      ['endTurn', {}],
+      ['useJailCard', {}],
+      ['buyHouse', { tile: 1 }],
+      ['sellHouse', { tile: 1 }],
+      ['sellAllHouses', { tile: 1 }],
+      ['tradeOffer', { to: idB }],
+    ];
+    const allowed = [];
+    for (const [ev, extra] of frozen) {
+      const r = await emit(s1, ev, { ...pausedBase, ...extra });
+      if (r.ok !== false) allowed.push(ev);
+    }
+    check('paused blocks flow mutations', allowed.length === 0, allowed.join(','));
+  }
   check(
     'paused blocks tradeCancel',
     (await emit(s1, 'tradeCancel', { code, playerId: idA, key: keyA2, tradeId: 'nope' })).error === 'GAME_OVER',
@@ -818,6 +941,25 @@ try {
   check('PIN reclaim after restart', rec.ok === true && !!rec.controlKey);
   await sleep(300);
   check('deadline re-armed', typeof room2?.turnDeadline === 'number' && room2.turnDeadline > Date.now());
+  // Presence contract: a one-shot claim flaps offline when its socket drops;
+  // rejoin on a persistent socket heals it (the HostScreen login flow).
+  {
+    const sT = await connect();
+    const pinT = room2?.players.find((p) => p.id === idA)?.seatPin;
+    const tc = await emit(sT, 'claimSeat', { code, playerId: idA, pin: pinT, deviceLabel: 'Suite-T' });
+    check('throwaway claim ok', tc.ok === true && !!tc.controlKey);
+    sT.disconnect();
+    await sleep(400);
+    check('throwaway disconnect marks offline', room2?.players.find((p) => p.id === idA)?.connected === false);
+    const sP = await connect();
+    const rj2 = await emit(sP, 'rejoin', { code, playerId: idA, key: tc.controlKey });
+    await sleep(200);
+    check(
+      'persistent rejoin restores presence',
+      rj2.ok === true && room2?.players.find((p) => p.id === idA)?.connected === true,
+    );
+    sP.disconnect();
+  }
   s4.disconnect();
 } catch (e) {
   check(`suite ran: ${e.message}`, false);

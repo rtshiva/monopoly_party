@@ -19,6 +19,7 @@ import { discoverThemes } from './themes.js';
 import { registerSessionHandlers } from './handlers/session.js';
 import { registerLobbyHandlers } from './handlers/lobby.js';
 import { registerGameHandlers } from './handlers/game.js';
+import { registerRosterHandlers } from './handlers/roster.js';
 import { registerTurnHandlers } from './handlers/turns.js';
 import { registerAuctionHandlers } from './handlers/auctions.js';
 import { registerEconomyHandlers } from './handlers/economy.js';
@@ -133,6 +134,7 @@ io.on('connection', (socket) => {
   registerSessionHandlers(socket);
   registerLobbyHandlers(socket);
   registerGameHandlers(socket);
+  registerRosterHandlers(socket);
   registerTurnHandlers(socket);
   registerAuctionHandlers(socket);
   registerEconomyHandlers(socket);

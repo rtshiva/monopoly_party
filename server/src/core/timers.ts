@@ -20,7 +20,10 @@ import { BOARD } from '@monopoly/shared';
 
 export function clearTurnTimer(code: string) {
   const t = turnTimers.get(code);
-  if (t) { clearTimeout(t); turnTimers.delete(code); }
+  if (t) {
+    clearTimeout(t);
+    turnTimers.delete(code);
+  }
 }
 
 /**
@@ -38,6 +41,8 @@ export function allGone(room: RoomState): boolean {
  * Callers reject them with TIME_UP instead of acting on a dead turn.
  */
 export const TURN_GRACE_MS = 2000;
+/** Slack after the deadline before the timeout callback fires (timer jitter). */
+export const TURN_TIMER_SLACK_MS = 500;
 
 export function turnExpired(room: RoomState): boolean {
   return room.status === 'playing' && room.turnDeadline != null && Date.now() > room.turnDeadline + TURN_GRACE_MS;
@@ -49,7 +54,11 @@ export function turnExpired(room: RoomState): boolean {
  */
 export function armTurnTimer(room: RoomState) {
   clearTurnTimer(room.code);
-  if (room.status !== 'playing') { room.turnDeadline = null; pokeBot(room); return; }
+  if (room.status !== 'playing') {
+    room.turnDeadline = null;
+    pokeBot(room);
+    return;
+  }
   if (allGone(room)) {
     // Nobody home: freeze the clock instead of self-playing. Auto-resolving
     // with zero observers advances turns nobody takes AND bumps lastActivity
@@ -74,7 +83,7 @@ export function armTurnTimer(room: RoomState) {
     setTimeout(() => {
       turnTimers.delete(room.code);
       resolveTurnTimeout(room.code, token);
-    }, ms + 500),
+    }, ms + TURN_TIMER_SLACK_MS),
   );
   // Nudge server-driven seats: no-op unless the current seat is a live bot.
   pokeBot(room);
@@ -108,21 +117,46 @@ export function resolveTurnTimeout(code: string, turnCount: number) {
   // below; every path out of here emits exactly once.
   if (room.rollingId) clearRolling(room, room.rollingId);
   const t0 = Date.now();
-  if (me.bankrupt) { advanceTurn(room); emit(room); dlog({ evt: 'timeout.resolve', code, turn: turnCount, seat: me.id, msg: 'bankrupt-skip', ms: Date.now() - t0 }); return; }
+  if (me.bankrupt) {
+    advanceTurn(room);
+    emit(room);
+    dlog({ evt: 'timeout.resolve', code, turn: turnCount, seat: me.id, msg: 'bankrupt-skip', ms: Date.now() - t0 });
+    return;
+  }
   if (!me.hasRolled && me.doubles === 0) {
     log(room, `⏰ ${me.name} ran out of time — auto-rolling`, 'bad', 'move');
-    if (doRoll(room, me) === 'advance') { advanceTurn(room); emit(room); dlog({ evt: 'timeout.resolve', code, turn: turnCount, seat: me.id, msg: 'auto-roll-advance', ms: Date.now() - t0 }); return; }
+    if (doRoll(room, me) === 'advance') {
+      advanceTurn(room);
+      emit(room);
+      dlog({
+        evt: 'timeout.resolve',
+        code,
+        turn: turnCount,
+        seat: me.id,
+        msg: 'auto-roll-advance',
+        ms: Date.now() - t0,
+      });
+      return;
+    }
     dlog({ evt: 'timeout.resolve', code, turn: turnCount, seat: me.id, msg: 'auto-roll', ms: Date.now() - t0 });
+  }
+  if (!Number.isFinite(me.cash)) {
+    log(room, `⏰ ${me.name} has corrupt cash — bankrupt`, 'bad');
+    bankruptPlayer(room, me);
+    emit(room);
+    dlog({ evt: 'timeout.resolve', code, turn: turnCount, seat: me.id, msg: 'bankrupt-corrupt', ms: Date.now() - t0 });
+    return;
   }
   if (room.pendingBuy != null && current(room).id === me.id) {
     const tile = room.pendingBuy;
     room.pendingBuy = null;
     // Queue behind a live auction rather than replacing it (see auction.ts).
     const fate = queueOrOpenAuction(room, tile, me.id);
+    const tn = BOARD[tile]?.name ?? `Tile ${tile}`;
     if (fate === 'open') {
-      log(room, `⏰ ${me.name} didn't decide — ${BOARD[tile].name} goes to auction`, 'info', 'purchase');
+      log(room, `⏰ ${me.name} didn't decide — ${tn} goes to auction`, 'info', 'purchase');
     } else if (fate === 'queued') {
-      log(room, `⏰ ${me.name} didn't decide — ${BOARD[tile].name} queued for auction`, 'info', 'purchase');
+      log(room, `⏰ ${me.name} didn't decide — ${tn} queued for auction`, 'info', 'purchase');
     }
   }
   if (me.cash < 0) {

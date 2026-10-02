@@ -6,7 +6,6 @@
  * sleeping in tests). Same TTLs, same order (clear timers → forget → delete),
  * same snapshot write after each sweep.
  */
-import type { RoomState } from '@monopoly/shared';
 import { forgetRoom, rooms } from '../store.js';
 import { clearAuctionTimer } from './auction.js';
 import { clearTurnTimer } from './timers.js';

@@ -6,5 +6,15 @@ export default defineConfig({
   test: {
     include: ['src/**/*.test.ts'],
     environment: 'node',
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'lcov'],
+      reportsDirectory: 'coverage',
+      // Warn-only v1: no thresholds so `verify` stays green while
+      // reports are informational. Raise once baselines are known.
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.test.{ts,tsx}', 'src/**/*.d.ts', 'coverage/**', 'dist/**'],
+      all: true,
+    },
   },
 });

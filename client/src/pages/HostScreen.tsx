@@ -10,7 +10,7 @@ import { ClaimPanel } from '../components/ClaimPanel';
 import { ConnPill } from '../components/ConnPill';
 import { DebugPanel } from '../components/DebugPanel';
 import { debugEnabled } from '../debug';
-import { TOKENS, applyRoomDelta, netWorth } from '@monopoly/shared';
+import { applyRoomDelta, netWorth } from '@monopoly/shared';
 import type { RoomDelta, RoomState } from '@monopoly/shared';
 import { usePlayerCashDeltas } from '../components/CashFloats';
 import { getVolume, isMuted, sndBuy, sndCash, sndError, sndWin } from '../sound';
@@ -69,31 +69,35 @@ export function HostScreen() {
       });
     };
     s.on('connect', sync);
-    s.on('roomState', (r) => { if (alive) setRoom(r); });
+    s.on('roomState', (r) => {
+      if (alive) setRoom(r);
+    });
     // Delta fast-path with full-state fallback (see PlayScreen).
     s.on('roomDelta', (d: RoomDelta) => {
       if (!alive) return;
       const merged = applyRoomDelta(useGame.getState().room, d);
       if (merged) setRoom(merged);
     });
-    return () => { alive = false; s.disconnect(); setSockState(null); };
+    return () => {
+      alive = false;
+      s.disconnect();
+      setSockState(null);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [upCode]);
 
-  if (err) return <div className="p-10 text-center text-rose-200">{err}</div>;
-  if (!room || room.code !== upCode) {
-    return <div className="p-10 text-center text-white/60">Loading board {upCode}… (start server with <code>npm run dev</code>)</div>;
-  }
-
-  const sorted = [...room.players].sort((a, b) => {
-    if (room.status === 'finished') {
+  // Hooks run unconditionally above the early returns below: calling useState
+  // after `if (err) return` shifted hook order whenever loading/error states
+  // toggled, corrupting unrelated state (react-hooks/rules-of-hooks).
+  const sorted = [...(room?.players ?? [])].sort((a, b) => {
+    if (room?.status === 'finished' && room) {
       return netWorth(b, room) - netWorth(a, room);
     }
     return b.cash - a.cash;
   });
-  const hostSeat = room.players.find((p) => p.isHost);
+  const hostSeat = room?.players.find((p) => p.isHost);
   const amHost = !!hostSeat && hostSeat.id === pid;
-  const activePlay = room.status === 'playing' || room.status === 'paused';
+  const activePlay = room?.status === 'playing' || room?.status === 'paused';
   const [mutedUi, setMutedUi] = useState(isMuted());
   const [volumeUi, setVolumeUi] = useState(getVolume());
   const [contrastUi, setContrastUi] = useState(isHighContrast());
@@ -102,6 +106,7 @@ export function HostScreen() {
 
   // Trigger TV audio effects and speech announcer on key events if unmuted
   const prevRevRef = useRef<number | null>(null);
+  const latestText = room?.log[0]?.text;
   useEffect(() => {
     if (!room || isMuted()) return;
     if (prevRevRef.current !== null && prevRevRef.current !== room.rev) {
@@ -118,24 +123,47 @@ export function HostScreen() {
       }
     }
     prevRevRef.current = room.rev;
-  }, [room?.rev, room?.log, announcerUi, mutedUi]);
+  }, [room, room?.rev, latestText, announcerUi, mutedUi]);
+
   const hideChrome = chromeHidden && activePlay;
   // Shown when this browser doesn't hold the host key (fresh window, or the
   // key moved elsewhere). The board itself always works — only the buttons
   // below need the key.
   const [needLogin, setNeedLogin] = useState(false);
+
+  if (err) return <div className="p-10 text-center text-rose-200">{err}</div>;
+  if (!room || room.code !== upCode) {
+    return (
+      <div className="p-10 text-center text-white/60">
+        Loading board {upCode}… (start server with <code>npm run dev</code>)
+      </div>
+    );
+  }
   const roomCode: string = room.code;
 
-  async function hostAction(ev: 'pauseGame' | 'resumeGame' | 'endGame' | 'kickPlayer' | 'setBoardStyle' | 'addBot', extra: Record<string, unknown> = {}) {
-    if (!pid) { setErr('Host seat not held on this screen.'); return; }
+  async function hostAction(
+    ev: 'pauseGame' | 'resumeGame' | 'endGame' | 'kickPlayer' | 'setBoardStyle' | 'addBot',
+    extra: Record<string, unknown> = {},
+  ) {
+    if (!pid) {
+      setErr('Host seat not held on this screen.');
+      return;
+    }
     try {
-      const res = await emitWithAck<{ ok: boolean; error?: string }>(ev, { code: roomCode, playerId: pid, key: loadControl(pid), ...extra });
+      const res = await emitWithAck<{ ok: boolean; error?: string }>(ev, {
+        code: roomCode,
+        playerId: pid,
+        key: loadControl(pid),
+        ...extra,
+      });
       if (!res?.ok) {
         if (res?.error === 'NOT_HOST' || res?.error === 'NO_CONTROL') {
           setNeedLogin(true);
-          setErr(res?.error === 'NO_CONTROL'
-            ? 'This screen lost the host seat (server restarted or it was claimed elsewhere) — reclaim it in 🔑 Host login below.'
-            : 'Host controls moved to another device — reclaim them in 🔑 Host login below.');
+          setErr(
+            res?.error === 'NO_CONTROL'
+              ? 'This screen lost the host seat (server restarted or it was claimed elsewhere) — reclaim it in 🔑 Host login below.'
+              : 'Host controls moved to another device — reclaim them in 🔑 Host login below.',
+          );
         } else if (res?.error === 'ROOM_FULL') {
           setErr('Table is full (8 max) — remove a seat before adding a bot.');
         } else if (res?.error === 'GAME_OVER') {
@@ -174,8 +202,14 @@ export function HostScreen() {
         <div className="glass mt-3 rounded-3xl p-5">
           <div className="font-display text-lg font-bold">🔑 Host login</div>
           <div className="mt-1 text-sm text-white/60">
-            On another browser? Claim the host seat with its TV PIN to run this screen. Takeovers are announced everywhere.
-            {hostSeat?.controllerLabel && <> Currently held by <b>📱{hostSeat.controllerLabel}</b> — the board above keeps working regardless.</>}
+            On another browser? Claim the host seat with its TV PIN to run this screen. Takeovers are announced
+            everywhere.
+            {hostSeat?.controllerLabel && (
+              <>
+                {' '}
+                Currently held by <b>📱{hostSeat.controllerLabel}</b> — the board above keeps working regardless.
+              </>
+            )}
           </div>
           <ClaimPanel
             room={room}
@@ -183,7 +217,8 @@ export function HostScreen() {
             emit={(ev, extra, onOk) => {
               emitWithAck<{ ok: boolean; error?: string; controlKey?: string }>(ev, { code: upCode, ...extra })
                 .then((res) => {
-                  if (!res?.ok) setErr(res?.error === 'BAD_PIN' ? 'Wrong seat PIN — check the TV board.' : 'Claim failed.');
+                  if (!res?.ok)
+                    setErr(res?.error === 'BAD_PIN' ? 'Wrong seat PIN — check the TV board.' : 'Claim failed.');
                   onOk?.(res);
                 })
                 .catch(() => setErr('Server not responding — is it running?'));
@@ -220,10 +255,18 @@ export function HostScreen() {
             <ConfettiCanvas />
             <div className="glass mt-3 flex flex-col items-center gap-3 rounded-3xl p-5 text-center md:flex-row md:text-left shadow-2xl">
               <div className="flex-1">
-                <div className="font-display text-lg font-bold">🏆 {room.players.find((p) => p.id === room.winnerId)?.name} wins the game!</div>
+                <div className="font-display text-lg font-bold">
+                  🏆 {room.players.find((p) => p.id === room.winnerId)?.name} wins the game!
+                </div>
                 <div className="text-sm text-white/60">Same players, fresh $1500, shuffled order.</div>
               </div>
-              <RematchButton code={room.code} count={room.players.length} hostId={pid} hostKey={loadControl(pid)} onAuthLost={() => setNeedLogin(true)} />
+              <RematchButton
+                code={room.code}
+                count={room.players.length}
+                hostId={pid}
+                hostKey={loadControl(pid)}
+                onAuthLost={() => setNeedLogin(true)}
+              />
             </div>
             <EndgameStats room={room} />
           </motion.div>
@@ -246,9 +289,13 @@ export function HostScreen() {
           {(room.status === 'playing' || room.status === 'paused') && !hideChrome && (
             <div className="glass rounded-2xl p-4 text-center">
               <div className="font-display text-sm font-bold">📱 Join / reclaim a seat</div>
-              <div className="mx-auto mt-2 w-fit rounded-xl bg-white p-2"><QRCodeSVG value={joinURL} size={90} /></div>
+              <div className="mx-auto mt-2 w-fit rounded-xl bg-white p-2">
+                <QRCodeSVG value={joinURL} size={90} />
+              </div>
               <div className="mt-1 break-all font-mono text-xs text-amber-200">{joinURL}</div>
-              <div className="mt-1 text-xs text-white/50">New phone — even the host's? Scan to open the table, then claim your seat with its PIN.</div>
+              <div className="mt-1 text-xs text-white/50">
+                New phone — even the host's? Scan to open the table, then claim your seat with its PIN.
+              </div>
             </div>
           )}
           <div className="glass rounded-2xl p-4">
@@ -258,7 +305,9 @@ export function HostScreen() {
                 <div key={l.id} className="rounded-lg bg-black/20 px-2 py-1 text-white/80">
                   <span className="mr-1.5 font-mono text-xs text-white/40">
                     {new Date(l.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-                  </span>{l.text}</div>
+                  </span>
+                  {l.text}
+                </div>
               ))}
             </div>
           </div>
@@ -277,7 +326,19 @@ export function HostScreen() {
   );
 }
 
-function RematchButton({ code, count, hostId, hostKey, onAuthLost }: { code: string; count: number; hostId: string; hostKey: string | null; onAuthLost: () => void }) {
+function RematchButton({
+  code,
+  count,
+  hostId,
+  hostKey,
+  onAuthLost,
+}: {
+  code: string;
+  count: number;
+  hostId: string;
+  hostKey: string | null;
+  onAuthLost: () => void;
+}) {
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   return (
@@ -285,15 +346,31 @@ function RematchButton({ code, count, hostId, hostKey, onAuthLost }: { code: str
       <button
         disabled={busy}
         onClick={async () => {
-          setBusy(true); setMsg('');
-          if (!hostId || !hostKey) { setMsg('Host seat not held on this screen — reclaim it from a phone with the TV PIN.'); setBusy(false); return; }
+          setBusy(true);
+          setMsg('');
+          if (!hostId || !hostKey) {
+            setMsg('Host seat not held on this screen — reclaim it from a phone with the TV PIN.');
+            setBusy(false);
+            return;
+          }
           try {
-            const res = await emitWithAck<{ ok: boolean; error?: string }>('startGame', { code, playerId: hostId, key: hostKey });
+            const res = await emitWithAck<{ ok: boolean; error?: string }>('startGame', {
+              code,
+              playerId: hostId,
+              key: hostKey,
+            });
             if (!res?.ok) {
               if (res?.error === 'NO_CONTROL') {
                 onAuthLost();
-                setMsg('This screen lost the host seat (server restarted or it was claimed elsewhere) — reclaim it in 🔑 Host login below, then rematch.');
-              } else setMsg(res?.error === 'NOT_HOST' ? 'This screen no longer holds the host seat.' : 'Could not restart (need 2+ players)');
+                setMsg(
+                  'This screen lost the host seat (server restarted or it was claimed elsewhere) — reclaim it in 🔑 Host login below, then rematch.',
+                );
+              } else
+                setMsg(
+                  res?.error === 'NOT_HOST'
+                    ? 'This screen no longer holds the host seat.'
+                    : 'Could not restart (need 2+ players)',
+                );
             }
           } catch {
             setMsg('Server not responding — is it running?');

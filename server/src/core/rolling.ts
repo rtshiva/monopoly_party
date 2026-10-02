@@ -12,10 +12,13 @@ import { emit } from './broadcast.js';
 
 export const ROLLING_TIMEOUT_MS = 8000;
 
-/** Set (or refresh) the shaking flag and broadcast. Auto-clears on timeout. */
+/** Set (or refresh) the shaking flag. No broadcast inside — callers emit. Auto-clears on timeout. */
 export function setRolling(room: RoomState, pid: string) {
   const prev = rollingTimers.get(room.code);
-  if (prev) { clearTimeout(prev); rollingTimers.delete(room.code); }
+  if (prev) {
+    clearTimeout(prev);
+    rollingTimers.delete(room.code);
+  }
   room.rollingId = pid;
   rollingTimers.set(
     room.code,
@@ -28,14 +31,16 @@ export function setRolling(room: RoomState, pid: string) {
       }
     }, ROLLING_TIMEOUT_MS),
   );
-  emit(room);
 }
 
 /** Clear the flag if it belongs to `pid`. Returns true when it changed. */
 export function clearRolling(room: RoomState, pid: string): boolean {
   if (room.rollingId !== pid) return false;
   const t = rollingTimers.get(room.code);
-  if (t) { clearTimeout(t); rollingTimers.delete(room.code); }
+  if (t) {
+    clearTimeout(t);
+    rollingTimers.delete(room.code);
+  }
   room.rollingId = null;
   return true;
 }

@@ -2,9 +2,15 @@
   "name": "monopoly-web-app",
   "private": true,
   "version": "0.1.0",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "type": "module",
-  "workspaces": ["shared", "server", "client"],
+  "workspaces": [
+    "shared",
+    "server",
+    "client"
+  ],
   "scripts": {
     "dev": "concurrently -n server,client -c blue,green \"npm:dev --workspace=server\" \"npm:dev --workspace=client\"",
     "dev:server": "npm run dev --workspace=server",
@@ -12,11 +18,40 @@
     "build": "npm run build --workspace=shared && npm run build --workspace=server && npm run build --workspace=client",
     "start": "npm run start --workspace=server",
     "test": "npm run build --workspace=@monopoly/shared && npm run test --workspace=@monopoly/server",
-    "verify": "npm run build && npm run test --workspace=@monopoly/server && npm run test --workspace=@monopoly/client",
-    "install:all": "npm install"
+    "lint": "eslint . && node scripts/lint-arch.mjs && npx knip",
+    "lint:arch": "node scripts/lint-arch.mjs",
+    "format": "prettier --write shared/src server/src server/test client/src scripts eslint.config.mjs",
+    "format:check": "prettier --check shared/src server/src server/test client/src scripts eslint.config.mjs",
+    "verify": "npm run build && npm run lint && npm run test --workspace=@monopoly/server && npm run test --workspace=@monopoly/client",
+    "coverage": "npm run test:coverage --workspace=@monopoly/client && npm run test:coverage --workspace=@monopoly/server",
+    "typecheck": "tsc -p shared/tsconfig.json --noEmit && tsc -p server/tsconfig.json --noEmit && tsc -p client/tsconfig.json --noEmit",
+    "check:circ": "madge --circular --extensions ts,tsx shared/src server/src client/src",
+    "check:dup": "jscpd shared/src server/src client/src --threshold 5 --reporters console",
+    "quality": "npm run typecheck && npm run check:circ && npm run check:dup",
+    "install:all": "npm install",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint",
+      "prettier --write"
+    ],
+    "*.{mjs,json,css,md}": [
+      "prettier --write"
+    ]
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "concurrently": "^9.1.0",
-    "typescript": "^5.6.3"
+    "eslint": "^10.11.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "husky": "^9.1.7",
+    "jscpd": "^5.4.0",
+    "knip": "^6.38.0",
+    "lint-staged": "^17.6.0",
+    "madge": "^8.0.0",
+    "prettier": "^3.9.9",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.70.1"
   }
 }

@@ -20,14 +20,14 @@ describe('pruneEntries', () => {
 });
 
 describe('debugEnabled', () => {
-  it('defaults to true when search string has no debug param', () => {
-    expect(debugEnabled('')).toBe(true);
-    expect(debugEnabled()).toBe(true);
+  it('defaults to false when search string has no debug param', () => {
+    expect(debugEnabled('')).toBe(false);
+    expect(debugEnabled('?foo=1')).toBe(false);
   });
   it('is enabled when ?debug=1', () => {
     expect(debugEnabled('?debug=1')).toBe(true);
   });
-  it('can be disabled explicitly with ?debug=0', () => {
+  it('stays disabled with ?debug=0', () => {
     expect(debugEnabled('?debug=0')).toBe(false);
   });
 });

@@ -5,6 +5,12 @@
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
     "strict": true,
+    // NOTE: noUncheckedIndexedAccess stays ON for shared/server (money + state
+    // integrity) but OFF here: board-render code indexes BOARD/tokens densely
+    // and React tolerates undefined with fallbacks; strict indexing there is
+    // a 100-error UI churn with no cash safety win.
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,

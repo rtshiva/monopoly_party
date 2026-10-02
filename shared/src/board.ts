@@ -5,8 +5,12 @@ import type { Tile, TileColor } from './types.js';
 // level + 1 (level 0 uses rent[0], or rent[1] on a full set) — every entry
 // must exist or hotels silently charge the 4-house price.
 const P = (name: string, color: TileColor, price: number, base: number, houseCost: number): Tile => ({
-  kind: 'property', name, color, price,
-  rent: [base, base * 2, base * 5, base * 12, base * 20, base * 30, base * 45], houseCost,
+  kind: 'property',
+  name,
+  color,
+  price,
+  rent: [base, base * 2, base * 5, base * 12, base * 20, base * 30, base * 45],
+  houseCost,
 });
 
 export const BOARD: Tile[] = [
@@ -53,14 +57,30 @@ export const BOARD: Tile[] = [
 ];
 
 export const COLOR_HEX: Record<string, string> = {
-  brown: '#8d5a2b', lightblue: '#7dd3fc', pink: '#f472b6', orange: '#fb923c',
-  red: '#ef4444', yellow: '#facc15', green: '#22c55e', blue: '#3b82f6', none: '#475569',
+  brown: '#8d5a2b',
+  lightblue: '#7dd3fc',
+  pink: '#f472b6',
+  orange: '#fb923c',
+  red: '#ef4444',
+  yellow: '#facc15',
+  green: '#22c55e',
+  blue: '#3b82f6',
+  none: '#475569',
 };
+
+// Freeze shared tables: BOARD is imported by reference on client + server.
+// A stray push/splice/sort would corrupt every room, so seal it once here.
+for (const t of BOARD) Object.freeze(t);
+Object.freeze(BOARD);
+Object.freeze(COLOR_HEX);
 
 export function tilePrice(i: number): number {
   const t = BOARD[i];
+  if (!t) return 0;
   if (t.kind === 'property' || t.kind === 'railroad' || t.kind === 'utility') return t.price;
   return 0;
 }
 
-export function tileName(i: number): string { return BOARD[i].name; }
+export function tileName(i: number): string {
+  return BOARD[i]?.name ?? `Tile ${i}`;
+}

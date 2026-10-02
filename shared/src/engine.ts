@@ -2,7 +2,9 @@ import { BOARD } from './board.js';
 import { GO_SALARY, JAIL_FINE } from './types.js';
 import type { Player, RoomState } from './types.js';
 
-export function rollD6(): number { return 1 + Math.floor(Math.random() * 6); }
+export function rollD6(): number {
+  return 1 + Math.floor(Math.random() * 6);
+}
 
 export function ownerOf(state: RoomState, tile: number): string | null {
   for (const p of state.players) if (!p.bankrupt && p.properties.includes(tile)) return p.id;
@@ -27,33 +29,37 @@ export function countRailroads(state: RoomState, playerId: string): number {
 
 export function rentFor(state: RoomState, tile: number, diceSum: number): number {
   const t = BOARD[tile];
+  if (!t) return 0;
   if (t.kind === 'property') {
-    const owner = state.players.find((p) => p.properties.includes(tile));
+    const owner = state.players.find((p) => !p.bankrupt && p.properties.includes(tile));
     if (!owner) return 0;
-    if (owner.mortgaged.includes(tile)) return 0;
+    if (!Array.isArray(owner.mortgaged) || owner.mortgaged.includes(tile)) return 0;
     // Buildings use the rent table directly: level 1-4 → rent[2..5] houses,
-    // level 5 → rent[6] hotel. Floored + clamped so corrupt snapshots can
-    // never produce undefined (NaN cash) — money must stay finite.
-    const level = state.buildings?.[tile] ?? 0;
-    if (level > 0) return t.rent[Math.min(Math.floor(level) + 1, 6)];
+    // level 5 → rent[6] hotel. Finite numbers floor + clamp (99→hotel, 2.5→2);
+    // non-finite/non-numeric snapshots (NaN/string/undefined) fall back to 0
+    // so rent never becomes undefined (NaN cash).
+    const raw = state.buildings?.[tile] ?? 0;
+    const level = typeof raw === 'number' && Number.isFinite(raw) ? Math.min(Math.max(Math.floor(raw), 0), 5) : 0;
+    if (level > 0) return t.rent[Math.min(level + 1, 6)] ?? t.rent[0] ?? 0;
     // No buildings: full color set doubles base rent — but only when the
     // whole set is unmortgaged (a mortgaged setmate breaks the bonus).
     const sameColor = BOARD.map((x, i) => ({ x, i }))
       .filter(({ x }) => x.kind === 'property' && x.color === t.color)
       .map(({ i }) => i);
     const fullSet = sameColor.every((i) => owner.properties.includes(i) && !owner.mortgaged.includes(i));
-    return fullSet ? t.rent[1] : t.rent[0];
+    return (fullSet ? t.rent[1] : t.rent[0]) ?? 0;
   }
   if (t.kind === 'railroad') {
-    const owner = state.players.find((p) => p.properties.includes(tile));
-    if (!owner || owner.mortgaged.includes(tile)) return 0;
+    const owner = state.players.find((p) => !p.bankrupt && p.properties.includes(tile));
+    if (!owner || !Array.isArray(owner.mortgaged) || owner.mortgaged.includes(tile)) return 0;
     const n = countRailroads(state, owner.id);
     return [0, 25, 50, 100, 200][n] ?? 25;
   }
   if (t.kind === 'utility') {
-    const owner = state.players.find((p) => p.properties.includes(tile));
-    if (!owner || owner.mortgaged.includes(tile)) return 0;
-    const owned = owner.properties.filter((i) => BOARD[i].kind === 'utility').length;
+    const owner = state.players.find((p) => !p.bankrupt && p.properties.includes(tile));
+    if (!owner || !Array.isArray(owner.mortgaged) || owner.mortgaged.includes(tile)) return 0;
+    if (!Number.isFinite(diceSum)) return 0;
+    const owned = owner.properties.filter((i) => BOARD[i]?.kind === 'utility').length;
     return diceSum * (owned >= 2 ? 10 : 4);
   }
   return 0;
@@ -105,14 +111,24 @@ const CHEST_CARDS: (() => CardDraw)[] = [
   () => ({ text: 'Chest: Get Out of Jail Free — kept! (play it from your phone)', effect: { jailCards: 1 } }),
 ];
 
-/** Pure: picks a random Chance card and returns its text + effect. No mutation. */
+/** Random (no state mutation): picks a Chance card, returns text + effect. */
 export function drawChance(): CardDraw {
-  return CHANCE_CARDS[Math.floor(Math.random() * CHANCE_CARDS.length)]();
+  return (
+    CHANCE_CARDS[Math.floor(Math.random() * CHANCE_CARDS.length)]?.() ?? {
+      text: 'Chance: Bank pays you $100',
+      effect: { cash: 100 },
+    }
+  );
 }
 
-/** Pure: picks a random Community Chest card and returns its text + effect. No mutation. */
+/** Random (no state mutation): picks a Community Chest card, returns text + effect. */
 export function drawChest(): CardDraw {
-  return CHEST_CARDS[Math.floor(Math.random() * CHEST_CARDS.length)]();
+  return (
+    CHEST_CARDS[Math.floor(Math.random() * CHEST_CARDS.length)]?.() ?? {
+      text: 'Chest: Inheritance $100',
+      effect: { cash: 100 },
+    }
+  );
 }
 
 /**
@@ -120,6 +136,8 @@ export function drawChest(): CardDraw {
  * Returns true if the player was sent to jail (caller should skip further tile logic).
  */
 export function applyCardEffect(player: Player, effect: CardEffect): boolean {
+  if (!Number.isFinite(player.cash)) player.cash = 1500;
+  if (!Number.isInteger(player.jailCards)) player.jailCards = 0;
   if (effect.goToJail) {
     player.position = 10;
     player.inJail = true;
@@ -127,8 +145,10 @@ export function applyCardEffect(player: Player, effect: CardEffect): boolean {
     return true;
   }
   if (effect.teleport !== undefined) player.position = effect.teleport;
-  if (effect.cash !== undefined) player.cash += effect.cash;
-  if (effect.jailCards !== undefined) player.jailCards += effect.jailCards;
+  if (effect.cash !== undefined && Number.isFinite(effect.cash)) player.cash += effect.cash;
+  if (effect.jailCards !== undefined && Number.isInteger(effect.jailCards)) {
+    player.jailCards = Math.max(0, player.jailCards + effect.jailCards);
+  }
   return false;
 }
 
@@ -138,16 +158,19 @@ export function applyCardEffect(player: Player, effect: CardEffect): boolean {
  */
 export function netWorth(player: Player, room: RoomState): number {
   if (player.bankrupt) return 0;
-  let total = player.cash;
-  for (const t of player.properties) {
+  let total = Number.isFinite(player.cash) ? player.cash : 0;
+  const mortgaged = Array.isArray(player.mortgaged) ? player.mortgaged : [];
+  const deeds = Array.isArray(player.properties) ? player.properties : [];
+  for (const t of deeds) {
     const tile = BOARD[t];
     if (tile && 'price' in tile && typeof tile.price === 'number') {
-      if (player.mortgaged.includes(t)) {
+      if (mortgaged.includes(t)) {
         total += Math.round(tile.price / 2);
       } else {
         total += tile.price;
         if (tile.kind === 'property') {
-          const level = room.buildings[t] ?? 0;
+          const raw = room.buildings?.[t] ?? 0;
+          const level = Number.isInteger(raw) && raw >= 0 && raw <= 5 ? raw : 0;
           if (level > 0) {
             total += level * tile.houseCost;
           }
@@ -155,6 +178,5 @@ export function netWorth(player: Player, room: RoomState): number {
       }
     }
   }
-  return total;
+  return Number.isFinite(total) ? total : 0;
 }
-

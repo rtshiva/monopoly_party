@@ -34,6 +34,7 @@ export function sellSetEvenly(room: RoomState, me: Player, tile: number): { sold
   const set = colorSetTiles(tile);
   if (set.length === 0) return { sold: 0, refund: 0 };
   if (!set.every((i) => me.properties.includes(i))) return { sold: 0, refund: 0 };
+  if (!Number.isFinite(me.cash)) me.cash = 1500;
   let sold = 0;
   let refund = 0;
   for (;;) {

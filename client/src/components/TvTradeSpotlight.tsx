@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { BOARD, TOKENS, tilePrice } from '@monopoly/shared';
-import type { RoomState, TradeOffer } from '@monopoly/shared';
+import type { RoomState } from '@monopoly/shared';
 import { TurnCountdown } from './TurnCountdown';
 
 interface TvTradeSpotlightProps {
@@ -50,7 +50,9 @@ export function TvTradeSpotlight({ room }: TvTradeSpotlightProps) {
                 {/* Left: From Player */}
                 <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 p-3">
                   <div className="flex items-center justify-between text-xs font-bold text-emerald-300 mb-1.5">
-                    <span>{TOKENS[from.token]} {from.name} offers</span>
+                    <span>
+                      {TOKENS[from.token]} {from.name} offers
+                    </span>
                     <span className="font-mono text-white/50">${from.cash} in bank</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
@@ -59,7 +61,8 @@ export function TvTradeSpotlight({ room }: TvTradeSpotlightProps) {
                         key={idx}
                         className="rounded-lg bg-black/40 border border-white/10 px-2 py-0.5 text-xs font-semibold text-white"
                       >
-                        {BOARD[idx]?.name ?? `#${idx}`} <span className="font-mono text-emerald-300 text-[10px]">${tilePrice(idx)}</span>
+                        {BOARD[idx]?.name ?? `#${idx}`}{' '}
+                        <span className="font-mono text-emerald-300 text-[10px]">${tilePrice(idx)}</span>
                       </span>
                     ))}
                     {t.giveCash > 0 && (
@@ -79,14 +82,14 @@ export function TvTradeSpotlight({ room }: TvTradeSpotlightProps) {
                 </div>
 
                 {/* Center Arrow */}
-                <div className="flex justify-center text-xl text-amber-300/80 font-bold">
-                  ⇄
-                </div>
+                <div className="flex justify-center text-xl text-amber-300/80 font-bold">⇄</div>
 
                 {/* Right: To Player */}
                 <div className="rounded-xl border border-sky-400/20 bg-sky-500/10 p-3">
                   <div className="flex items-center justify-between text-xs font-bold text-sky-300 mb-1.5">
-                    <span>{TOKENS[to.token]} {to.name} gives</span>
+                    <span>
+                      {TOKENS[to.token]} {to.name} gives
+                    </span>
                     <span className="font-mono text-white/50">${to.cash} in bank</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
@@ -95,7 +98,8 @@ export function TvTradeSpotlight({ room }: TvTradeSpotlightProps) {
                         key={idx}
                         className="rounded-lg bg-black/40 border border-white/10 px-2 py-0.5 text-xs font-semibold text-white"
                       >
-                        {BOARD[idx]?.name ?? `#${idx}`} <span className="font-mono text-sky-300 text-[10px]">${tilePrice(idx)}</span>
+                        {BOARD[idx]?.name ?? `#${idx}`}{' '}
+                        <span className="font-mono text-sky-300 text-[10px]">${tilePrice(idx)}</span>
                       </span>
                     ))}
                     {t.wantCash > 0 && (

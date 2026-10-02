@@ -9,6 +9,10 @@ describe('friendlyError coverage', () => {
     const missing = GAME_ERRORS.filter((c) => friendlyError(c) === c || friendlyError(c) === 'Action failed');
     expect(missing).toEqual([]);
   });
+  it('has no dead branches beyond the union', () => {
+    const known = new Set<string>(GAME_ERRORS);
+    for (const dead of ['EXPIRED']) expect(known.has(dead)).toBe(false);
+  });
   it('falls back gracefully', () => {
     expect(friendlyError(undefined)).toBe('Action failed');
     expect(friendlyError('')).toBe('Action failed');

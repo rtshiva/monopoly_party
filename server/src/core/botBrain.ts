@@ -59,7 +59,10 @@ export function pickBuildTile(room: RoomState, me: Player): number | null {
     const min = Math.min(...set.map((i) => room.buildings[i] ?? 0));
     if (level > min) continue; // even build: only lowest tiles
     if (me.cash < t.houseCost + BOT_BUILD_BUFFER) continue;
-    if (t.houseCost < bestCost) { bestCost = t.houseCost; best = tile; }
+    if (t.houseCost < bestCost) {
+      bestCost = t.houseCost;
+      best = tile;
+    }
   }
   return best;
 }
@@ -78,7 +81,10 @@ export function pickUnmortgageTile(room: RoomState, me: Player): number | null {
     if (!t || typeof t.price !== 'number') continue;
     const fee = Math.round(t.price * UNMORTGAGE_RATE);
     if (me.cash < fee + BOT_UNMORTGAGE_BUFFER) continue;
-    if (fee < bestFee) { bestFee = fee; best = tile; }
+    if (fee < bestFee) {
+      bestFee = fee;
+      best = tile;
+    }
   }
   return best;
 }
@@ -103,15 +109,18 @@ export function pickMortgageTile(room: RoomState, me: Player): number | null {
 
   // Stable sort: lowest rank first (preserves deed order among ties)
   let best = eligible[0];
+  if (best === undefined) return null;
   let bestRank = rank(best);
   for (let i = 1; i < eligible.length; i++) {
-    const r = rank(eligible[i]);
+    const cand = eligible[i];
+    if (cand === undefined) continue;
+    const r = rank(cand);
     if (r < bestRank) {
       bestRank = r;
-      best = eligible[i];
+      best = cand;
     }
   }
-  return best;
+  return best ?? null;
 }
 
 /**
@@ -121,6 +130,8 @@ export function pickMortgageTile(room: RoomState, me: Player): number | null {
  * Pass `trace` to record every attempt + outcome (flight recorder).
  */
 export function botTakeTurn(room: RoomState, me: Player, trace: BotTrace[] = []) {
+  if (!Number.isFinite(me.cash)) me.cash = 1500;
+  if (!Number.isInteger(me.jailCards) || me.jailCards < 0) me.jailCards = 0;
   // --- jail ---
   if (me.inJail) {
     if (me.jailCards > 0) {
@@ -141,8 +152,14 @@ export function botTakeTurn(room: RoomState, me: Player, trace: BotTrace[] = [])
     if (me.inJail) {
       const r = doRoll(room, me);
       trace.push({ t: 'roll', ok: r === 'rolled', detail: `jail-outcome=${r} dice=${room.dice}` });
-      if (r !== 'rolled') { advanceTurn(room); return; }
-      if (me.inJail) { advanceTurn(room); return; }
+      if (r !== 'rolled') {
+        advanceTurn(room);
+        return;
+      }
+      if (me.inJail) {
+        advanceTurn(room);
+        return;
+      }
     }
   }
 
@@ -150,7 +167,10 @@ export function botTakeTurn(room: RoomState, me: Player, trace: BotTrace[] = [])
   if (!me.hasRolled) {
     const r = doRoll(room, me);
     trace.push({ t: 'roll', ok: r === 'rolled', detail: `outcome=${r} dice=${room.dice}` });
-    if (r === 'advance' || r === 'jailed') { advanceTurn(room); return; }
+    if (r === 'advance' || r === 'jailed') {
+      advanceTurn(room);
+      return;
+    }
   }
 
   // --- buy or auction ---
@@ -166,7 +186,11 @@ export function botTakeTurn(room: RoomState, me: Player, trace: BotTrace[] = [])
       room.pendingBuy = null;
       // Queue behind a live auction rather than replacing it (see auction.ts).
       const fate = queueOrOpenAuction(room, me.position, me.id);
-      trace.push({ t: 'pass', ok: fate !== 'dropped', detail: `${tile.name} $${tile.price} cash=${me.cash} fate=${fate}` });
+      trace.push({
+        t: 'pass',
+        ok: fate !== 'dropped',
+        detail: `${tile.name} $${tile.price} cash=${me.cash} fate=${fate}`,
+      });
       if (fate === 'open') {
         log(room, `🔨 ${me.name} passed — ${tile.name} goes to auction`, 'info', 'purchase');
       } else {
@@ -183,19 +207,30 @@ export function botTakeTurn(room: RoomState, me: Player, trace: BotTrace[] = [])
       me.cash -= t.houseCost;
       const level = (room.buildings[build] ?? 0) + 1;
       room.buildings[build] = level;
-      log(room, `🏠 ${me.name} built ${level === 5 ? 'a HOTEL' : `house #${level}`} on ${t.name} ($${t.houseCost})`, 'good', 'build');
+      log(
+        room,
+        `🏠 ${me.name} built ${level === 5 ? 'a HOTEL' : `house #${level}`} on ${t.name} ($${t.houseCost})`,
+        'good',
+        'build',
+      );
       trace.push({ t: 'build', ok: true, detail: `${t.name} level=${level} cash-left=${me.cash}` });
     }
   } else {
-    const colors = new Set(me.properties.map((i) => {
-      const t = BOARD[i];
-      return t && t.kind === 'property' ? t.color : '';
-    }));
+    const colors = new Set(
+      me.properties.map((i) => {
+        const t = BOARD[i];
+        return t && t.kind === 'property' ? t.color : '';
+      }),
+    );
     trace.push({
-      t: 'build-skip', ok: true,
-      detail: me.properties.length === 0 ? 'no-deeds'
-        : me.cash < BOT_BUILD_BUFFER ? `poor cash=${me.cash}`
-        : `no-eligible-set colors=[${[...colors].filter(Boolean)}]`,
+      t: 'build-skip',
+      ok: true,
+      detail:
+        me.properties.length === 0
+          ? 'no-deeds'
+          : me.cash < BOT_BUILD_BUFFER
+            ? `poor cash=${me.cash}`
+            : `no-eligible-set colors=[${[...colors].filter(Boolean)}]`,
     });
   }
 
@@ -213,7 +248,9 @@ export function botTakeTurn(room: RoomState, me: Player, trace: BotTrace[] = [])
   }
 
   // --- mortgage rescue, then bankrupt as last resort ---
-  while (me.cash < 0) {
+  // NaN fails every <0 comparison and would stall the bot forever, so the
+  // entry heal above guarantees a finite cash here; re-check defensively.
+  while (Number.isFinite(me.cash) && me.cash < 0) {
     const tile = pickMortgageTile(room, me);
     if (tile == null) break;
     const t = BOARD[tile] as { price: number; name: string };
@@ -222,7 +259,8 @@ export function botTakeTurn(room: RoomState, me: Player, trace: BotTrace[] = [])
     log(room, `🏦 ${me.name} mortgaged ${t.name} (+$${Math.round(t.price / 2)})`, 'money', 'money');
     trace.push({ t: 'mortgage', ok: true, detail: `${t.name} cash=${me.cash}` });
   }
-  if (me.cash < 0) {
+  if (!Number.isFinite(me.cash) || me.cash < 0) {
+    if (!Number.isFinite(me.cash)) me.cash = -1;
     trace.push({ t: 'bankrupt', ok: true, detail: `cash=${me.cash}` });
     bankruptPlayer(room, me);
     return;

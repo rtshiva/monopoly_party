@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { RoomState } from '@monopoly/shared';
-import { computeGameAwards, type PlayerStats, type SuperlativeAward } from '../utils/statsHelper';
+import { computeGameAwards } from '../utils/statsHelper';
 
 export function EndgameStats({ room }: { room: RoomState }) {
   const [open, setOpen] = useState(false);
@@ -41,10 +41,7 @@ export function EndgameStats({ room }: { room: RoomState }) {
                 </div>
                 <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {awards.map((award, i) => (
-                    <div
-                      key={i}
-                      className="rounded-2xl bg-white/5 border border-white/10 p-3 flex items-start gap-3"
-                    >
+                    <div key={i} className="rounded-2xl bg-white/5 border border-white/10 p-3 flex items-start gap-3">
                       <div className="text-2xl p-1.5 rounded-xl bg-white/10">{award.emoji}</div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
@@ -77,9 +74,7 @@ export function EndgameStats({ room }: { room: RoomState }) {
                               ({p.propertiesCount} deeds, {p.buildingsCount} houses)
                             </span>
                           </span>
-                          <span className="font-mono font-bold text-emerald-300 text-sm">
-                            ${p.netWorth}
-                          </span>
+                          <span className="font-mono font-bold text-emerald-300 text-sm">${p.netWorth}</span>
                         </div>
 
                         {/* Stacked relative wealth bar */}

@@ -1,9 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Socket } from 'socket.io-client';
 import { freshSocket } from '../socket';
-import { mePlayer, loadControl, saveControl, useGame, saveSession, sessionPidFor, clearControl, clearSession } from '../store';
+import {
+  mePlayer,
+  loadControl,
+  saveControl,
+  useGame,
+  saveSession,
+  sessionPidFor,
+  clearControl,
+  clearSession,
+} from '../store';
 import { ClaimPanel } from '../components/ClaimPanel';
 import { SwitchTab } from '../components/SwitchTab';
 import { ActivityFeed } from '../components/ActivityFeed';
@@ -29,8 +38,7 @@ import { CurrentPositionCard } from '../components/CurrentPositionCard';
 import { JailCardView } from '../components/JailCardView';
 import { PartyReactionsBar } from '../components/PartyReactionsBar';
 import { AuctionCard } from '../components/AuctionCard';
-import type { Player, RoomDelta, RoomState } from '@monopoly/shared';
-
+import type { RoomDelta } from '@monopoly/shared';
 
 export function PlayScreen() {
   const { code = '' } = useParams();
@@ -75,7 +83,10 @@ export function PlayScreen() {
   // refresh never picks up another tab's seat from a different room.
   const pid = playerId || sp.get('pid') || sessionPidFor(upCode) || '';
   const key = controlKey || loadControl(pid);
-  useEffect(() => { setArmBankrupt(false); }, [room?.turnCount, pid, playerId, room ? mePlayer(room, pid)?.cash : null]);
+  const meCash = room ? (mePlayer(room, pid)?.cash ?? null) : null;
+  useEffect(() => {
+    setArmBankrupt(false);
+  }, [room?.turnCount, pid, playerId, meCash]);
 
   // A kicked seat vanishes from players entirely (bankrupt seats stay put).
   // Drop the stale identity so the no-seat view + claim flow take over
@@ -93,6 +104,9 @@ export function PlayScreen() {
     const s = freshSocket();
     sockRef.current = s;
     setSockState(s);
+    // Capture live timer maps up front: reading .current inside the cleanup
+    // below would see whatever replaced them by unmount time.
+    const timers = ackTimers.current;
     let alive = true;
     // (Re)join the socket.io room and pull fresh state. Runs on EVERY
     // (re)connect — initial mount included (socket.io always connects
@@ -106,12 +120,24 @@ export function PlayScreen() {
       const { playerId: freshPid, controlKey: freshKey } = useGame.getState();
       const syncPid = freshPid || sp.get('pid') || sessionPidFor(upCode) || '';
       if (syncPid) {
-        s.emit('rejoin', { code: upCode, playerId: syncPid, key: freshKey || loadControl(syncPid) }, (res: { ok: boolean; error?: string; room: never }) => {
-          if (!alive) return;
-          if (res?.ok) { setRoom(res.room as never); setPlayerId(syncPid); saveSession(upCode, syncPid); setPreview(null); }
-          else if (res?.error === 'NO_CONTROL') setErr('🔀 This device no longer controls that seat — reclaim it in 🔀 Switch with the TV PIN.');
-          else { clearSession(upCode, syncPid); setErr('Session expired — rejoin from home with your code.'); }
-        });
+        s.emit(
+          'rejoin',
+          { code: upCode, playerId: syncPid, key: freshKey || loadControl(syncPid) },
+          (res: { ok: boolean; error?: string; room: never }) => {
+            if (!alive) return;
+            if (res?.ok) {
+              setRoom(res.room as never);
+              setPlayerId(syncPid);
+              saveSession(upCode, syncPid);
+              setPreview(null);
+            } else if (res?.error === 'NO_CONTROL')
+              setErr('🔀 This device no longer controls that seat — reclaim it in 🔀 Switch with the TV PIN.');
+            else {
+              clearSession(upCode, syncPid);
+              setErr('Session expired — rejoin from home with your code.');
+            }
+          },
+        );
       } else {
         s.emit('watchRoom', { code: upCode }, (res: { ok: boolean; room: never }) => {
           if (!alive) return;
@@ -122,17 +148,33 @@ export function PlayScreen() {
     };
     // Single sync path: socket.io connects asynchronously, so 'connect'
     // fires for the initial mount as well as every reconnect.
-    s.on('connect', () => { if (!alive) return; setSockUp(true); sync(); });
-    s.on('disconnect', () => { if (alive) setSockUp(false); });
-    s.on('roomState', (r) => { if (!alive) return; setRoom(r); setRolling(false); setPreview(null); setSockUp(true); });
+    s.on('connect', () => {
+      if (!alive) return;
+      setSockUp(true);
+      sync();
+    });
+    s.on('disconnect', () => {
+      if (alive) setSockUp(false);
+    });
+    s.on('roomState', (r) => {
+      if (!alive) return;
+      setRoom(r);
+      setRolling(false);
+      setPreview(null);
+      setSockUp(true);
+    });
     // Delta fast-path: apply onto the cached rev when it lines up, otherwise
     // ignore — the full roomState arriving alongside will resync us.
     s.on('roomDelta', (d: RoomDelta) => {
       if (!alive) return;
       const cur = useGame.getState().room;
       const merged = applyRoomDelta(cur, d);
-      if (merged) { setRoom(merged); setRolling(false); setPreview(null); setSockUp(true); }
-      else dlogc('delta-skip', `base=${d.baseRev} have=${cur?.rev ?? '—'} rev=${d.rev}`);
+      if (merged) {
+        setRoom(merged);
+        setRolling(false);
+        setPreview(null);
+        setSockUp(true);
+      } else dlogc('delta-skip', `base=${d.baseRev} have=${cur?.rev ?? '—'} rev=${d.rev}`);
     });
     s.on('evicted', () => {
       if (!alive) return;
@@ -142,22 +184,34 @@ export function PlayScreen() {
     });
     return () => {
       alive = false;
-      ackTimers.current.forEach((t) => clearTimeout(t));
-      ackTimers.current.clear();
-      if (rollStartTimer.current != null) { clearTimeout(rollStartTimer.current); rollStartTimer.current = null; }
+      timers.forEach((t) => clearTimeout(t));
+      timers.clear();
+      if (rollStartTimer.current != null) {
+        clearTimeout(rollStartTimer.current);
+        rollStartTimer.current = null;
+      }
       rollStartedRef.current = false;
-      s.disconnect(); sockRef.current = null; setSockState(null);
+      s.disconnect();
+      sockRef.current = null;
+      setSockState(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [upCode, pid]);
 
   const me = mePlayer(room, pid || playerId);
-  const isMyTurn = !!room && !!me && room.status === 'playing' && !me.bankrupt && room.players[room.turnIndex % room.players.length]?.id === me.id;
+  const isMyTurn =
+    !!room &&
+    !!me &&
+    room.status === 'playing' &&
+    !me.bankrupt &&
+    room.players[room.turnIndex % room.players.length]?.id === me.id;
   // Local expiry: the server resolve lands ~0.5s+ after turnDeadline, and a
   // tap in that gap would still be honored. Expire the action UI the moment
   // the clock hits zero; the next snapshot (new turnCount/deadline) resets.
   const [timeUp, setTimeUp] = useState(false);
-  useEffect(() => { setTimeUp(false); }, [room?.turnCount, room?.turnDeadline, room?.turnIndex]);
+  useEffect(() => {
+    setTimeUp(false);
+  }, [room?.turnCount, room?.turnDeadline, room?.turnIndex]);
   const canAct = isMyTurn && !timeUp;
   // Hammer down: bidding runs without roll pressure — roll and end-turn wait
   // for the gavel (buy/pass/mortgage/bids stay available). The server rejects
@@ -166,7 +220,13 @@ export function PlayScreen() {
   const canRoll = canAct && !auctionLive;
 
   useEffect(() => {
-    if (isMyTurn && navigator.vibrate) { try { navigator.vibrate(60); } catch { /* noop */ } }
+    if (isMyTurn && navigator.vibrate) {
+      try {
+        navigator.vibrate(60);
+      } catch {
+        /* noop */
+      }
+    }
   }, [isMyTurn]);
 
   // Buzz on NEW incoming offers (count increase only — not every render),
@@ -188,7 +248,12 @@ export function PlayScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.status, room?.winnerId]);
 
-  function emit(ev: string, extra: Record<string, unknown> = {}, onOk?: (res: { ok: boolean; error?: string; controlKey?: string }) => void, onErr?: (code?: string) => void) {
+  function emit(
+    ev: string,
+    extra: Record<string, unknown> = {},
+    onOk?: (res: { ok: boolean; error?: string; controlKey?: string }) => void,
+    onErr?: (code?: string) => void,
+  ) {
     const s = sockRef.current;
     if (!s) return;
     setErr('');
@@ -197,15 +262,20 @@ export function PlayScreen() {
       setErr('Server not responding — check connection');
     }, 8000);
     ackTimers.current.add(timer);
-    s.emit(ev, { code: upCode, playerId: pid, key, ...extra }, (res: { ok: boolean; error?: string; controlKey?: string }) => {
-      clearTimeout(timer);
-      ackTimers.current.delete(timer);
-      if (!res?.ok) {
-        setErr(friendlyError(res?.error)); sndError(); onErr?.(res?.error);
-        dlogc('ack-error', `${ev} → ${res?.error || 'reject'} (rev ${useGame.getState().room?.rev ?? '—'})`);
-      }
-      else onOk?.(res);
-    });
+    s.emit(
+      ev,
+      { code: upCode, playerId: pid, key, ...extra },
+      (res: { ok: boolean; error?: string; controlKey?: string }) => {
+        clearTimeout(timer);
+        ackTimers.current.delete(timer);
+        if (!res?.ok) {
+          setErr(friendlyError(res?.error));
+          sndError();
+          onErr?.(res?.error);
+          dlogc('ack-error', `${ev} → ${res?.error || 'reject'} (rev ${useGame.getState().room?.rev ?? '—'})`);
+        } else onOk?.(res);
+      },
+    );
   }
   const hasControl = !!key;
 
@@ -231,13 +301,14 @@ export function PlayScreen() {
   }, [room, preview, shaking, rolling]);
 
   // Clear in-flight roll state whenever authoritative server state arrives
+  const diceKey = room ? room.dice.join(',') : '';
   useEffect(() => {
     setRolling(false);
     setPreview(null);
     if (room?.lastRoll) {
-      dlogc('roll-room', `"${room.lastRoll}" dice=[${room.dice}] rev=${room.rev}`);
+      dlogc('roll-room', `"${room.lastRoll}" dice=[${diceKey}] rev=${room.rev}`);
     }
-  }, [room?.lastRoll, room?.rev]);
+  }, [room?.lastRoll, room?.rev, diceKey]);
 
   // Hold-to-roll presence: tell the room we're shaking (TV + others wobble).
   // Debounced 300ms so quick taps never flash the TV; fire-and-forget, the
@@ -255,7 +326,10 @@ export function PlayScreen() {
       }, 300);
     } else {
       dlogc('roll-release', 'player released roll button');
-      if (rollStartTimer.current != null) { clearTimeout(rollStartTimer.current); rollStartTimer.current = null; }
+      if (rollStartTimer.current != null) {
+        clearTimeout(rollStartTimer.current);
+        rollStartTimer.current = null;
+      }
       if (rollStartedRef.current) {
         rollStartedRef.current = false;
         sockRef.current?.emit('rollStop', { code: upCode, playerId: pid, key });
@@ -263,55 +337,29 @@ export function PlayScreen() {
     }
   }
 
-  if (!room || room.code !== upCode) return <div className="p-8 text-center text-white/60">Connecting to {upCode}…<br /><Link className="underline" to="/">← home</Link></div>;
-  if (!me) return (
-    <div className="mx-auto max-w-md px-3 pb-16 pt-4">
-      <div className="glass rounded-2xl p-4 text-center">
-        <div className="text-3xl">🎪</div>
-        <div className="font-display mt-1 text-lg font-bold">No seat on this device yet</div>
-        <div className="mt-1 text-sm text-white/60">
-          New here? <Link to="/" className="underline">Join with the TV code</Link> for a fresh seat.
-          Returning on another browser? Claim your seat below with its TV PIN.
-        </div>
-      </div>
-      {err && <div className="mt-2 rounded-xl bg-rose-500/20 px-3 py-2 text-center text-sm text-rose-200">{err}</div>}
-      <ClaimPanel
-        room={room}
-        emit={emit}
-        onClaimed={(newPid, newKey) => {
-          saveControl(newPid, newKey);
-          saveSession(room.code, newPid);
-          setControlKey(newKey);
-          setPlayerId(newPid);
-          // Keep the URL in sync: a refresh must reload THIS seat, not the
-          // ?pid= the page was opened with.
-          setSp({ pid: newPid }, { replace: true });
-        }}
-      />
-      <div className="mt-3 text-center"><Link to="/" className="rounded-full bg-white/10 px-4 py-2 text-sm backdrop-blur">🏠 Home</Link></div>
-    </div>
-  );
-
-  const myTile = BOARD[me.position];
-  const pending = room.pendingBuy != null ? { i: room.pendingBuy, t: BOARD[room.pendingBuy] } : null;
-  const pendingPrice = pending && (pending.t.kind === 'property' || pending.t.kind === 'railroad' || pending.t.kind === 'utility') ? pending.t.price : 0;
-  const pendingName = pending ? pending.t.name : '';
-  const canBuy = !!(isMyTurn && pending && me.cash >= pendingPrice && pendingPrice > 0);
-  const incomingCount = room.trades.filter((t) => t.toId === me.id).length;
-
-  // Buzz on NEW incoming offers (count increase only — not every render),
-  // and toast briefly when an auction closes under us.
+  // Hooks run unconditionally above the early returns below: useRef/useState
+  // after `if (!room) return` shifted hook order on every connect swap
+  // (react-hooks/rules-of-hooks).
+  const incomingCount = room && me ? room.trades.filter((t) => t.toId === me.id).length : 0;
   const prevIncoming = useRef(0);
   const prevAuctionId = useRef<string | null>(null);
   const [auctionToast, setAuctionToast] = useState(false);
   useEffect(() => {
     if (incomingCount > prevIncoming.current && navigator.vibrate) {
-      try { navigator.vibrate([40, 40, 40]); } catch { /* noop */ }
+      try {
+        navigator.vibrate([40, 40, 40]);
+      } catch {
+        /* noop */
+      }
     }
     prevIncoming.current = incomingCount;
   }, [incomingCount]);
+  const auctionId = room?.auction?.id ?? null;
+  // Hook lives above the early returns (rules-of-hooks); theme resolves to
+  // the default until the room loads.
+  const discovered = useDiscoveredThemes();
   useEffect(() => {
-    const id = room?.auction?.id ?? null;
+    const id = auctionId;
     if (prevAuctionId.current && !id) {
       setAuctionToast(true);
       const t = setTimeout(() => setAuctionToast(false), 5000);
@@ -319,25 +367,91 @@ export function PlayScreen() {
       return () => clearTimeout(t);
     }
     prevAuctionId.current = id;
-  }, [room?.auction?.id]);
+  }, [auctionId]);
+
+  if (!room || room.code !== upCode)
+    return (
+      <div className="p-8 text-center text-white/60">
+        Connecting to {upCode}…<br />
+        <Link className="underline" to="/">
+          ← home
+        </Link>
+      </div>
+    );
+  if (!me)
+    return (
+      <div className="mx-auto max-w-md px-3 pb-16 pt-4">
+        <div className="glass rounded-2xl p-4 text-center">
+          <div className="text-3xl">🎪</div>
+          <div className="font-display mt-1 text-lg font-bold">No seat on this device yet</div>
+          <div className="mt-1 text-sm text-white/60">
+            New here?{' '}
+            <Link to="/" className="underline">
+              Join with the TV code
+            </Link>{' '}
+            for a fresh seat. Returning on another browser? Claim your seat below with its TV PIN.
+          </div>
+        </div>
+        {err && <div className="mt-2 rounded-xl bg-rose-500/20 px-3 py-2 text-center text-sm text-rose-200">{err}</div>}
+        <ClaimPanel
+          room={room}
+          emit={emit}
+          onClaimed={(newPid, newKey) => {
+            saveControl(newPid, newKey);
+            saveSession(room.code, newPid);
+            setControlKey(newKey);
+            setPlayerId(newPid);
+            // Keep the URL in sync: a refresh must reload THIS seat, not the
+            // ?pid= the page was opened with.
+            setSp({ pid: newPid }, { replace: true });
+          }}
+        />
+        <div className="mt-3 text-center">
+          <Link to="/" className="rounded-full bg-white/10 px-4 py-2 text-sm backdrop-blur">
+            🏠 Home
+          </Link>
+        </div>
+      </div>
+    );
+
+  const myTile = BOARD[me.position];
+  const pending = room.pendingBuy != null ? { i: room.pendingBuy, t: BOARD[room.pendingBuy] } : null;
+  const pendingPrice =
+    pending && (pending.t.kind === 'property' || pending.t.kind === 'railroad' || pending.t.kind === 'utility')
+      ? pending.t.price
+      : 0;
+  const pendingName = pending ? pending.t.name : '';
+  const canBuy = !!(isMyTurn && pending && me.cash >= pendingPrice && pendingPrice > 0);
 
   // Current-position card data (mockup "Current Position" panel).
-  const discovered = useDiscoveredThemes();
+  // `discovered` hook lives above the early returns (rules-of-hooks).
   const theme = themeFor(room.boardStyle ?? DEFAULT_BOARD_STYLE, discovered);
   const myNetWorth = netWorth(me, room);
   const ownerId = ownerOf(room, me.position);
-  const ownerName = ownerId ? room.players.find((p) => p.id === ownerId)?.name ?? null : null;
+  const ownerName = ownerId ? (room.players.find((p) => p.id === ownerId)?.name ?? null) : null;
   const isMine = me.properties.includes(me.position);
-  const tileRent = (myTile.kind === 'property' || myTile.kind === 'railroad' || myTile.kind === 'utility')
-    ? rentFor(room, me.position, room.dice[0] + room.dice[1]) : 0;
-  const tileDetail = myTile.kind === 'tax' ? `Pay $${myTile.amount}`
-    : myTile.kind === 'chance' ? 'Draw a Chance card'
-    : myTile.kind === 'chest' ? 'Draw a Community Chest card'
-    : myTile.kind === 'gotojail' ? 'Go straight to Jail'
-    : myTile.kind === 'jail' ? (me.inJail ? 'Serving time' : 'Just visiting')
-    : myTile.kind === 'go' ? `Collect $${GO_SALARY} salary`
-    : myTile.kind === 'parking' ? 'Rest — nothing happens'
-    : null;
+  const tileRent =
+    myTile.kind === 'property' || myTile.kind === 'railroad' || myTile.kind === 'utility'
+      ? rentFor(room, me.position, room.dice[0] + room.dice[1])
+      : 0;
+  const tileDetail =
+    myTile.kind === 'tax'
+      ? `Pay $${myTile.amount}`
+      : myTile.kind === 'chance'
+        ? 'Draw a Chance card'
+        : myTile.kind === 'chest'
+          ? 'Draw a Community Chest card'
+          : myTile.kind === 'gotojail'
+            ? 'Go straight to Jail'
+            : myTile.kind === 'jail'
+              ? me.inJail
+                ? 'Serving time'
+                : 'Just visiting'
+              : myTile.kind === 'go'
+                ? `Collect $${GO_SALARY} salary`
+                : myTile.kind === 'parking'
+                  ? 'Rest — nothing happens'
+                  : null;
 
   return (
     <div className="mx-auto max-w-md px-3 pb-28 pt-4">
@@ -367,14 +481,26 @@ export function PlayScreen() {
             <span>✅ Connected back to game table</span>
           </motion.div>
         )}
-        {room.status === 'lobby' && <Banner key="lobby" text="⏳ Waiting for host to start… show this screen is ready!" />}
+        {room.status === 'lobby' && (
+          <Banner key="lobby" text="⏳ Waiting for host to start… show this screen is ready!" />
+        )}
         {room.status === 'finished' && (
           <>
-            <Banner key="win" gold text={room.winnerId === me.id ? '🏆 YOU WIN! 🎉' : `🏁 ${room.players.find((p) => p.id === room.winnerId)?.name} wins`} />
+            <Banner
+              key="win"
+              gold
+              text={
+                room.winnerId === me.id
+                  ? '🏆 YOU WIN! 🎉'
+                  : `🏁 ${room.players.find((p) => p.id === room.winnerId)?.name} wins`
+              }
+            />
             <EndgameStats room={room} />
           </>
         )}
-        {room.status === 'playing' && !sockUp && <Banner key="sync" text="🔄 Reconnecting — turn status syncing with the server…" />}
+        {room.status === 'playing' && !sockUp && (
+          <Banner key="sync" text="🔄 Reconnecting — turn status syncing with the server…" />
+        )}
         {room.status === 'playing' && sockUp && isMyTurn && !timeUp && (
           <div key="turn" className="mt-3 rounded-2xl bg-amber-300 p-3.5 text-center text-black shadow-lg">
             <div className="flex items-center justify-center gap-2">
@@ -385,7 +511,9 @@ export function PlayScreen() {
                 className="rounded-full bg-black/15 px-2.5 py-0.5 font-mono text-xs font-bold text-black"
               />
             </div>
-            <div className="text-xs font-semibold opacity-85 mt-0.5">Roll the dice to move · Turn #{room.turnCount}</div>
+            <div className="text-xs font-semibold opacity-85 mt-0.5">
+              Roll the dice to move · Turn #{room.turnCount}
+            </div>
           </div>
         )}
         {room.status === 'playing' && sockUp && isMyTurn && timeUp && (
@@ -395,13 +523,18 @@ export function PlayScreen() {
           <Banner key="auctionwait" text="🔨 Auction in progress — bidding open, your roll waits for the gavel" />
         )}
         {room.status === 'playing' && sockUp && !isMyTurn && (
-          <Banner key="wait" text={(() => {
-            const roller = room.rollingId && room.rollingId !== me.id
-              ? room.players.find((p) => p.id === room.rollingId)?.name : null;
-            return roller
-              ? `🎲 ${roller} is shaking the dice…`
-              : `⏳ ${room.players[room.turnIndex % room.players.length]?.name}'s turn (#${room.turnCount}) — watch the TV`;
-          })()} />
+          <Banner
+            key="wait"
+            text={(() => {
+              const roller =
+                room.rollingId && room.rollingId !== me.id
+                  ? room.players.find((p) => p.id === room.rollingId)?.name
+                  : null;
+              return roller
+                ? `🎲 ${roller} is shaking the dice…`
+                : `⏳ ${room.players[room.turnIndex % room.players.length]?.name}'s turn (#${room.turnCount}) — watch the TV`;
+            })()}
+          />
         )}
         {room.status === 'paused' && (
           <div key="paused" className="mt-3 rounded-2xl bg-white/10 p-3 text-center">
@@ -432,17 +565,17 @@ export function PlayScreen() {
         )}
       </AnimatePresence>
 
-  {room.lastRoll && <div className="mt-2 text-center text-sm text-amber-200">🎲 {room.lastRoll}</div>}
-  <div className="mt-2 flex justify-center">
-    <DicePair
-      d1={resolveDiceFaces(preview, shaking, room.dice)[0]}
-      d2={resolveDiceFaces(preview, shaking, room.dice)[1]}
-      rollKey={room.lastRoll ? `${room.lastRoll}:${room.dice[0]}-${room.dice[1]}:${room.rev}` : null}
-      size={48}
-      shuffling={shaking && preview != null}
-      skin={room.boardStyle}
-    />
-  </div>
+      {room.lastRoll && <div className="mt-2 text-center text-sm text-amber-200">🎲 {room.lastRoll}</div>}
+      <div className="mt-2 flex justify-center">
+        <DicePair
+          d1={resolveDiceFaces(preview, shaking, room.dice)[0]}
+          d2={resolveDiceFaces(preview, shaking, room.dice)[1]}
+          rollKey={room.lastRoll ? `${room.lastRoll}:${room.dice[0]}-${room.dice[1]}:${room.rev}` : null}
+          size={48}
+          shuffling={shaking && preview != null}
+          skin={room.boardStyle}
+        />
+      </div>
       <AnimatePresence>
         {room.lastCard && (
           <div className="mt-2 w-full flex justify-center">
@@ -470,7 +603,8 @@ export function PlayScreen() {
           {room.auction && <AuctionCard room={room} me={me} emit={emit} />}
           {auctionToast && !room.auction && (
             <div className="glass rounded-2xl border-emerald-300/40 p-3 text-center text-sm font-bold text-emerald-200">
-              🔨 Auction closed — see who won in 📜 Feed</div>
+              🔨 Auction closed — see who won in 📜 Feed
+            </div>
           )}
           {/* Doubles bonus survives Buy/Pass server-side (doubles stays > 0),
               so the button stays up for the bonus roll alongside End turn. */}
@@ -486,7 +620,8 @@ export function PlayScreen() {
                 // render gate below would hide it anyway, but skipping here
                 // also avoids phantom vibrates and wasted renders.
                 if (!shakingRef.current) return;
-                setPreview([1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)]); sndTick();
+                setPreview([1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)]);
+                sndTick();
               }}
               onCommit={() => {
                 haptic(35);
@@ -506,31 +641,59 @@ export function PlayScreen() {
           )}
           {pending && canAct && (
             <div className="glass rounded-2xl border-amber-300/50 p-4 text-center">
-              <div className="font-bold">🏷️ For sale: {pendingName} — ${pendingPrice}</div>
+              <div className="font-bold">
+                🏷️ For sale: {pendingName} — ${pendingPrice}
+              </div>
               <div className="mt-2 grid grid-cols-2 gap-2">
-                <button disabled={!canBuy} onClick={() => emit('buyProperty', {}, () => { haptic(40); sndBuy(); })}
-                  className="rounded-xl bg-emerald-300 py-3 font-extrabold text-emerald-950 disabled:opacity-40">
-                  {canBuy ? `BUY $${pendingPrice}` : 'Not enough cash'}</button>
-                <button onClick={() => emit('passProperty')} className="rounded-xl bg-white/15 py-3 font-bold">Pass</button>
+                <button
+                  disabled={!canBuy}
+                  onClick={() =>
+                    emit('buyProperty', {}, () => {
+                      haptic(40);
+                      sndBuy();
+                    })
+                  }
+                  className="rounded-xl bg-emerald-300 py-3 font-extrabold text-emerald-950 disabled:opacity-40"
+                >
+                  {canBuy ? `BUY $${pendingPrice}` : 'Not enough cash'}
+                </button>
+                <button onClick={() => emit('passProperty')} className="rounded-xl bg-white/15 py-3 font-bold">
+                  Pass
+                </button>
               </div>
             </div>
           )}
           {canRoll && me.hasRolled && room.pendingBuy == null && (
-            <button onClick={() => { haptic(25); emit('endTurn'); }} className="w-full rounded-2xl bg-sky-300 py-4 text-xl font-extrabold text-sky-950">End turn ➡️</button>
+            <button
+              onClick={() => {
+                haptic(25);
+                emit('endTurn');
+              }}
+              className="w-full rounded-2xl bg-sky-300 py-4 text-xl font-extrabold text-sky-950"
+            >
+              End turn ➡️
+            </button>
           )}
           {me.inJail && <JailCardView me={me} canRoll={canRoll} emit={emit} />}
           {me.cash < 0 && (
             <button
               onClick={() => {
-                if (armBankrupt) { haptic([80, 50, 80]); setArmBankrupt(false); emit('bankrupt'); }
-                else setArmBankrupt(true);
+                if (armBankrupt) {
+                  haptic([80, 50, 80]);
+                  setArmBankrupt(false);
+                  emit('bankrupt');
+                } else setArmBankrupt(true);
               }}
-              className={`w-full rounded-2xl py-3 font-extrabold ${armBankrupt ? 'bg-rose-600 text-white' : 'bg-rose-500'}`}>
-              {armBankrupt ? `⚠️ Tap again — leave the game? ($${me.cash})` : `💀 Declare bankruptcy ($${me.cash})`}</button>
+              className={`w-full rounded-2xl py-3 font-extrabold ${armBankrupt ? 'bg-rose-600 text-white' : 'bg-rose-500'}`}
+            >
+              {armBankrupt ? `⚠️ Tap again — leave the game? ($${me.cash})` : `💀 Declare bankruptcy ($${me.cash})`}
+            </button>
           )}
         </div>
       )}
-      {me.bankrupt && <div className="mt-3 rounded-2xl bg-white/10 p-4 text-center">💀 You're out — spectate on TV!</div>}
+      {me.bankrupt && (
+        <div className="mt-3 rounded-2xl bg-white/10 p-4 text-center">💀 You're out — spectate on TV!</div>
+      )}
 
       {err && <div className="mt-2 rounded-xl bg-rose-500/20 px-3 py-2 text-center text-sm text-rose-200">{err}</div>}
 
@@ -539,18 +702,34 @@ export function PlayScreen() {
 
       {/* tabs */}
       <div className="mt-3 flex gap-1.5">
-        <button type="button" onClick={() => setTab('props')}
-          className={`flex-1 rounded-xl py-2 text-xs font-bold transition-colors ${tab === 'props' ? 'bg-amber-300 text-black shadow-md' : 'bg-white/10 text-white/80 hover:bg-white/15'}`}>
-          🏠 Properties ({me.properties.length})</button>
-        <button type="button" onClick={() => setTab('trade')}
-          className={`flex-1 rounded-xl py-2 text-xs font-bold transition-colors ${tab === 'trade' ? 'bg-amber-300 text-black shadow-md' : incomingCount > 0 ? 'animate-pulse bg-amber-300/30 text-amber-100 border border-amber-300/50' : 'bg-white/10 text-white/80 hover:bg-white/15'}`}>
-          🤝 Trade{incomingCount > 0 ? ` (${incomingCount})` : ''}</button>
-        <button type="button" onClick={() => setTab('log')}
-          className={`flex-1 rounded-xl py-2 text-xs font-bold transition-colors ${tab === 'log' ? 'bg-amber-300 text-black shadow-md' : 'bg-white/10 text-white/80 hover:bg-white/15'}`}>
-          📜 Feed</button>
-        <button type="button" onClick={() => setTab('switch')}
-          className={`flex-1 rounded-xl py-2 text-xs font-bold transition-colors ${tab === 'switch' ? 'bg-amber-300 text-black shadow-md' : 'bg-white/10 text-white/80 hover:bg-white/15'}`}>
-          🔀 Seat</button>
+        <button
+          type="button"
+          onClick={() => setTab('props')}
+          className={`flex-1 rounded-xl py-2 text-xs font-bold transition-colors ${tab === 'props' ? 'bg-amber-300 text-black shadow-md' : 'bg-white/10 text-white/80 hover:bg-white/15'}`}
+        >
+          🏠 Properties ({me.properties.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('trade')}
+          className={`flex-1 rounded-xl py-2 text-xs font-bold transition-colors ${tab === 'trade' ? 'bg-amber-300 text-black shadow-md' : incomingCount > 0 ? 'animate-pulse bg-amber-300/30 text-amber-100 border border-amber-300/50' : 'bg-white/10 text-white/80 hover:bg-white/15'}`}
+        >
+          🤝 Trade{incomingCount > 0 ? ` (${incomingCount})` : ''}
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('log')}
+          className={`flex-1 rounded-xl py-2 text-xs font-bold transition-colors ${tab === 'log' ? 'bg-amber-300 text-black shadow-md' : 'bg-white/10 text-white/80 hover:bg-white/15'}`}
+        >
+          📜 Feed
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('switch')}
+          className={`flex-1 rounded-xl py-2 text-xs font-bold transition-colors ${tab === 'switch' ? 'bg-amber-300 text-black shadow-md' : 'bg-white/10 text-white/80 hover:bg-white/15'}`}
+        >
+          🔀 Seat
+        </button>
       </div>
 
       {tab === 'switch' ? (
@@ -563,17 +742,27 @@ export function PlayScreen() {
         <ActivityFeed room={room} live={sockUp} />
       )}
 
-      <Link to={`/host/${upCode}`} className="fixed bottom-3 left-3 rounded-full bg-white/10 px-4 py-2 text-sm backdrop-blur">📺 TV view</Link>
-      <Link to="/" className="fixed bottom-3 right-3 rounded-full bg-white/10 px-4 py-2 text-sm backdrop-blur">🏠 Home</Link>
+      <Link
+        to={`/host/${upCode}`}
+        className="fixed bottom-3 left-3 rounded-full bg-white/10 px-4 py-2 text-sm backdrop-blur"
+      >
+        📺 TV view
+      </Link>
+      <Link to="/" className="fixed bottom-3 right-3 rounded-full bg-white/10 px-4 py-2 text-sm backdrop-blur">
+        🏠 Home
+      </Link>
     </div>
   );
 }
 
-
 function Banner({ text, gold = false }: { text: string; gold?: boolean }) {
   return (
-    <motion.div initial={{ y: 8, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }}
-      className={`mt-3 rounded-2xl px-4 py-3 text-center font-bold ${gold ? 'bg-amber-300 text-black' : 'bg-white/10'}`}>
+    <motion.div
+      initial={{ y: 8, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className={`mt-3 rounded-2xl px-4 py-3 text-center font-bold ${gold ? 'bg-amber-300 text-black' : 'bg-white/10'}`}
+    >
       {text}
     </motion.div>
   );

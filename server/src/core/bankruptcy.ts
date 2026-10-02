@@ -13,7 +13,17 @@ import { log } from './broadcast.js';
 import { advanceTurn, checkWin, current } from './player.js';
 import { openNextQueuedAuction } from './auction.js';
 import { removePlayerTrades } from './trade.js';
-import { armTurnTimer } from './timers.js';
+
+/**
+ * Turn-clock hook, injected at boot (see index.ts). Kept behind a setter —
+ * importing timers.ts directly would cycle back into this module
+ * (bankruptcy → timers → bankruptcy). Same pattern as auction.ts and
+ * player.ts.
+ */
+let _armTurnTimer: ((room: RoomState) => void) | null = null;
+export function injectBankruptcyClock(arm: (room: RoomState) => void) {
+  _armTurnTimer = arm;
+}
 
 export function bankruptPlayer(room: RoomState, me: Player) {
   me.bankrupt = true;
@@ -58,6 +68,6 @@ export function removeSeat(room: RoomState, target: Player) {
   // Win check first: arming the clock on a game that just ended leaves an
   // orphan timer + deadline behind (harmless today, but wrong).
   checkWin(room);
-  if (room.status === 'playing') armTurnTimer(room);
+  if (room.status === 'playing') _armTurnTimer?.(room);
   if (room.status === 'playing' && !room.auction) openNextQueuedAuction(room);
 }

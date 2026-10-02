@@ -1,4 +1,4 @@
-import { BOARD, netWorth, type Player, type RoomState } from '@monopoly/shared';
+import { netWorth, type RoomState } from '@monopoly/shared';
 
 export interface PlayerStats {
   id: string;
@@ -83,7 +83,7 @@ export function computeGameAwards(room: RoomState): {
 
   // 1. Biggest Landlord (Most properties + buildings)
   const sortedLandlords = [...stats].sort(
-    (a, b) => b.propertiesCount * 2 + b.buildingsCount - (a.propertiesCount * 2 + a.buildingsCount)
+    (a, b) => b.propertiesCount * 2 + b.buildingsCount - (a.propertiesCount * 2 + a.buildingsCount),
   );
   if (sortedLandlords[0] && (sortedLandlords[0].propertiesCount > 0 || sortedLandlords[0].buildingsCount > 0)) {
     awards.push({

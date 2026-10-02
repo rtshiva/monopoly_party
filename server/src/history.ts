@@ -31,7 +31,9 @@ async function getDb(): Promise<PgClient | null> {
       try {
         const { Client } = await import('pg');
         const client = new Client({ connectionString: url, connectionTimeoutMillis: 2000 });
-        client.on('error', () => { /* best-effort; file snapshots cover state */ });
+        client.on('error', () => {
+          /* best-effort; file snapshots cover state */
+        });
         await Promise.race([
           client.connect(),
           new Promise((_, reject) => setTimeout(() => reject(new Error('pg timeout')), 2500)),
@@ -58,8 +60,7 @@ async function ensureTable(db: PgClient): Promise<void> {
       turn INT,
       at BIGINT NOT NULL
     )`);
-  await db.query(
-    `CREATE INDEX IF NOT EXISTS game_events_code_at ON game_events (code, at DESC)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS game_events_code_at ON game_events (code, at DESC)`);
   ensured = true;
 }
 
@@ -85,13 +86,20 @@ export async function flushHistory(room: RoomState): Promise<void> {
         [room.code, e.id, e.text, e.tone ?? null, e.cat ?? null, e.turn ?? null, e.at],
       );
     }
-    cursors.set(room.code, room.log[0].id);
-  } catch { /* history must never break a live game */ }
+    const head = room.log[0];
+    if (head) cursors.set(room.code, head.id);
+  } catch {
+    /* history must never break a live game */
+  }
 }
 
 export interface HistoryRow {
-  event_id: string; text: string; tone: string | null; cat: string | null;
-  turn: number | null; at: number;
+  event_id: string;
+  text: string;
+  tone: string | null;
+  cat: string | null;
+  turn: number | null;
+  at: number;
 }
 
 /** Recent events for a room, newest first. Empty when unconfigured/offline. */

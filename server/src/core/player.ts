@@ -5,7 +5,8 @@
  * turn advancement, and win detection. No I/O — callers handle emit().
  */
 import type { Player, RoomState } from '@monopoly/shared';
-import { rooms } from '../store.js';
+import { START_CASH } from '@monopoly/shared';
+import { genPin, rooms, uid } from '../store.js';
 import { log } from './broadcast.js';
 
 // ---------- room code ----------
@@ -16,7 +17,7 @@ import { log } from './broadcast.js';
  */
 export function makeCode(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-  let c = '';
+  let c: string;
   do {
     c = '';
     for (let i = 0; i < 6; i++) c += chars[Math.floor(Math.random() * chars.length)];
@@ -40,11 +41,56 @@ export function uniqueName(players: Player[], name: string): string {
   return `${name} ${n}`;
 }
 
+/** Single seat factory: create/join/addBot share one construction path. */
+export function makePlayer(
+  players: Player[],
+  name: string,
+  token: Player['token'],
+  opts: { isHost?: boolean; isBot?: boolean; controllerLabel?: string | null } = {},
+): Player {
+  return {
+    id: uid('p'),
+    name: uniqueName(players, name.slice(0, 16)),
+    token: cleanToken(token, opts.isHost ? 'car' : 'dog'),
+    cash: START_CASH,
+    position: 0,
+    properties: [],
+    mortgaged: [],
+    inJail: false,
+    jailTurns: 0,
+    jailCards: 0,
+    doubles: 0,
+    bankrupt: false,
+    connected: true,
+    isHost: opts.isHost ?? false,
+    isBot: opts.isBot ?? false,
+    hasRolled: false,
+    seatPin: genPin(),
+    controllerLabel: opts.controllerLabel ?? null,
+  };
+}
+
+/** Reset a seat for a fresh deal (startGame / rematch). */
+export function resetPlayer(p: Player): void {
+  p.cash = START_CASH;
+  p.position = 0;
+  p.properties = [];
+  p.mortgaged = [];
+  p.inJail = false;
+  p.jailTurns = 0;
+  p.jailCards = 0;
+  p.bankrupt = false;
+  p.hasRolled = false;
+  p.doubles = 0;
+}
+
 // ---------- player accessors ----------
 
 /** Return the player whose turn it currently is. */
 export function current(room: RoomState): Player {
-  return room.players[room.turnIndex % Math.max(1, room.players.length)];
+  const p = room.players[room.turnIndex % Math.max(1, room.players.length)];
+  if (!p) throw new Error(`empty room ${room.code}: no current player`);
+  return p;
 }
 
 /** Return all non-bankrupt players. */
@@ -59,9 +105,11 @@ export function checkWin(room: RoomState) {
   // Solo survivor wins — including kick-down-to-one (players.length drops to
   // 1 via removeSeat). Only called from in-game paths, never the lobby.
   if (room.status === 'playing' && alive.length === 1) {
+    const champ = alive[0];
+    if (!champ) return;
     room.status = 'finished';
-    room.winnerId = alive[0].id;
-    log(room, `🏆 ${alive[0].name} wins the game!`, 'good');
+    room.winnerId = champ.id;
+    log(room, `🏆 ${champ.name} wins the game!`, 'good');
   }
 }
 
@@ -76,7 +124,9 @@ export function checkWin(room: RoomState) {
  * We break the cycle by importing lazily through a setter injected at boot.
  */
 let _armTurnTimer: ((room: RoomState) => void) | null = null;
-export function injectArmTurnTimer(fn: (room: RoomState) => void) { _armTurnTimer = fn; }
+export function injectArmTurnTimer(fn: (room: RoomState) => void) {
+  _armTurnTimer = fn;
+}
 
 export function advanceTurn(room: RoomState) {
   if (room.status !== 'playing') return;

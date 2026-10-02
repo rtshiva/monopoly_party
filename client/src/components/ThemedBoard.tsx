@@ -2,7 +2,7 @@ import { BOARD, COLOR_HEX, tileCell } from '@monopoly/shared';
 import type { RoomState } from '@monopoly/shared';
 import { themeFor, type BoardTheme, type TileArtKey } from './boardThemes';
 import { useDiscoveredThemes } from '../useThemes';
-import { ThemeArt, TitleBadge } from './ThemeArt';
+import { ThemeArt } from './ThemeArt';
 import { StageBar } from './StageBar';
 import { PlayerTokenGroup } from './PlayerTokenBadge';
 import { useAnimatedTokens } from './useAnimatedTokens';
@@ -24,11 +24,14 @@ const CORNER_STYLE: Record<string, { bg: string; icon: string; border: string; l
 };
 
 type CornerKind = 'go' | 'jail' | 'parking' | 'gotojail';
-const isCornerKind = (k: string): k is CornerKind =>
-  k === 'go' || k === 'jail' || k === 'parking' || k === 'gotojail';
+const isCornerKind = (k: string): k is CornerKind => k === 'go' || k === 'jail' || k === 'parking' || k === 'gotojail';
 
 const KIND_LABEL: Record<string, string> = {
-  chance: 'Chance ?', chest: 'Chest', jail: 'Just Visiting', parking: 'Free Parking', gotojail: 'Go To Jail',
+  chance: 'Chance ?',
+  chest: 'Chest',
+  jail: 'Just Visiting',
+  parking: 'Free Parking',
+  gotojail: 'Go To Jail',
 };
 
 /** Shared tile content. Card mode paints the light tile; art mode paints dark
@@ -60,18 +63,26 @@ function TileFace({
   const inTrade = room.trades.some((o) => o.giveTiles.includes(i) || o.wantTiles.includes(i));
   const inAuction = room.auction?.tile === i;
   const color = t.kind === 'property' ? COLOR_HEX[t.color] : undefined;
-  const sub = t.kind === 'property' || t.kind === 'railroad' || t.kind === 'utility'
-    ? `$${(t as { price: number }).price}`
-    : t.kind === 'tax' ? `-$${(t as { amount: number }).amount}`
-    : t.kind === 'go' ? '+$200' : KIND_LABEL[t.kind] ?? t.kind;
+  const sub =
+    t.kind === 'property' || t.kind === 'railroad' || t.kind === 'utility'
+      ? `$${(t as { price: number }).price}`
+      : t.kind === 'tax'
+        ? `-$${(t as { amount: number }).amount}`
+        : t.kind === 'go'
+          ? '+$200'
+          : (KIND_LABEL[t.kind] ?? t.kind);
   if (onArt) {
     return (
       <div className="relative flex h-full w-full flex-col justify-between overflow-hidden min-h-0 min-w-0">
         {/* Top: Color Bar + Name + Subtitle */}
         <div className="flex flex-col min-w-0">
           {color && <div className="mb-[1px] h-[5px] rounded-sm" style={{ background: color }} />}
-          <div className="truncate rounded bg-black/55 px-1 text-[10px] font-bold text-white lg:text-[11px] leading-tight">{t.name}</div>
-          <div className="mt-[1px] truncate inline-block self-start rounded bg-black/55 px-1 text-[9px] text-amber-200 leading-tight">{sub}</div>
+          <div className="truncate rounded bg-black/55 px-1 text-[10px] font-bold text-white lg:text-[11px] leading-tight">
+            {t.name}
+          </div>
+          <div className="mt-[1px] truncate inline-block self-start rounded bg-black/55 px-1 text-[9px] text-amber-200 leading-tight">
+            {sub}
+          </div>
         </div>
 
         {/* Center: Absolute Token Overlay (zero-flow layout footprint) */}
@@ -100,22 +111,29 @@ function TileFace({
             >
               {level === 5 ? '🏨' : '🏠'.repeat(Math.min(level, 4))}
             </span>
-          ) : <span />}
+          ) : (
+            <span />
+          )}
           <div className="flex items-center gap-0.5 min-w-0">
-            {owner && (() => {
-              const oIdx = room.players.findIndex((p) => p.id === owner.id);
-              const oCol = getPlayerColor(oIdx >= 0 ? oIdx : 0);
-              return (
-                <span
-                  className={`rounded-full px-1.5 py-0.2 text-[8px] font-extrabold border truncate max-w-[48px] ${
-                    mortgaged ? 'bg-zinc-600 border-zinc-400 text-white' : 'text-white'
-                  }`}
-                  style={mortgaged ? undefined : { background: oCol.bgRgba, borderColor: oCol.hex, boxShadow: `0 0 4px ${oCol.glowRgba}` }}
-                >
-                  {mortgaged ? 'M' : owner.name.slice(0, 6)}
-                </span>
-              );
-            })()}
+            {owner &&
+              (() => {
+                const oIdx = room.players.findIndex((p) => p.id === owner.id);
+                const oCol = getPlayerColor(oIdx >= 0 ? oIdx : 0);
+                return (
+                  <span
+                    className={`rounded-full px-1.5 py-0.2 text-[8px] font-extrabold border truncate max-w-[48px] ${
+                      mortgaged ? 'bg-zinc-600 border-zinc-400 text-white' : 'text-white'
+                    }`}
+                    style={
+                      mortgaged
+                        ? undefined
+                        : { background: oCol.bgRgba, borderColor: oCol.hex, boxShadow: `0 0 4px ${oCol.glowRgba}` }
+                    }
+                  >
+                    {mortgaged ? 'M' : owner.name.slice(0, 6)}
+                  </span>
+                );
+              })()}
             {(inAuction || inTrade) && <span className="text-[9px]">{inAuction ? '🔨' : '🤝'}</span>}
           </div>
         </div>
@@ -130,7 +148,9 @@ function TileFace({
         {color && <div className="absolute inset-x-0 top-0 h-[5px]" style={{ background: color }} />}
         {corner && <div className="absolute right-[1px] top-[1px] text-[11px]">{corner.icon}</div>}
         <div className={`truncate font-bold leading-tight ${color ? 'mt-[5px]' : 'mt-[1px]'}`}>{t.name}</div>
-        <div className="truncate text-[9px] leading-tight" style={{ color: theme.subInk }}>{sub}</div>
+        <div className="truncate text-[9px] leading-tight" style={{ color: theme.subInk }}>
+          {sub}
+        </div>
       </div>
 
       {/* Center: Absolute Token Overlay (zero-flow layout footprint) */}
@@ -159,22 +179,29 @@ function TileFace({
           >
             {level === 5 ? '🏨' : '🏠'.repeat(Math.min(level, 4))}
           </span>
-        ) : <span />}
+        ) : (
+          <span />
+        )}
         <div className="flex items-center gap-0.5 min-w-0">
-          {owner && (() => {
-            const oIdx = room.players.findIndex((p) => p.id === owner.id);
-            const oCol = getPlayerColor(oIdx >= 0 ? oIdx : 0);
-            return (
-              <span
-                className={`rounded-full px-1.5 py-0.2 text-[8px] font-extrabold border truncate max-w-[48px] ${
-                  mortgaged ? 'bg-zinc-600 border-zinc-400 text-white' : 'text-white'
-                }`}
-                style={mortgaged ? undefined : { background: oCol.bgRgba, borderColor: oCol.hex, boxShadow: `0 0 4px ${oCol.glowRgba}` }}
-              >
-                {mortgaged ? 'M' : owner.name.slice(0, 6)}
-              </span>
-            );
-          })()}
+          {owner &&
+            (() => {
+              const oIdx = room.players.findIndex((p) => p.id === owner.id);
+              const oCol = getPlayerColor(oIdx >= 0 ? oIdx : 0);
+              return (
+                <span
+                  className={`rounded-full px-1.5 py-0.2 text-[8px] font-extrabold border truncate max-w-[48px] ${
+                    mortgaged ? 'bg-zinc-600 border-zinc-400 text-white' : 'text-white'
+                  }`}
+                  style={
+                    mortgaged
+                      ? undefined
+                      : { background: oCol.bgRgba, borderColor: oCol.hex, boxShadow: `0 0 4px ${oCol.glowRgba}` }
+                  }
+                >
+                  {mortgaged ? 'M' : owner.name.slice(0, 6)}
+                </span>
+              );
+            })()}
           {(inAuction || inTrade) && <span className="text-[9px]">{inAuction ? '🔨' : '🤝'}</span>}
         </div>
       </div>
@@ -211,12 +238,14 @@ export function ThemedBoard({ room, themeOverride }: { room: RoomState; themeOve
             const isPending = room.pendingBuy === i;
             const isLanding = landingBounceTile === i;
             const occupied = room.players.some((p) => !p.bankrupt && (visualPositions[p.id] ?? p.position) === i);
-            const isCurrentTurn = room.status === 'playing' && (visualPositions[room.players[room.turnIndex % room.players.length]?.id] ?? room.players[room.turnIndex % room.players.length]?.position) === i;
+            const isCurrentTurn =
+              room.status === 'playing' &&
+              (visualPositions[room.players[room.turnIndex % room.players.length]?.id] ??
+                room.players[room.turnIndex % room.players.length]?.position) === i;
             const corner = isCornerKind(t.kind) ? CORNER_STYLE[t.kind] : null;
             // Every tile kind can carry art: streets by color, everything else by kind.
-            const artKey: TileArtKey | undefined = t.kind === 'property'
-              ? (t.color !== 'none' ? t.color : undefined)
-              : t.kind;
+            const artKey: TileArtKey | undefined =
+              t.kind === 'property' ? (t.color !== 'none' ? t.color : undefined) : t.kind;
             const art = artKey ? theme.tileArt?.[artKey] : undefined;
             const owner = room.players.find((p) => p.properties.includes(i));
             const isMortgaged = !!owner && owner.mortgaged.includes(i);
@@ -228,7 +257,9 @@ export function ThemedBoard({ room, themeOverride }: { room: RoomState; themeOve
                   gridColumn: c + 1,
                   background: art ? undefined : corner ? corner.bg : theme.tileBg,
                   color: theme.ink,
-                  ...(art ? { backgroundImage: `url("${art}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}),
+                  ...(art
+                    ? { backgroundImage: `url("${art}")`, backgroundSize: 'cover', backgroundPosition: 'center' }
+                    : {}),
                 }}
                 className={`relative overflow-hidden rounded-[7px] p-[2px] w-full h-full min-w-0 min-h-0 select-none flex flex-col justify-between text-[10px] leading-tight lg:text-[11px] transition-all ${
                   isPending ? 'ring-2 ring-amber-500 animate-pulse' : ''
@@ -241,9 +272,11 @@ export function ThemedBoard({ room, themeOverride }: { room: RoomState; themeOve
               >
                 {art && <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30" />}
                 {isMortgaged && <div className="mortgaged-hatch absolute inset-0 pointer-events-none z-10" />}
-                {room.players.map((p) => (visualPositions[p.id] ?? p.position) === i && floats[p.id] ? (
-                  <CashFloatBadge key={p.id} items={floats[p.id]} />
-                ) : null)}
+                {room.players.map((p) =>
+                  (visualPositions[p.id] ?? p.position) === i && floats[p.id] ? (
+                    <CashFloatBadge key={p.id} items={floats[p.id]} />
+                  ) : null,
+                )}
                 <TileFace
                   i={i}
                   room={room}
@@ -256,10 +289,7 @@ export function ThemedBoard({ room, themeOverride }: { room: RoomState; themeOve
               </div>
             );
           })}
-          <div
-            style={{ gridRow: '2 / 11', gridColumn: '2 / 11' }}
-            className="relative overflow-hidden rounded-2xl"
-          >
+          <div style={{ gridRow: '2 / 11', gridColumn: '2 / 11' }} className="relative overflow-hidden rounded-2xl">
             <ThemeArt theme={theme} />
             <BoardTheater room={room} />
             {/* Dynamic Day/Night Lighting Overlay: subtle ambient atmosphere cycle */}
@@ -267,10 +297,11 @@ export function ThemedBoard({ room, themeOverride }: { room: RoomState; themeOve
               className="pointer-events-none absolute inset-0 transition-opacity duration-1000 z-10"
               style={{
                 background: (() => {
-                  const cycle = (room.turnCount % 40);
+                  const cycle = room.turnCount % 40;
                   if (cycle < 10) return 'linear-gradient(135deg, rgba(254, 240, 138, 0.08) 0%, transparent 60%)'; // Dawn warm gold
                   if (cycle < 20) return 'transparent'; // High noon bright clear
-                  if (cycle < 30) return 'linear-gradient(135deg, rgba(249, 115, 22, 0.12) 0%, rgba(147, 51, 234, 0.08) 100%)'; // Dusk amber / purple
+                  if (cycle < 30)
+                    return 'linear-gradient(135deg, rgba(249, 115, 22, 0.12) 0%, rgba(147, 51, 234, 0.08) 100%)'; // Dusk amber / purple
                   return 'linear-gradient(135deg, rgba(30, 27, 75, 0.25) 0%, rgba(15, 23, 42, 0.35) 100%)'; // Midnight deep indigo
                 })(),
               }}

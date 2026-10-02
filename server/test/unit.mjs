@@ -18,43 +18,75 @@ process.env.LOG_FILE = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'monopoly
 const { rooms, setIo, forgetRoom, turnTimers } = await import('../dist/store.js');
 // Fake broadcast sink: emit() only needs io.to(code).emit().
 setIo({ to: () => ({ emit: () => {} }) });
-const { resolveTurnTimeout, turnExpired, armTurnTimer, clearTurnTimer, allGone } = await import('../dist/core/timers.js');
+const { resolveTurnTimeout, turnExpired, armTurnTimer, clearTurnTimer, allGone } =
+  await import('../dist/core/timers.js');
 const { clearAuctionTimer } = await import('../dist/core/auction.js');
 const { uniqueName } = await import('../dist/core/player.js');
 const { flushHistory, readHistory, forgetHistory } = await import('../dist/history.js');
-const {
-  shouldBuy, pickBuildTile, pickMortgageTile, pickUnmortgageTile, botTakeTurn,
-} = await import('../dist/core/botBrain.js');
+const { shouldBuy, pickBuildTile, pickMortgageTile, pickUnmortgageTile, botTakeTurn } =
+  await import('../dist/core/botBrain.js');
 const { botAct, pokeBot, clearBotTimer } = await import('../dist/core/bots.js');
 const { botTimers } = await import('../dist/store.js');
-const {
-  openAuction, queueOrOpenAuction, resolveAuction, injectAuctionClock,
-} = await import('../dist/core/auction.js');
+const { openAuction, queueOrOpenAuction, resolveAuction, injectAuctionClock } = await import('../dist/core/auction.js');
 const { pruneTrades } = await import('../dist/core/trade.js');
 const { UNMORTGAGE_RATE } = await import('@monopoly/shared');
 
 const results = [];
-const check = (n, c, x = '') => { results.push(`${c ? 'PASS' : 'FAIL'} ${n} ${x}`); if (!c) process.exitCode = 1; };
+const check = (n, c, x = '') => {
+  results.push(`${c ? 'PASS' : 'FAIL'} ${n} ${x}`);
+  if (!c) process.exitCode = 1;
+};
 
 let seq = 0;
 function mkPlayer(i, patch = {}) {
   return {
-    id: `u_p${i}`, name: ['A', 'B', 'C'][i] ?? `P${i}`, token: ['car', 'hat', 'dog'][i] ?? 'car',
-    cash: 1500, position: 0, properties: [], mortgaged: [],
-    inJail: false, jailTurns: 0, jailCards: 0, doubles: 0, bankrupt: false,
-    connected: true, isHost: i === 0, isBot: false, hasRolled: false,
-    seatPin: '0000', controllerLabel: null, ...patch,
+    id: `u_p${i}`,
+    name: ['A', 'B', 'C'][i] ?? `P${i}`,
+    token: ['car', 'hat', 'dog'][i] ?? 'car',
+    cash: 1500,
+    position: 0,
+    properties: [],
+    mortgaged: [],
+    inJail: false,
+    jailTurns: 0,
+    jailCards: 0,
+    doubles: 0,
+    bankrupt: false,
+    connected: true,
+    isHost: i === 0,
+    isBot: false,
+    hasRolled: false,
+    seatPin: '0000',
+    controllerLabel: null,
+    ...patch,
   };
 }
 
 function mkRoom(patch = {}, n = 3) {
   const code = `UT${++seq}`;
   const room = {
-    code, status: 'playing', players: Array.from({ length: n }, (_, i) => mkPlayer(i)),
-    turnIndex: 0, dice: [1, 1], lastRoll: null, lastCard: null, pendingBuy: null,
-    trades: [], auction: null, buildings: {}, turnDeadline: Date.now() + 60000,
-    auctionQueue: [], lastActivity: Date.now(), pausedAt: null, boardStyle: 'grandprix',
-    log: [], winnerId: null, turnCount: 5, rollingId: null, rev: 0, ...patch,
+    code,
+    status: 'playing',
+    players: Array.from({ length: n }, (_, i) => mkPlayer(i)),
+    turnIndex: 0,
+    dice: [1, 1],
+    lastRoll: null,
+    lastCard: null,
+    pendingBuy: null,
+    trades: [],
+    auction: null,
+    buildings: {},
+    turnDeadline: Date.now() + 60000,
+    auctionQueue: [],
+    lastActivity: Date.now(),
+    pausedAt: null,
+    boardStyle: 'grandprix',
+    log: [],
+    winnerId: null,
+    turnCount: 5,
+    rollingId: null,
+    rev: 0,
+    ...patch,
   };
   rooms.set(code, room);
   return room;
@@ -127,8 +159,10 @@ function cleanup(room) {
 {
   const r = mkRoom({ players: [mkPlayer(0, { hasRolled: true }), mkPlayer(1), mkPlayer(2)] });
   resolveTurnTimeout(r.code, r.turnCount);
-  check('timeout after roll advances',
-    r.turnIndex === 1 && r.turnCount === 6 && r.players[1].hasRolled === false && r.pendingBuy === null);
+  check(
+    'timeout after roll advances',
+    r.turnIndex === 1 && r.turnCount === 6 && r.players[1].hasRolled === false && r.pendingBuy === null,
+  );
   cleanup(r);
 }
 
@@ -136,14 +170,18 @@ function cleanup(room) {
 {
   const r = mkRoom({ players: [mkPlayer(0, { hasRolled: true }), mkPlayer(1), mkPlayer(2)], pendingBuy: 1 });
   resolveTurnTimeout(r.code, r.turnCount);
-  check('timeout auctions pendingBuy',
-    r.pendingBuy === null && r.auction !== null && r.auction.tile === 1 && r.turnIndex === 1);
+  check(
+    'timeout auctions pendingBuy',
+    r.pendingBuy === null && r.auction !== null && r.auction.tile === 1 && r.turnIndex === 1,
+  );
   cleanup(r);
 }
 
 // --- broke at timeout goes bankrupt (3 seats, game continues) -----------------
 {
-  const r = mkRoom({ players: [mkPlayer(0, { hasRolled: true, cash: -50, properties: [1] }), mkPlayer(1), mkPlayer(2)] });
+  const r = mkRoom({
+    players: [mkPlayer(0, { hasRolled: true, cash: -50, properties: [1] }), mkPlayer(1), mkPlayer(2)],
+  });
   resolveTurnTimeout(r.code, r.turnCount);
   const me = r.players.find((p) => p.id === 'u_p0');
   check('timeout bankrupt when broke', me.bankrupt === true && r.status === 'playing' && r.turnIndex !== 0);
@@ -154,8 +192,10 @@ function cleanup(room) {
 {
   const r = mkRoom({ players: [mkPlayer(0, { bankrupt: true, hasRolled: true }), mkPlayer(1), mkPlayer(2)] });
   resolveTurnTimeout(r.code, r.turnCount);
-  check('timeout skips bankrupt seat',
-    r.turnIndex === 1 && r.players[1].bankrupt === false && r.players[2].bankrupt === false);
+  check(
+    'timeout skips bankrupt seat',
+    r.turnIndex === 1 && r.players[1].bankrupt === false && r.players[2].bankrupt === false,
+  );
   cleanup(r);
 }
 
@@ -208,8 +248,19 @@ function cleanup(room) {
 
 // --- rent tiers: level N charges the N-house price, hotel the top tier -----
 {
-  const { BOARD, rentFor } = await import('@monopoly/shared');  const roomFor = (level) => ({ players: [{ id: 'o', properties: [1, 3], mortgaged: [] }], buildings: level > 0 ? { 1: level } : {} });
-  const expected = [BOARD[1].rent[1], BOARD[1].rent[2], BOARD[1].rent[3], BOARD[1].rent[4], BOARD[1].rent[5], BOARD[1].rent[6]];
+  const { BOARD, rentFor } = await import('@monopoly/shared');
+  const roomFor = (level) => ({
+    players: [{ id: 'o', properties: [1, 3], mortgaged: [] }],
+    buildings: level > 0 ? { 1: level } : {},
+  });
+  const expected = [
+    BOARD[1].rent[1],
+    BOARD[1].rent[2],
+    BOARD[1].rent[3],
+    BOARD[1].rent[4],
+    BOARD[1].rent[5],
+    BOARD[1].rent[6],
+  ];
   const got = [1, 2, 3, 4, 5].map((lv) => rentFor(roomFor(lv), 1, 7));
   check('rent level maps to tier', JSON.stringify(got) === JSON.stringify(expected.slice(1)));
   check('rent hotel premium', BOARD[1].rent[6] > BOARD[1].rent[5]);
@@ -232,7 +283,14 @@ function cleanup(room) {
   process.env.LOG_FILE = tmp;
   process.env.DEBUG_LOG = '1';
   dbg.dlog({ evt: 'test.one', code: 'XX', turn: 3, msg: 'hi' });
-  dbg.dlog({ evt: 'test.circ', bad: (() => { const o = {}; o.self = o; return o; })() });
+  dbg.dlog({
+    evt: 'test.circ',
+    bad: (() => {
+      const o = {};
+      o.self = o;
+      return o;
+    })(),
+  });
   await new Promise((r) => setTimeout(r, 150)); // let the async append land
   const tail = dbg.tailLog(10);
   check('journal writes JSONL', tail.length >= 1 && JSON.parse(tail[0]).evt === 'test.one');
@@ -248,24 +306,38 @@ function cleanup(room) {
 
 // --- theme art validator: WebP probe + warnings ------------------------------------
 {
-  const { probeWebp, sniffKind } = await import('../dist/themes.js');
+  const { probeWebp, sniffKind } = await import('../dist/themes-webp.js');
   const riff = (fourcc, payload) => {
-    const size = Buffer.alloc(4); size.writeUInt32LE(payload.length, 0);
-    return Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBP'), Buffer.from(fourcc), size, payload]);
+    const size = Buffer.alloc(4);
+    size.writeUInt32LE(payload.length, 0);
+    return Buffer.concat([
+      Buffer.from('RIFF'),
+      Buffer.alloc(4),
+      Buffer.from('WEBP'),
+      Buffer.from(fourcc),
+      size,
+      payload,
+    ]);
   };
   const vp8 = riff('VP8 ', Buffer.from([0, 0, 0, 0x9d, 0x01, 0x2a, 0x00, 0x02, 0x00, 0x02, 0x00]));
   check('probe VP8 512', JSON.stringify(probeWebp(vp8)) === JSON.stringify({ w: 512, h: 512 }));
   const vp8l = Buffer.concat([riff('VP8L', Buffer.from([0x2f, 0xff, 0xc1, 0x7f, 0x00])), Buffer.alloc(8)]);
   check('probe VP8L 512', JSON.stringify(probeWebp(vp8l)) === JSON.stringify({ w: 512, h: 512 }));
-  const xpix = Buffer.alloc(3); xpix.writeUIntLE(904, 0, 3);
-  const ypix = Buffer.alloc(3); ypix.writeUIntLE(882, 0, 3);
+  const xpix = Buffer.alloc(3);
+  xpix.writeUIntLE(904, 0, 3);
+  const ypix = Buffer.alloc(3);
+  ypix.writeUIntLE(882, 0, 3);
   const vp8x = riff('VP8X', Buffer.concat([Buffer.from([0x10, 0, 0, 0]), xpix, ypix]));
   check('probe VP8X 905x883', JSON.stringify(probeWebp(vp8x)) === JSON.stringify({ w: 905, h: 883 }));
   check('probe garbage null', probeWebp(Buffer.from('definitely not an image file....')) === null);
   check('probe truncated null', probeWebp(Buffer.alloc(10)) === null);
-  check('sniff png/jpeg/webp', sniffKind(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0])) === 'png'
-    && sniffKind(Buffer.from([0xff, 0xd8, 0xff, 0])) === 'jpeg'
-    && sniffKind(vp8) === 'webp' && sniffKind(Buffer.from('xyz')) === null);
+  check(
+    'sniff png/jpeg/webp',
+    sniffKind(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0])) === 'png' &&
+      sniffKind(Buffer.from([0xff, 0xd8, 0xff, 0])) === 'jpeg' &&
+      sniffKind(vp8) === 'webp' &&
+      sniffKind(Buffer.from('xyz')) === null,
+  );
 }
 {
   // Warnings fire for bad geometry, weight, and renamed uploads.
@@ -273,17 +345,36 @@ function cleanup(room) {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'monopoly-art-'));
   fs.mkdirSync(path.join(base, 'odd'), { recursive: true });
   const riff = (fourcc, payload) => {
-    const size = Buffer.alloc(4); size.writeUInt32LE(payload.length, 0);
-    return Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBP'), Buffer.from(fourcc), size, payload]);
+    const size = Buffer.alloc(4);
+    size.writeUInt32LE(payload.length, 0);
+    return Buffer.concat([
+      Buffer.from('RIFF'),
+      Buffer.alloc(4),
+      Buffer.from('WEBP'),
+      Buffer.from(fourcc),
+      size,
+      payload,
+    ]);
   };
-  const tall = (w, h) => riff('VP8 ', Buffer.concat([Buffer.from([0, 0, 0, 0x9d, 0x01, 0x2a]), Buffer.from([w & 0xff, (w >> 8) & 0xff, h & 0xff, (h >> 8) & 0xff]), Buffer.from([0])]));
+  const tall = (w, h) =>
+    riff(
+      'VP8 ',
+      Buffer.concat([
+        Buffer.from([0, 0, 0, 0x9d, 0x01, 0x2a]),
+        Buffer.from([w & 0xff, (w >> 8) & 0xff, h & 0xff, (h >> 8) & 0xff]),
+        Buffer.from([0]),
+      ]),
+    );
   fs.writeFileSync(path.join(base, 'odd', 'odd-center.webp'), tall(100, 200)); // small + not square
   const heavy = Buffer.concat([tall(512, 512), Buffer.alloc(90 * 1024)]); // valid dims, overweight
   fs.writeFileSync(path.join(base, 'odd', 'odd-tile-blue.webp'), heavy);
   fs.writeFileSync(path.join(base, 'odd', 'odd-tile-red.webp'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4])); // renamed PNG
   const [t] = discoverThemes(base);
   const w = t.warnings.join('|');
-  check('warns geometry+weight+rename', /not square/.test(w) && /small/.test(w) && /heavy/.test(w) && /PNG renamed/.test(w));
+  check(
+    'warns geometry+weight+rename',
+    /not square/.test(w) && /small/.test(w) && /heavy/.test(w) && /PNG renamed/.test(w),
+  );
   check('missing listed', t.missing.includes('brown') && !t.missing.includes('blue'));
   fs.rmSync(base, { recursive: true, force: true });
 }
@@ -299,12 +390,20 @@ function cleanup(room) {
   const ids = found.map((t) => t.id).sort();
   check('discovers nested + flat themes', JSON.stringify(ids) === JSON.stringify(['discworld', 'flat']));
   const dw = found.find((t) => t.id === 'discworld');
-  check('discworld center + tiles', dw?.center === '/themes/discworld/discworld-center.webp' && dw.tiles.includes('blue') && dw.tileArt.blue === '/themes/discworld/discworld-tile-blue.webp');
+  check(
+    'discworld center + tiles',
+    dw?.center === '/themes/discworld/discworld-center.webp' &&
+      dw.tiles.includes('blue') &&
+      dw.tileArt.blue === '/themes/discworld/discworld-tile-blue.webp',
+  );
   check('ignores non-center files', !found.some((t) => t.id === 'notes'));
   check('prettify', prettifyThemeName('dinosaur-park') === 'Dinosaur Park');
   check('builtin known', isKnownStyle('city', base) === true);
   check('discovered known', isKnownStyle('discworld', base) === true);
-  check('bogus rejected', isKnownStyle('maze', base) === false && isKnownStyle('', base) === false && isKnownStyle(null, base) === false);
+  check(
+    'bogus rejected',
+    isKnownStyle('maze', base) === false && isKnownStyle('', base) === false && isKnownStyle(null, base) === false,
+  );
   check('missing dir safe', discoverThemes(path.join(base, 'nope')).length === 0);
   fs.rmSync(base, { recursive: true, force: true });
 }
@@ -314,14 +413,31 @@ function cleanup(room) {
   const { sweepRooms } = await import('../dist/core/hygiene.js');
   const H = 60 * 60 * 1000;
   const now = Date.now();
-  const seat = (connected) => ({ id: `h_${Math.random()}`, connected });
+  let hSeq = 0;
+  const seat = (connected) => ({ id: `h_${++hSeq}`, connected });
   const fixture = (code, status, idleMs, conns) => {
     const room = {
-      code, status, players: conns.map(seat), turnIndex: 0, dice: [1, 1],
-      lastRoll: null, lastCard: null, pendingBuy: null, trades: [], auction: null,
-      buildings: {}, turnDeadline: null, auctionQueue: [], lastActivity: now - idleMs,
-      pausedAt: null, boardStyle: 'grandprix', log: [], winnerId: null,
-      turnCount: 1, rollingId: null, rev: 0,
+      code,
+      status,
+      players: conns.map(seat),
+      turnIndex: 0,
+      dice: [1, 1],
+      lastRoll: null,
+      lastCard: null,
+      pendingBuy: null,
+      trades: [],
+      auction: null,
+      buildings: {},
+      turnDeadline: null,
+      auctionQueue: [],
+      lastActivity: now - idleMs,
+      pausedAt: null,
+      boardStyle: 'grandprix',
+      log: [],
+      winnerId: null,
+      turnCount: 1,
+      rollingId: null,
+      rev: 0,
     };
     rooms.set(code, room);
     return room;
@@ -335,10 +451,14 @@ function cleanup(room) {
   fixture('HZ-LIVE-GAME', 'playing', 10 * H, [true, false]);
   fixture('HZ-PAUSED-DEAD', 'paused', 3 * H, [false]);
   const purged = sweepRooms(now).sort();
-  check('hygiene purges stale set',
-    JSON.stringify(purged) === JSON.stringify(['HZ-DEAD-GAME', 'HZ-DONE', 'HZ-OLD-LOBBY', 'HZ-PAUSED-DEAD']));
-  check('hygiene keeps live set',
-    rooms.has('HZ-FRESH-LOBBY') && rooms.has('HZ-DONE-FRESH') && rooms.has('HZ-IDLE-GAME') && rooms.has('HZ-LIVE-GAME'));
+  check(
+    'hygiene purges stale set',
+    JSON.stringify(purged) === JSON.stringify(['HZ-DEAD-GAME', 'HZ-DONE', 'HZ-OLD-LOBBY', 'HZ-PAUSED-DEAD']),
+  );
+  check(
+    'hygiene keeps live set',
+    rooms.has('HZ-FRESH-LOBBY') && rooms.has('HZ-DONE-FRESH') && rooms.has('HZ-IDLE-GAME') && rooms.has('HZ-LIVE-GAME'),
+  );
   for (const c of ['HZ-FRESH-LOBBY', 'HZ-DONE-FRESH', 'HZ-IDLE-GAME', 'HZ-LIVE-GAME']) {
     rooms.delete(c);
     forgetRoom(c);
@@ -352,17 +472,37 @@ function cleanup(room) {
   const H = 60 * 60 * 1000;
   const now = Date.now();
   const room = {
-    code: 'HZ-TIMER', status: 'playing',
-    players: [{ id: 'h_t1', connected: true }, { id: 'h_t2', connected: true }],
-    turnIndex: 0, dice: [1, 1], lastRoll: null, lastCard: null, pendingBuy: null,
-    trades: [], auction: null, buildings: {}, turnDeadline: null, auctionQueue: [],
-    lastActivity: now - 3 * H, pausedAt: null, boardStyle: 'grandprix', log: [],
-    winnerId: null, turnCount: 1, rollingId: null, rev: 0,
+    code: 'HZ-TIMER',
+    status: 'playing',
+    players: [
+      { id: 'h_t1', connected: true },
+      { id: 'h_t2', connected: true },
+    ],
+    turnIndex: 0,
+    dice: [1, 1],
+    lastRoll: null,
+    lastCard: null,
+    pendingBuy: null,
+    trades: [],
+    auction: null,
+    buildings: {},
+    turnDeadline: null,
+    auctionQueue: [],
+    lastActivity: now - 3 * H,
+    pausedAt: null,
+    boardStyle: 'grandprix',
+    log: [],
+    winnerId: null,
+    turnCount: 1,
+    rollingId: null,
+    rev: 0,
   };
   rooms.set(room.code, room);
   armTurnTimer(room); // connected current → real 60s timer
   const armed = tt.has(room.code);
-  room.players.forEach((p) => { p.connected = false; });
+  room.players.forEach((p) => {
+    p.connected = false;
+  });
   sweepRooms(now);
   check('hygiene purge clears timer', armed && !tt.has(room.code) && !rooms.has(room.code));
   forgetRoom(room.code);
@@ -371,20 +511,43 @@ function cleanup(room) {
   // Over-cap evicts oldest non-playing first, never playing.
   const { sweepRooms } = await import('../dist/core/hygiene.js');
   const now = Date.now();
-  const mk = (code, status, age) => rooms.set(code, {
-    code, status, players: [{ id: `${code}p`, connected: status === 'playing' }],
-    turnIndex: 0, dice: [1, 1], lastRoll: null, lastCard: null, pendingBuy: null,
-    trades: [], auction: null, buildings: {}, turnDeadline: null, auctionQueue: [],
-    lastActivity: now - age, pausedAt: null, boardStyle: 'grandprix', log: [],
-    winnerId: null, turnCount: 1, rollingId: null, rev: 0,
-  });
+  const mk = (code, status, age) =>
+    rooms.set(code, {
+      code,
+      status,
+      players: [{ id: `${code}p`, connected: status === 'playing' }],
+      turnIndex: 0,
+      dice: [1, 1],
+      lastRoll: null,
+      lastCard: null,
+      pendingBuy: null,
+      trades: [],
+      auction: null,
+      buildings: {},
+      turnDeadline: null,
+      auctionQueue: [],
+      lastActivity: now - age,
+      pausedAt: null,
+      boardStyle: 'grandprix',
+      log: [],
+      winnerId: null,
+      turnCount: 1,
+      rollingId: null,
+      rev: 0,
+    });
   mk('HZ-CAP-OLD', 'lobby', 3000);
   mk('HZ-CAP-NEW', 'lobby', 1000);
   mk('HZ-CAP-PLAY', 'playing', 2000);
   mk('HZ-CAP-DONE', 'finished', 500);
   const purged = sweepRooms(now, 3);
-  check('hygiene cap evicts oldest non-playing', purged.length === 1 && purged[0] === 'HZ-CAP-OLD' && rooms.has('HZ-CAP-PLAY'));
-  for (const c of ['HZ-CAP-NEW', 'HZ-CAP-PLAY', 'HZ-CAP-DONE']) { rooms.delete(c); forgetRoom(c); }
+  check(
+    'hygiene cap evicts oldest non-playing',
+    purged.length === 1 && purged[0] === 'HZ-CAP-OLD' && rooms.has('HZ-CAP-PLAY'),
+  );
+  for (const c of ['HZ-CAP-NEW', 'HZ-CAP-PLAY', 'HZ-CAP-DONE']) {
+    rooms.delete(c);
+    forgetRoom(c);
+  }
 }
 
 // --- history is a safe no-op without DATABASE_URL --------------------------------
@@ -404,8 +567,13 @@ function cleanup(room) {
 // --- bots ----------------------------------------------------------------------
 // Brown set is tiles [1, 3] (both houseCost $50).
 {
-  check('shouldBuy keeps buffer', shouldBuy(500, 400) === true && shouldBuy(450, 400) === false && shouldBuy(500, 400) === true);
-  const r = mkRoom({ players: [mkPlayer(0, { isBot: true, properties: [1, 3], cash: 1000 }), mkPlayer(1), mkPlayer(2)] });
+  check(
+    'shouldBuy keeps buffer',
+    shouldBuy(500, 400) === true && shouldBuy(450, 400) === false && shouldBuy(500, 400) === true,
+  );
+  const r = mkRoom({
+    players: [mkPlayer(0, { isBot: true, properties: [1, 3], cash: 1000 }), mkPlayer(1), mkPlayer(2)],
+  });
   const me = r.players[0];
   check('pickBuildTile picks cheapest lowest', pickBuildTile(r, me) === 1);
   me.mortgaged.push(3);
@@ -436,19 +604,37 @@ function cleanup(room) {
 }
 {
   // Flight recorder: buy + build show up in the trace (brown set owned).
-  const r = mkRoom({ players: [mkPlayer(0, { isBot: true, properties: [1, 3], cash: 1000, position: 6, hasRolled: true }), mkPlayer(1), mkPlayer(2)] });
+  const r = mkRoom({
+    players: [
+      mkPlayer(0, { isBot: true, properties: [1, 3], cash: 1000, position: 6, hasRolled: true }),
+      mkPlayer(1),
+      mkPlayer(2),
+    ],
+  });
   r.pendingBuy = 6; // Oriental Ave $100 — affordable
   const trace = [];
   botTakeTurn(r, r.players[0], trace);
   const kinds = trace.map((e) => e.t).join(',');
-  check('trace records buy', trace.some((e) => e.t === 'buy' && e.ok && e.detail.includes('Oriental')));
+  check(
+    'trace records buy',
+    trace.some((e) => e.t === 'buy' && e.ok && e.detail.includes('Oriental')),
+  );
   check('trace records build + end', kinds.includes('build') && kinds.endsWith('end'));
-  check('trace entries shaped', trace.every((e) => typeof e.detail === 'string' && typeof e.ok === 'boolean'));
+  check(
+    'trace entries shaped',
+    trace.every((e) => typeof e.detail === 'string' && typeof e.ok === 'boolean'),
+  );
   cleanup(r);
 }
 {
   // Unmortgage cheapest-first while rich; nothing when poor.
-  const r = mkRoom({ players: [mkPlayer(0, { isBot: true, properties: [1, 3], mortgaged: [1, 3], cash: 1000 }), mkPlayer(1), mkPlayer(2)] });
+  const r = mkRoom({
+    players: [
+      mkPlayer(0, { isBot: true, properties: [1, 3], mortgaged: [1, 3], cash: 1000 }),
+      mkPlayer(1),
+      mkPlayer(2),
+    ],
+  });
   const me = r.players[0];
   check('pickUnmortgageTile cheapest', pickUnmortgageTile(r, me) === 1);
   me.cash = 100;
@@ -461,7 +647,9 @@ function cleanup(room) {
 }
 {
   // Flight recorder: pass records fate (opens auction here — cleared below).
-  const r = mkRoom({ players: [mkPlayer(0, { isBot: true, cash: 50, position: 6, hasRolled: true }), mkPlayer(1), mkPlayer(2)] });
+  const r = mkRoom({
+    players: [mkPlayer(0, { isBot: true, cash: 50, position: 6, hasRolled: true }), mkPlayer(1), mkPlayer(2)],
+  });
   r.pendingBuy = 6;
   const trace = [];
   botTakeTurn(r, r.players[0], trace);
@@ -487,8 +675,10 @@ function cleanup(room) {
 {
   const r = mkRoom();
   check('pass opens when slot free', queueOrOpenAuction(r, 1, 'u_p0') === 'open' && r.auction?.tile === 1);
-  check('pass queues behind live auction',
-    queueOrOpenAuction(r, 3, 'u_p1') === 'queued' && r.auction?.tile === 1 && r.auctionQueue.includes(3));
+  check(
+    'pass queues behind live auction',
+    queueOrOpenAuction(r, 3, 'u_p1') === 'queued' && r.auction?.tile === 1 && r.auctionQueue.includes(3),
+  );
   // A second pass for the SAME tile doesn't duplicate the queue entry.
   queueOrOpenAuction(r, 3, 'u_p1');
   check('queue dedupes tile', r.auctionQueue.filter((t) => t === 3).length === 1);
@@ -503,7 +693,13 @@ function cleanup(room) {
   // Highest bid wins a bank deed.
   const r = mkRoom();
   const now = Date.now();
-  r.auction = { id: 'a1', tile: 1, startedBy: 'u_p0', bids: [{ playerId: 'u_p1', amount: 50, at: now }], endsAt: now + 30000 };
+  r.auction = {
+    id: 'a1',
+    tile: 1,
+    startedBy: 'u_p0',
+    bids: [{ playerId: 'u_p1', amount: 50, at: now }],
+    endsAt: now + 30000,
+  };
   resolveAuction(r.code, 'a1');
   const p1 = r.players[1];
   check('auction awards bank deed', p1.properties.includes(1) && p1.cash === 1450 && r.auction === null);
@@ -523,10 +719,18 @@ function cleanup(room) {
   const r = mkRoom({ players: [mkPlayer(0, { properties: [1] }), mkPlayer(1), mkPlayer(2)] });
   const now = Date.now();
   const cashBefore = r.players[1].cash;
-  r.auction = { id: 'a2', tile: 1, startedBy: 'u_p0', bids: [{ playerId: 'u_p1', amount: 50, at: now }], endsAt: now + 30000 };
+  r.auction = {
+    id: 'a2',
+    tile: 1,
+    startedBy: 'u_p0',
+    bids: [{ playerId: 'u_p1', amount: 50, at: now }],
+    endsAt: now + 30000,
+  };
   resolveAuction(r.code, 'a2');
-  check('auction voids sold deed',
-    !r.players[1].properties.includes(1) && r.players[1].cash === cashBefore && r.auction === null);
+  check(
+    'auction voids sold deed',
+    !r.players[1].properties.includes(1) && r.players[1].cash === cashBefore && r.auction === null,
+  );
   cleanup(r);
 }
 
@@ -534,7 +738,10 @@ function cleanup(room) {
 // Wire the test double for the turn clock (mirrors index.ts boot wiring).
 let armCalls = 0;
 injectAuctionClock(
-  (room) => { armCalls++; room.turnDeadline = Date.now() + 60000; },
+  (room) => {
+    armCalls++;
+    room.turnDeadline = Date.now() + 60000;
+  },
   (code) => clearTurnTimer(code),
 );
 {
@@ -589,42 +796,92 @@ injectAuctionClock(
   cleanup(r);
 }
 
+// --- bankruptcy clock injection: removeSeat re-arms without importing timers ---
+// (bankruptcy → timers → bankruptcy was a madge cycle; the hook is injected
+// at boot like injectAuctionClock/injectArmTurnTimer.)
+let bankArmCalls = 0;
+{
+  const { removeSeat, injectBankruptcyClock } = await import('../dist/core/bankruptcy.js');
+  injectBankruptcyClock(() => {
+    bankArmCalls++;
+  });
+  const r = mkRoom({ players: [mkPlayer(0), mkPlayer(1), mkPlayer(2)] });
+  removeSeat(r, r.players[2]);
+  check('removeSeat re-arms clock while playing', bankArmCalls === 1 && r.status === 'playing');
+  cleanup(r);
+}
+{
+  const { removeSeat } = await import('../dist/core/bankruptcy.js');
+  const before = bankArmCalls;
+  const r = mkRoom({ players: [mkPlayer(0), mkPlayer(1)] }, 2);
+  removeSeat(r, r.players[1]);
+  check('removeSeat silent on kick-to-finish', bankArmCalls === before && r.status === 'finished');
+  cleanup(r);
+}
+
 // --- flow review fixes ---------------------------------------------------------
 {
   check('UNMORTGAGE_RATE is 0.6', UNMORTGAGE_RATE === 0.6);
 }
 {
   // Bot with exactly $50 pays jail fine (matches human payJail rule).
-  const r = mkRoom({ players: [mkPlayer(0, { isBot: true, inJail: true, cash: 50 }), mkPlayer(1)] });
-  const me = r.players[0];
-  const trace = [];
-  botTakeTurn(r, me, trace);
-  check('bot with $50 pays out of jail', trace.some((e) => e.t === 'jail' && e.ok && e.detail === 'paid-50') && me.cash === 0 && !me.inJail);
-  cleanup(r);
+  // Dice pinned: the post-release roll is random (tax/cards would move cash),
+  // so stub it to 1+2 → Baltic Ave, which a broke bot passes cash-neutral.
+  const realRandom = Math.random;
+  const stub = [0.01, 0.2];
+  Math.random = () => stub.shift() ?? 0.5;
+  try {
+    const r = mkRoom({ players: [mkPlayer(0, { isBot: true, inJail: true, cash: 50 }), mkPlayer(1)] });
+    const me = r.players[0];
+    const trace = [];
+    botTakeTurn(r, me, trace);
+    check(
+      'bot with $50 pays out of jail',
+      trace.some((e) => e.t === 'jail' && e.ok && e.detail === 'paid-50') && me.cash === 0 && !me.inJail,
+    );
+    cleanup(r);
+  } finally {
+    Math.random = realRandom;
+  }
 }
 {
   // pruneTrades logs expired offers to room.log.
   const r = mkRoom({
     players: [mkPlayer(0), mkPlayer(1)],
-    trades: [{
-      id: 't_exp', fromId: 'u_p0', toId: 'u_p1',
-      giveTiles: [], giveCash: 50, giveCards: 0, wantTiles: [], wantCash: 0, wantCards: 0,
-      createdAt: Date.now() - 70000, expiresAt: Date.now() - 10000,
-    }],
+    trades: [
+      {
+        id: 't_exp',
+        fromId: 'u_p0',
+        toId: 'u_p1',
+        giveTiles: [],
+        giveCash: 50,
+        giveCards: 0,
+        wantTiles: [],
+        wantCash: 0,
+        wantCards: 0,
+        createdAt: Date.now() - 70000,
+        expiresAt: Date.now() - 10000,
+      },
+    ],
   });
   pruneTrades(r);
   check('pruneTrades drops expired offer', r.trades.length === 0);
-  check('pruneTrades logs expiration', r.log.some((l) => l.cat === 'trade' && l.text.includes('expired') && l.text.includes('A to B')));
+  check(
+    'pruneTrades logs expiration',
+    r.log.some((l) => l.cat === 'trade' && l.text.includes('expired') && l.text.includes('A to B')),
+  );
   cleanup(r);
 }
 {
   // pickMortgageTile prioritizes railroads and lone properties over full color sets.
   // Brown set = [1, 3], Reading Railroad = 5, Oriental (light blue) = 6.
   const r = mkRoom({
-    players: [mkPlayer(0, {
-      properties: [1, 3, 5, 6], // full brown set (1, 3) + RR (5) + lone light blue (6)
-      mortgaged: [],
-    })],
+    players: [
+      mkPlayer(0, {
+        properties: [1, 3, 5, 6], // full brown set (1, 3) + RR (5) + lone light blue (6)
+        mortgaged: [],
+      }),
+    ],
   });
   const me = r.players[0];
   check('pickMortgageTile picks railroad first', pickMortgageTile(r, me) === 5);
@@ -635,5 +892,231 @@ injectAuctionClock(
   cleanup(r);
 }
 
+// --- regression cover for sibling-bug fixes ------------------------------------
+{
+  const shared = await import('@monopoly/shared');
+  const { BOARD, COLOR_HEX, GAME_ERRORS, MAX_BID, MAX_LOG_ENTRIES, MAX_TRADE_CASH, MIN_BID } = shared;
+  check('BOARD has 40 tiles', BOARD.length === 40);
+  check(
+    'every property rent.length===7',
+    BOARD.filter((t) => t.kind === 'property').every((t) => t.rent.length === 7),
+  );
+  check('BOARD frozen', Object.isFrozen(BOARD));
+  check(
+    'COLOR_HEX frozen + covers sets',
+    Object.isFrozen(COLOR_HEX) &&
+      ['brown', 'lightblue', 'pink', 'orange', 'red', 'yellow', 'green', 'blue'].every(
+        (c) => typeof COLOR_HEX[c] === 'string',
+      ),
+  );
+  check(
+    'railroads 4x$200',
+    BOARD.filter((t) => t.kind === 'railroad').length === 4 &&
+      BOARD.filter((t) => t.kind === 'railroad').every((t) => t.price === 200),
+  );
+  check('utilities 2x$150', BOARD.filter((t) => t.kind === 'utility').length === 2);
+  check('tilePrice OOB safe', shared.tilePrice(999) === 0 && shared.tilePrice(-1) === 0);
+  check('tileName OOB safe', typeof shared.tileName(999) === 'string');
+  check('GameError has NOTHING_TO_PASS', GAME_ERRORS.includes('NOTHING_TO_PASS'));
+  check('MAX_BID caps bids', MAX_BID === 100000 && MIN_BID === 10 && MAX_TRADE_CASH === 100000);
+  check('MAX_LOG_ENTRIES is 80', MAX_LOG_ENTRIES === 80);
+}
+{
+  const { rentFor, applyCardEffect, netWorth } = await import('@monopoly/shared');
+  const own = (tile, bankrupt = false) => ({
+    players: [{ id: 'o', properties: [tile, 3], mortgaged: [], bankrupt }],
+    buildings: {},
+  });
+  check(
+    'rentFor NaN level falls back to base',
+    Number.isFinite(
+      rentFor({ players: [{ id: 'o', properties: [1, 3], mortgaged: [] }], buildings: { 1: NaN } }, 1, 7),
+    ),
+  );
+  check(
+    'rentFor Infinity level clamps to hotel-or-base',
+    Number.isFinite(
+      rentFor({ players: [{ id: 'o', properties: [1, 3], mortgaged: [] }], buildings: { 1: Infinity } }, 1, 7),
+    ),
+  );
+  check('rentFor bankrupt owner excluded', rentFor(own(1, true), 1, 7) === 0);
+  check(
+    'rentFor utility NaN dice is 0',
+    rentFor({ players: [{ id: 'o', properties: [12, 28], mortgaged: [] }], buildings: {} }, 12, NaN) === 0,
+  );
+  check('rentFor OOB tile is 0', rentFor({ players: [], buildings: {} }, 999, 7) === 0);
+  const p1 = { cash: NaN, jailCards: 0, position: 0, inJail: false, jailTurns: 0 };
+  applyCardEffect(p1, { cash: 100 });
+  check('applyCardEffect heals NaN cash', p1.cash === 1600);
+  const p2 = { cash: 1500, jailCards: 0, position: 5, inJail: false, jailTurns: 0 };
+  applyCardEffect(p2, { jailCards: -5 });
+  check('applyCardEffect clamps jailCards >=0', p2.jailCards === 0);
+  const bad = { bankrupt: false, cash: NaN, properties: [1], mortgaged: 'x', jailCards: 0 };
+  check(
+    'netWorth survives corrupt snapshot',
+    netWorth(bad, { buildings: { 1: NaN } }) === 60 + 0 || Number.isFinite(netWorth(bad, { buildings: { 1: NaN } })),
+  );
+}
+{
+  const { makePlayer, resetPlayer } = await import('../dist/core/player.js');
+  const roster = [];
+  const a = makePlayer(roster, 'Anu', 'car', { isHost: true, controllerLabel: 'TV' });
+  roster.push(a);
+  const b = makePlayer(roster, 'Anu', 'dog', {});
+  check('makePlayer uniqueName suffix', b.name === 'Anu 2' && a.cash === 1500 && a.seatPin.length === 4);
+  b.cash = NaN;
+  b.position = 999;
+  b.properties = [1];
+  resetPlayer(b);
+  check('resetPlayer restores cash/position/deeds', b.cash === 1500 && b.position === 0 && b.properties.length === 0);
+}
+{
+  const { setRolling, clearRolling } = await import('../dist/core/rolling.js');
+  const r = mkRoom();
+  setRolling(r, r.players[0].id);
+  check('setRolling sets flag without emit crash', r.rollingId === r.players[0].id);
+  check('clearRolling wrong pid false', clearRolling(r, 'nope') === false && r.rollingId === r.players[0].id);
+  check('clearRolling owner true', clearRolling(r, r.players[0].id) === true && r.rollingId === null);
+  cleanup(r);
+}
+{
+  const { normCash, normTiles, normCards, applyTradeSwap } = await import('../dist/core/trade.js');
+  check(
+    'normCash rejects NaN/Infinity/fraction/over-cap',
+    normCash(NaN) === null &&
+      normCash(Infinity) === null &&
+      normCash(1.5) === null &&
+      normCash(100001) === null &&
+      normCash(50) === 50,
+  );
+  check(
+    'normTiles rejects OOB/dupes',
+    normTiles([1, 1]) === null && normTiles([999]) === null && JSON.stringify(normTiles([1])) === JSON.stringify([1]),
+  );
+  check('normCards rejects negative/huge', normCards(-1) === null && normCards(21) === null && normCards(2) === 2);
+  const from = { properties: [1], cash: NaN, jailCards: 0 };
+  const me = { properties: [3], cash: 1500, jailCards: 1 };
+  applyTradeSwap(from, me, { giveTiles: [1], wantTiles: [3], giveCash: 0, wantCash: 0, giveCards: 1, wantCards: 0 });
+  check(
+    'applyTradeSwap heals NaN + clamps cards',
+    Number.isFinite(from.cash) && Number.isFinite(me.cash) && from.jailCards >= 0 && me.jailCards >= 0,
+  );
+}
+{
+  // Auction resolve drops corrupt bids instead of NaN-ing the winner.
+  const r = mkRoom({ players: [mkPlayer(0, { cash: 1500 }), mkPlayer(1, { cash: 1500 })] });
+  r.auction = {
+    id: 'a1',
+    tile: 1,
+    startedBy: 'u_p0',
+    bids: [
+      { playerId: 'u_p0', amount: NaN, at: 1 },
+      { playerId: 'u_p1', amount: 100, at: 2 },
+    ],
+    endsAt: Date.now() + 30000,
+  };
+  resolveAuction(r.code, 'a1');
+  check('resolveAuction ignores NaN bid', r.players[1].properties.includes(1) && r.players[1].cash === 1400);
+  cleanup(r);
+}
+{
+  // sellHouse full-set rule: single deed of a set cannot unwind houses.
+  const { sellSetEvenly } = await import('../dist/core/houses.js');
+  const r = mkRoom({ players: [mkPlayer(0, { properties: [1] })], buildings: { 1: 2 } });
+  const out = sellSetEvenly(r, r.players[0], 1);
+  check('sellSetEvenly needs full set', out.sold === 0);
+  cleanup(r);
+}
+{
+  // IO boundary: only broadcast.ts touches socket.io.
+  const fsMod = await import('fs');
+  const seatSrc = fsMod.readFileSync(new URL('../src/core/seat.ts', import.meta.url), 'utf8');
+  const bcast = await import('../dist/core/broadcast.js');
+  check('seat delegates evict via broadcast', typeof bcast.notifyEvicted === 'function' && !/getIo\(\)/.test(seatSrc));
+}
+{
+  // migrateRoom: corrupt snapshots heal, bad codes reject.
+  const { migrateRoom } = await import('../dist/core/migrate.js');
+  const bad = {
+    code: 'AB12CD',
+    status: 'limbo',
+    players: [
+      {
+        id: 'p0',
+        cash: NaN,
+        position: 999,
+        properties: [1, 999],
+        mortgaged: 'x',
+        jailCards: 99,
+        jailTurns: -1,
+        doubles: 2.5,
+      },
+    ],
+    turnIndex: -1,
+    turnCount: 1.5,
+    dice: [7],
+    lastRoll: null,
+    lastCard: null,
+    pendingBuy: 999,
+    trades: [{ giveCash: 999999, wantCash: 'x', giveCards: null, wantCards: -1, giveTiles: [1, 999], wantTiles: null }],
+    auction: { id: 'a', tile: 999, startedBy: 'p0', bids: [{ playerId: 'p0', amount: NaN, at: 1 }], endsAt: 1 },
+    buildings: { 1: 99, 3: 2 },
+    turnDeadline: null,
+    auctionQueue: [999, 5],
+    lastActivity: 0,
+    pausedAt: null,
+    boardStyle: 'maze',
+    log: 'x',
+    winnerId: null,
+    rollingId: 'p0',
+    rev: 0,
+  };
+  check(
+    'migrateRoom heals corrupt snapshot',
+    migrateRoom(bad) === true &&
+      bad.status === 'lobby' &&
+      bad.dice.join(',') === '1,1' &&
+      bad.pendingBuy === null &&
+      bad.players[0].cash === 1500 &&
+      bad.players[0].position === 0 &&
+      bad.players[0].jailCards === 20 &&
+      bad.buildings[1] === undefined &&
+      bad.buildings[3] === 2 &&
+      bad.auction === null &&
+      bad.boardStyle === 'classic' &&
+      bad.rollingId === null &&
+      Array.isArray(bad.log),
+  );
+  check('migrateRoom rejects bad code', migrateRoom({ ...structuredClone(bad), code: '!!!' }) === false);
+}
+{
+  // Bot survives corrupt cash instead of stalling on NaN.
+  const r = mkRoom({ players: [mkPlayer(0, { isBot: true, cash: NaN, properties: [] }), mkPlayer(1)] });
+  const me = r.players[0];
+  const trace = [];
+  botTakeTurn(r, me, trace);
+  check(
+    'bot heals NaN cash and ends turn',
+    Number.isFinite(me.cash) && trace.some((e) => e.t === 'end' || e.t === 'bankrupt'),
+  );
+  cleanup(r);
+}
+{
+  // Turn timeout bankrupts corrupt cash instead of advancing NaN.
+  const r = mkRoom({ players: [mkPlayer(0, { cash: NaN, hasRolled: true }), mkPlayer(1)] });
+  resolveTurnTimeout(r.code, r.turnCount);
+  check('timeout bankrupts NaN cash', r.players[0].bankrupt === true);
+  cleanup(r);
+}
+{
+  // Named timer buffers replace magic +500s.
+  const timers = await import('../dist/core/timers.js');
+  const auction = await import('../dist/core/auction.js');
+  check('timer slack constants named', timers.TURN_TIMER_SLACK_MS === 500 && auction.AUCTION_RESOLVE_BUFFER_MS === 500);
+}
+
 for (const l of results) console.log(l);
-if (rooms.size !== 0) { console.log(`FAIL cleanup leaked ${rooms.size} room(s)`); process.exitCode = 1; }
+if (rooms.size !== 0) {
+  console.log(`FAIL cleanup leaked ${rooms.size} room(s)`);
+  process.exitCode = 1;
+}

@@ -38,7 +38,9 @@ function persistNow() {
     localStorage.setItem(LS_KEY, JSON.stringify({ savedAt: Date.now(), entries: buf }));
     dirty = false;
     lastPersist = Date.now();
-  } catch { /* private mode / quota: memory buffer still works */ }
+  } catch {
+    /* private mode / quota: memory buffer still works */
+  }
 }
 
 function schedulePersist() {
@@ -58,7 +60,9 @@ function schedulePersist() {
       trailingTimer = null;
       persistNow();
     }, wait);
-  } catch { /* noop */ }
+  } catch {
+    /* noop */
+  }
 }
 
 function restore(): DbgEntry[] {
@@ -82,7 +86,9 @@ try {
     buf.push(...prev);
     buf.push({ at: Date.now(), evt: 'session', msg: `restored ${prev.length} entries from previous session` });
   }
-} catch { /* noop */ }
+} catch {
+  /* noop */
+}
 
 export function dlogc(evt: string, msg = '') {
   buf.push({ at: Date.now(), evt, msg });
@@ -90,7 +96,9 @@ export function dlogc(evt: string, msg = '') {
   try {
     // Mirror to console so browser devtools/inspect captures all events
     console.log(`[debug] ${evt}${msg ? `: ${msg}` : ''}`);
-  } catch { /* noop */ }
+  } catch {
+    /* noop */
+  }
   schedulePersist();
 }
 
@@ -108,11 +116,11 @@ export function debugBuffer(): DbgEntry[] {
 
 export function debugEnabled(search?: string): boolean {
   try {
-    const s = search ?? (typeof window !== 'undefined' ? window.location?.search ?? '' : '');
+    const s = search ?? (typeof window !== 'undefined' ? (window.location?.search ?? '') : '');
     const p = new URLSearchParams(s);
-    // Hardcoded enabled till stability; can still be explicitly disabled via ?debug=0
-    return p.get('debug') !== '0';
+    // Gated overlay: only ?debug=1 enables. Default off for party play.
+    return p.get('debug') === '1';
   } catch {
-    return true;
+    return false;
   }
 }

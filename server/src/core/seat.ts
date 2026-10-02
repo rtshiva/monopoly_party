@@ -9,24 +9,13 @@
  * in the controller's localStorage — it is NEVER broadcast in roomState.
  */
 import type { Player, RoomState } from '@monopoly/shared';
-import {
-  clearControllerSocket,
-  dropControl,
-  genPin,
-  getIo,
-  issueControl,
-  seatKeys,
-  seatSockets,
-} from '../store.js';
+import { clearControllerSocket, dropControl, genPin, issueControl, seatKeys, seatSockets } from '../store.js';
+import { notifyEvicted } from './broadcast.js';
 
 export { clearControllerSocket, dropControl, genPin, issueControl };
 
 /** Verify that a socket is the authorised controller for a seat. Returns the Player or null. */
-export function requireControl(
-  room: RoomState,
-  playerId: unknown,
-  key: unknown,
-): Player | null {
+export function requireControl(room: RoomState, playerId: unknown, key: unknown): Player | null {
   if (typeof playerId !== 'string' || typeof key !== 'string' || !key) return null;
   const me = room.players.find((p) => p.id === playerId);
   if (!me || me.bankrupt) return null;
@@ -39,7 +28,10 @@ export function controllerSocketOf(code: string, playerId: string): string | und
 
 export function setControllerSocket(code: string, playerId: string, socketId: string) {
   let m = seatSockets.get(code);
-  if (!m) { m = new Map(); seatSockets.set(code, m); }
+  if (!m) {
+    m = new Map();
+    seatSockets.set(code, m);
+  }
   m.set(playerId, socketId);
 }
 
@@ -47,15 +39,10 @@ export function setControllerSocket(code: string, playerId: string, socketId: st
  * If a different socket was driving this seat, send it an 'evicted' event,
  * then register the new socket as the controller.
  */
-export function evictPreviousController(
-  code: string,
-  playerId: string,
-  socketId: string,
-  byLabel: string,
-) {
+export function evictPreviousController(code: string, playerId: string, socketId: string, byLabel: string) {
   const prev = controllerSocketOf(code, playerId);
   if (prev && prev !== socketId) {
-    getIo().to(prev).emit('evicted', { seatId: playerId, by: byLabel });
+    notifyEvicted(prev, playerId, byLabel);
   }
   setControllerSocket(code, playerId, socketId);
 }

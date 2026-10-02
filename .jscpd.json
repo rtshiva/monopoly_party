@@ -1,0 +1,8 @@
+{
+  "threshold": 5,
+  "reporters": ["console"],
+  "ignore": ["**/dist/**", "**/coverage/**", "**/*.test.{ts,tsx}", "**/board.ts"],
+  "minLines": 30,
+  "minTokens": 150,
+  "gitignore": true
+}

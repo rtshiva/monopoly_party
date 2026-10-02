@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Player, RoomState } from '@monopoly/shared';
+import type { RoomState } from '@monopoly/shared';
 import { sndTick } from '../sound';
 
 /**

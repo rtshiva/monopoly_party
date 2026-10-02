@@ -2,5 +2,10 @@ node_modules/
 */dist/
 dist/
 server/data/
+server/coverage/
+client/coverage/
+coverage/
+.c8-report/
+.jscpd/
 .DS_Store
 *.local

@@ -1,9 +1,9 @@
-import { BOARD, fullSetOf } from "@monopoly/shared";
-import type { RoomState } from "@monopoly/shared";
+import { BOARD, fullSetOf } from '@monopoly/shared';
+import type { RoomState } from '@monopoly/shared';
 
 export interface SpotlightEvent {
   id: string;
-  kind: "rent" | "go" | "monopoly" | "jail" | "tax" | "auction" | "win" | "card";
+  kind: 'rent' | 'go' | 'monopoly' | 'jail' | 'tax' | 'auction' | 'win' | 'card';
   title: string;
   detail: string;
   badge: string;
@@ -18,15 +18,15 @@ export function extractSpotlightEvent(room: RoomState | null): SpotlightEvent | 
   if (!room) return null;
 
   // 1. Victory / Game over spotlight
-  if (room.status === "finished" && room.winnerId) {
+  if (room.status === 'finished' && room.winnerId) {
     const winner = room.players.find((p) => p.id === room.winnerId);
     return {
-      id: "win-" + room.winnerId + "-" + room.rev,
-      kind: "win",
-      title: "🏆 VICTORY!",
-      detail: (winner?.name ?? "Player") + " wins the game!",
-      badge: "👑 CHAMPION",
-      themeColor: "border-amber-400 bg-amber-500/20 text-amber-200 shadow-amber-500/50",
+      id: 'win-' + room.winnerId + '-' + room.rev,
+      kind: 'win',
+      title: '🏆 VICTORY!',
+      detail: (winner?.name ?? 'Player') + ' wins the game!',
+      badge: '👑 CHAMPION',
+      themeColor: 'border-amber-400 bg-amber-500/20 text-amber-200 shadow-amber-500/50',
     };
   }
 
@@ -37,12 +37,12 @@ export function extractSpotlightEvent(room: RoomState | null): SpotlightEvent | 
       const topBid = [...room.auction.bids].sort((a, b) => b.amount - a.amount)[0];
       const bidderName = topBid ? room.players.find((p) => p.id === topBid.playerId)?.name : null;
       return {
-        id: "auction-" + room.auction.id + "-" + secs,
-        kind: "auction",
-        title: "🔨 AUCTION CLIMAX!",
-        detail: topBid ? "Top bid: $" + topBid.amount + " by " + bidderName : "Going once, going twice... No bids!",
-        badge: secs + "s LEFT",
-        themeColor: "border-orange-500 bg-orange-500/20 text-orange-200 shadow-orange-500/50",
+        id: 'auction-' + room.auction.id + '-' + secs,
+        kind: 'auction',
+        title: '🔨 AUCTION CLIMAX!',
+        detail: topBid ? 'Top bid: $' + topBid.amount + ' by ' + bidderName : 'Going once, going twice... No bids!',
+        badge: secs + 's LEFT',
+        themeColor: 'border-orange-500 bg-orange-500/20 text-orange-200 shadow-orange-500/50',
       };
     }
   }
@@ -54,7 +54,7 @@ export function extractSpotlightEvent(room: RoomState | null): SpotlightEvent | 
   const text = latest.text;
 
   // Monopoly set completion: "✅ Bob bought Baltic Ave for $60" or "🔨 Bob won Baltic Ave for $60"
-  const buyMatch = text.match(/[✅🔨] (.*?) (?:bought|won) (.*?) for \$/);
+  const buyMatch = text.match(/[✅🔨] (.*?) (?:bought|won) (.*?) for \$/u);
   if (buyMatch) {
     const [, buyerName, propName] = buyMatch;
     const buyer = room.players.find((p) => p.name === buyerName);
@@ -64,12 +64,12 @@ export function extractSpotlightEvent(room: RoomState | null): SpotlightEvent | 
       if (set.length > 0 && set.every((x) => buyer.properties.includes(x))) {
         const colorName = BOARD[tileIdx].kind === 'property' ? BOARD[tileIdx].color : 'group';
         return {
-          id: "monopoly-" + latest.id,
-          kind: "monopoly",
-          title: "🎉 MONOPOLY COMPLETE!",
+          id: 'monopoly-' + latest.id,
+          kind: 'monopoly',
+          title: '🎉 MONOPOLY COMPLETE!',
           detail: `${buyer.name} assembled the complete ${colorName.toUpperCase()} set! 🏠`,
-          badge: "SET UNLOCKED",
-          themeColor: "border-purple-500 bg-purple-500/25 text-purple-200 shadow-purple-500/50",
+          badge: 'SET UNLOCKED',
+          themeColor: 'border-purple-500 bg-purple-500/25 text-purple-200 shadow-purple-500/50',
         };
       }
     }
@@ -80,12 +80,12 @@ export function extractSpotlightEvent(room: RoomState | null): SpotlightEvent | 
   if (rentMatch) {
     const [, payer, amount, owner, prop] = rentMatch;
     return {
-      id: "log-" + latest.id,
-      kind: "rent",
-      title: "💸 RENT PAID!",
-      detail: payer + " paid $" + amount + " to " + owner,
+      id: 'log-' + latest.id,
+      kind: 'rent',
+      title: '💸 RENT PAID!',
+      detail: payer + ' paid $' + amount + ' to ' + owner,
       badge: prop,
-      themeColor: "border-rose-500 bg-rose-500/20 text-rose-200 shadow-rose-500/50",
+      themeColor: 'border-rose-500 bg-rose-500/20 text-rose-200 shadow-rose-500/50',
     };
   }
 
@@ -94,12 +94,12 @@ export function extractSpotlightEvent(room: RoomState | null): SpotlightEvent | 
   if (goMatch) {
     const [, player, amount] = goMatch;
     return {
-      id: "log-" + latest.id,
-      kind: "go",
-      title: "🏁 PASSED GO!",
-      detail: player + " collected $" + amount + " salary",
-      badge: "+$200 CASH",
-      themeColor: "border-emerald-400 bg-emerald-500/20 text-emerald-200 shadow-emerald-500/50",
+      id: 'log-' + latest.id,
+      kind: 'go',
+      title: '🏁 PASSED GO!',
+      detail: player + ' collected $' + amount + ' salary',
+      badge: '+$200 CASH',
+      themeColor: 'border-emerald-400 bg-emerald-500/20 text-emerald-200 shadow-emerald-500/50',
     };
   }
 
@@ -108,12 +108,12 @@ export function extractSpotlightEvent(room: RoomState | null): SpotlightEvent | 
   if (jailMatch) {
     const [, player] = jailMatch;
     return {
-      id: "log-" + latest.id,
-      kind: "jail",
-      title: "🚨 ARRESTED!",
-      detail: player + " was sent straight to Jail!",
-      badge: "DO NOT PASS GO",
-      themeColor: "border-blue-500 bg-blue-500/20 text-blue-200 shadow-blue-500/50",
+      id: 'log-' + latest.id,
+      kind: 'jail',
+      title: '🚨 ARRESTED!',
+      detail: player + ' was sent straight to Jail!',
+      badge: 'DO NOT PASS GO',
+      themeColor: 'border-blue-500 bg-blue-500/20 text-blue-200 shadow-blue-500/50',
     };
   }
 
@@ -122,12 +122,12 @@ export function extractSpotlightEvent(room: RoomState | null): SpotlightEvent | 
   if (taxMatch) {
     const [, player, amount] = taxMatch;
     return {
-      id: "log-" + latest.id,
-      kind: "tax",
-      title: "🧾 TAX ASSESSMENT",
-      detail: player + " paid $" + amount + " to the bank",
-      badge: "-$" + amount,
-      themeColor: "border-amber-400 bg-amber-500/20 text-amber-200 shadow-amber-500/50",
+      id: 'log-' + latest.id,
+      kind: 'tax',
+      title: '🧾 TAX ASSESSMENT',
+      detail: player + ' paid $' + amount + ' to the bank',
+      badge: '-$' + amount,
+      themeColor: 'border-amber-400 bg-amber-500/20 text-amber-200 shadow-amber-500/50',
     };
   }
 

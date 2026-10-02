@@ -4,7 +4,7 @@
  * All functions are pure state mutations or pure predicates — no I/O.
  * Handlers call emit() from broadcast.ts after applying these.
  */
-import { BOARD, MAX_TRADE_CASH } from '@monopoly/shared';
+import { BOARD, MAX_LOG_ENTRIES, MAX_TRADE_CASH } from '@monopoly/shared';
 import type { Player, RoomState, TradeOffer } from '@monopoly/shared';
 
 // ---------- tile / buyability helpers ----------
@@ -26,14 +26,16 @@ export function colorSetTiles(tile: number): number[] {
 
 /** Atomic asset swap for an accepted offer. Pure mutation, no I/O. */
 export function applyTradeSwap(from: Player, me: Player, offer: TradeOffer) {
+  if (!Number.isFinite(from.cash)) from.cash = 1500;
+  if (!Number.isFinite(me.cash)) me.cash = 1500;
   from.properties = from.properties.filter((t) => !offer.giveTiles.includes(t));
   me.properties = me.properties.filter((t) => !offer.wantTiles.includes(t));
   from.properties.push(...offer.wantTiles);
   me.properties.push(...offer.giveTiles);
   from.cash += (offer.wantCash ?? 0) - (offer.giveCash ?? 0);
   me.cash += (offer.giveCash ?? 0) - (offer.wantCash ?? 0);
-  from.jailCards += (offer.wantCards ?? 0) - (offer.giveCards ?? 0);
-  me.jailCards += (offer.giveCards ?? 0) - (offer.wantCards ?? 0);
+  from.jailCards = Math.max(0, from.jailCards + ((offer.wantCards ?? 0) - (offer.giveCards ?? 0)));
+  me.jailCards = Math.max(0, me.jailCards + ((offer.giveCards ?? 0) - (offer.wantCards ?? 0)));
 }
 
 export function pruneTrades(room: RoomState) {
@@ -53,7 +55,7 @@ export function pruneTrades(room: RoomState) {
         cat: 'trade',
       });
     }
-    room.log = room.log.slice(0, 80);
+    room.log = room.log.slice(0, MAX_LOG_ENTRIES);
   }
 }
 
@@ -63,9 +65,7 @@ export function removePlayerTrades(room: RoomState, pid: string) {
 
 /** Returns true if a tile is currently locked inside a pending trade offer. */
 export function isTileLocked(room: RoomState, tile: number, excludeId?: string): boolean {
-  return room.trades.some(
-    (t) => t.id !== excludeId && (t.giveTiles.includes(tile) || t.wantTiles.includes(tile)),
-  );
+  return room.trades.some((t) => t.id !== excludeId && (t.giveTiles.includes(tile) || t.wantTiles.includes(tile)));
 }
 
 // ---------- input normalisation ----------
@@ -91,13 +91,15 @@ export function normCards(v: unknown): number | null {
   return v;
 }
 
+const dname = (t: number): string => BOARD[t]?.name ?? `Tile ${t}`;
+
 export function describeTrade(offer: TradeOffer): string {
   const bits: string[] = [];
-  if (offer.giveTiles.length) bits.push(offer.giveTiles.map((t) => BOARD[t].name).join(', '));
+  if (offer.giveTiles.length) bits.push(offer.giveTiles.map(dname).join(', '));
   if (offer.giveCash) bits.push(`$${offer.giveCash}`);
   if (offer.giveCards) bits.push(`🃏×${offer.giveCards}`);
   const want: string[] = [];
-  if (offer.wantTiles.length) want.push(offer.wantTiles.map((t) => BOARD[t].name).join(', '));
+  if (offer.wantTiles.length) want.push(offer.wantTiles.map(dname).join(', '));
   if (offer.wantCash) want.push(`$${offer.wantCash}`);
   if (offer.wantCards) want.push(`🃏×${offer.wantCards}`);
   return `${bits.join(' + ') || 'nothing'} for ${want.join(' + ') || 'nothing'}`;

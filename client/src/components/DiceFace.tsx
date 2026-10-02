@@ -29,24 +29,53 @@ interface DieColors {
 
 const DICE_SKINS: Record<string, DieColors> = {
   classic: {
-    body1: '#ffffff', body2: '#eef2f7', body3: '#c3cede',
-    pip1: '#3d4a6b', pip2: '#141b33', pip3: '#04060d', stroke: '#141b33',
+    body1: '#ffffff',
+    body2: '#eef2f7',
+    body3: '#c3cede',
+    pip1: '#3d4a6b',
+    pip2: '#141b33',
+    pip3: '#04060d',
+    stroke: '#141b33',
   },
-  city: { // Neon Cyberpunk
-    body1: '#1e1b4b', body2: '#0f172a', body3: '#020617',
-    pip1: '#38bdf8', pip2: '#0284c7', pip3: '#0369a1', stroke: '#38bdf8',
+  city: {
+    // Neon Cyberpunk
+    body1: '#1e1b4b',
+    body2: '#0f172a',
+    body3: '#020617',
+    pip1: '#38bdf8',
+    pip2: '#0284c7',
+    pip3: '#0369a1',
+    stroke: '#38bdf8',
   },
-  coastal: { // Warm Driftwood Beach
-    body1: '#fef3c7', body2: '#fde68a', body3: '#d97706',
-    pip1: '#0d9488', pip2: '#0f766e', pip3: '#115e59', stroke: '#0f766e',
+  coastal: {
+    // Warm Driftwood Beach
+    body1: '#fef3c7',
+    body2: '#fde68a',
+    body3: '#d97706',
+    pip1: '#0d9488',
+    pip2: '#0f766e',
+    pip3: '#115e59',
+    stroke: '#0f766e',
   },
-  space: { // Deep Cosmos
-    body1: '#2e1065', body2: '#1e1b4b', body3: '#090514',
-    pip1: '#e879f9', pip2: '#c026d3', pip3: '#86198f', stroke: '#c026d3',
+  space: {
+    // Deep Cosmos
+    body1: '#2e1065',
+    body2: '#1e1b4b',
+    body3: '#090514',
+    pip1: '#e879f9',
+    pip2: '#c026d3',
+    pip3: '#86198f',
+    stroke: '#c026d3',
   },
-  gold: { // Golden VIP
-    body1: '#fef08a', body2: '#facc15', body3: '#ca8a04',
-    pip1: '#78350f', pip2: '#451a03', pip3: '#1c0a00', stroke: '#854d0e',
+  gold: {
+    // Golden VIP
+    body1: '#fef08a',
+    body2: '#facc15',
+    body3: '#ca8a04',
+    pip1: '#78350f',
+    pip2: '#451a03',
+    pip3: '#1c0a00',
+    stroke: '#854d0e',
   },
 };
 
@@ -57,7 +86,10 @@ const DICE_SKINS: Record<string, DieColors> = {
  */
 function DieSVG({ value, skin = 'classic' }: { value: number; skin?: DiceSkin }) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
-  const body = `db${uid}`, pip = `dp${uid}`, gloss = `dg${uid}`, clip = `dc${uid}`;
+  const body = `db${uid}`,
+    pip = `dp${uid}`,
+    gloss = `dg${uid}`,
+    clip = `dc${uid}`;
   const pips = PIPS[value] ?? PIPS[1];
   const colors = DICE_SKINS[skin] ?? DICE_SKINS.classic;
 
@@ -78,7 +110,9 @@ function DieSVG({ value, skin = 'classic' }: { value: number; skin?: DiceSkin })
           <stop offset="0" stopColor="#ffffff" stopOpacity="0.45" />
           <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
         </radialGradient>
-        <clipPath id={clip}><rect width="100" height="100" rx="18" /></clipPath>
+        <clipPath id={clip}>
+          <rect width="100" height="100" rx="18" />
+        </clipPath>
       </defs>
       <g clipPath={`url(#${clip})`}>
         <rect width="100" height="100" fill={`url(#${body})`} />
@@ -89,17 +123,19 @@ function DieSVG({ value, skin = 'classic' }: { value: number; skin?: DiceSkin })
             <circle cx={C[i % 3] - 1.5} cy={C[Math.floor(i / 3)] - 1.5} r="2.2" fill="#ffffff" opacity="0.35" />
           </g>
         ))}
-        <rect x="1.5" y="1.5" width="97" height="97" rx="16.5" fill="none" stroke={colors.stroke} strokeOpacity="0.3" strokeWidth="3" />
+        <rect
+          x="1.5"
+          y="1.5"
+          width="97"
+          height="97"
+          rx="16.5"
+          fill="none"
+          stroke={colors.stroke}
+          strokeOpacity="0.3"
+          strokeWidth="3"
+        />
       </g>
     </svg>
-  );
-}
-
-export function DiceFace({ value, size = 56 }: { value: number; size?: number }) {
-  return (
-    <div className="shadow-lg" style={{ width: size, height: size }}>
-      <DieSVG value={value} />
-    </div>
   );
 }
 
@@ -121,20 +157,26 @@ const FACE_ROT: Record<number, { x: number; y: number }> = {
 
 function faceTransform(v: number, half: number): CSSProperties {
   switch (v) {
-    case 1: return { transform: `translateZ(${half}px)` };
-    case 6: return { transform: `rotateY(180deg) translateZ(${half}px)` };
-    case 3: return { transform: `rotateY(90deg) translateZ(${half}px)` };
-    case 4: return { transform: `rotateY(-90deg) translateZ(${half}px)` };
-    case 5: return { transform: `rotateX(-90deg) translateZ(${half}px)` };
-    default: return { transform: `rotateX(90deg) translateZ(${half}px)` }; // 2 at the bottom
+    case 1:
+      return { transform: `translateZ(${half}px)` };
+    case 6:
+      return { transform: `rotateY(180deg) translateZ(${half}px)` };
+    case 3:
+      return { transform: `rotateY(90deg) translateZ(${half}px)` };
+    case 4:
+      return { transform: `rotateY(-90deg) translateZ(${half}px)` };
+    case 5:
+      return { transform: `rotateX(-90deg) translateZ(${half}px)` };
+    default:
+      return { transform: `rotateX(90deg) translateZ(${half}px)` }; // 2 at the bottom
   }
 }
 
 /** Forward-spinning target: N full turns plus the delta onto the face. Pure. */
 export function nextRotation(cur: { x: number; y: number }, value: number, spins = 2) {
   const t = FACE_ROT[value] ?? FACE_ROT[1];
-  const dx = ((t.x - cur.x) % 360 + 360) % 360;
-  const dy = ((t.y - cur.y) % 360 + 360) % 360;
+  const dx = (((t.x - cur.x) % 360) + 360) % 360;
+  const dy = (((t.y - cur.y) % 360) + 360) % 360;
   return { x: cur.x + spins * 360 + dx, y: cur.y + spins * 360 + dy };
 }
 
@@ -156,11 +198,7 @@ function CubeFaces({ size, skin = 'classic' }: { size: number; skin?: DiceSkin }
   return (
     <>
       {[1, 2, 3, 4, 5, 6].map((v) => (
-        <div
-          key={v}
-          className="absolute"
-          style={{ width: size, height: size, ...faceTransform(v, half) }}
-        >
+        <div key={v} className="absolute" style={{ width: size, height: size, ...faceTransform(v, half) }}>
           <DieSVG value={v} skin={skin} />
         </div>
       ))}
@@ -171,11 +209,23 @@ function CubeFaces({ size, skin = 'classic' }: { size: number; skin?: DiceSkin }
 /** Checks whether a 3D rotation currently displays the given value face. */
 export function isFacing(rot: { x: number; y: number }, value: number): boolean {
   const t = FACE_ROT[value] ?? FACE_ROT[1];
-  return ((rot.x - t.x) % 360 + 360) % 360 === 0 && ((rot.y - t.y) % 360 + 360) % 360 === 0;
+  return (((rot.x - t.x) % 360) + 360) % 360 === 0 && (((rot.y - t.y) % 360) + 360) % 360 === 0;
 }
 
-function DiceCube({ value, size, spinKey, delay = 0, shuffling = false, skin = 'classic' }: {
-  value: number; size: number; spinKey: string | null; delay?: number; shuffling?: boolean; skin?: DiceSkin;
+function DiceCube({
+  value,
+  size,
+  spinKey,
+  delay = 0,
+  shuffling = false,
+  skin = 'classic',
+}: {
+  value: number;
+  size: number;
+  spinKey: string | null;
+  delay?: number;
+  shuffling?: boolean;
+  skin?: DiceSkin;
 }) {
   const target = FACE_ROT[value] ?? FACE_ROT[1];
   const [rot, setRot] = useState(target);
@@ -258,8 +308,20 @@ function DiceCube({ value, size, spinKey, delay = 0, shuffling = false, skin = '
  * Two 3D dice. `rollKey` (the server's roll description) triggers the tumble;
  * `shuffling` rattles local preview faces while the ROLL button is held.
  */
-export function DicePair({ d1, d2, rollKey, size = 56, shuffling = false, skin = 'classic' }: {
-  d1: number; d2: number; rollKey: string | null; size?: number; shuffling?: boolean; skin?: DiceSkin;
+export function DicePair({
+  d1,
+  d2,
+  rollKey,
+  size = 56,
+  shuffling = false,
+  skin = 'classic',
+}: {
+  d1: number;
+  d2: number;
+  rollKey: string | null;
+  size?: number;
+  shuffling?: boolean;
+  skin?: DiceSkin;
 }) {
   return (
     <div className="flex items-start justify-center gap-4">

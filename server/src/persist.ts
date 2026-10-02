@@ -16,8 +16,9 @@ function filePath(): string {
 
 function validRooms(raw: unknown): RoomState[] {
   if (!Array.isArray(raw)) return [];
-  return raw.filter((r): r is RoomState =>
-    !!r && typeof (r as RoomState).code === 'string' && Array.isArray((r as RoomState).players));
+  return raw.filter(
+    (r): r is RoomState => !!r && typeof (r as RoomState).code === 'string' && Array.isArray((r as RoomState).players),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -26,7 +27,6 @@ function validRooms(raw: unknown): RoomState[] {
 // snapshot is always written, so a dead Redis can never break a live game.
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type RedisClient = { get(k: string): Promise<string | null>; set(k: string, v: string): Promise<unknown> };
 let clientP: Promise<RedisClient | null> | null = null;
 
@@ -44,7 +44,9 @@ async function getRedis(): Promise<RedisClient | null> {
           // is cleared below), giving reconnect-on-demand.
           socket: { connectTimeout: 1500, reconnectStrategy: () => false as const },
         });
-        client.on('error', () => { /* best-effort: file fallback covers us */ });
+        client.on('error', () => {
+          /* best-effort: file fallback covers us */
+        });
         await Promise.race([
           client.connect(),
           new Promise((_, reject) => setTimeout(() => reject(new Error('redis timeout')), 2500)),
@@ -67,7 +69,9 @@ export function saveRooms(rooms: Map<string, RoomState>) {
     const tmp = `${file}.${process.pid}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify([...rooms.values()]));
     fs.renameSync(tmp, file);
-  } catch { /* persistence must never break a live game */ }
+  } catch {
+    /* persistence must never break a live game */
+  }
   // Fire-and-forget Redis mirror (when configured). Errors are swallowed
   // inside — emit() must never wait on or fail because of persistence.
   void saveRoomsRedis(rooms).catch(() => {});
@@ -78,7 +82,9 @@ async function saveRoomsRedis(rooms: Map<string, RoomState>): Promise<void> {
   if (!client) return;
   try {
     await client.set(ROOMS_REDIS_KEY, JSON.stringify([...rooms.values()]));
-  } catch { /* file snapshot already covers us */ }
+  } catch {
+    /* file snapshot already covers us */
+  }
 }
 
 export function loadRooms(): RoomState[] {
@@ -86,7 +92,9 @@ export function loadRooms(): RoomState[] {
     const file = filePath();
     if (!fs.existsSync(file)) return [];
     return validRooms(JSON.parse(fs.readFileSync(file, 'utf8')) as unknown);
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
 /** Boot load: Redis first (shared state), file fallback. Never throws. */
@@ -100,8 +108,12 @@ export async function loadRoomsAsync(): Promise<RoomState[]> {
           const rooms = validRooms(JSON.parse(raw) as unknown);
           if (rooms.length > 0) return rooms;
         }
-      } catch { /* fall through to file */ }
+      } catch {
+        /* fall through to file */
+      }
     }
-  } catch { /* fall through to file */ }
+  } catch {
+    /* fall through to file */
+  }
   return loadRooms();
 }

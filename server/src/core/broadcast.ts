@@ -9,7 +9,7 @@ import { getIo, rooms, roomSnaps, uid } from '../store.js';
 import { saveRooms } from '../persist.js';
 import { flushHistory } from '../history.js';
 import { dlog } from '../debug.js';
-import { diffRoom } from '@monopoly/shared';
+import { MAX_LOG_ENTRIES, diffRoom } from '@monopoly/shared';
 import type { LogCat, RoomDelta, RoomState } from '@monopoly/shared';
 import { pruneTrades } from './trade.js';
 
@@ -20,7 +20,7 @@ export function log(
   cat: LogCat = 'info',
 ) {
   room.log.unshift({ id: uid('log'), text, at: Date.now(), tone, turn: room.turnCount, cat });
-  room.log = room.log.slice(0, 80);
+  room.log = room.log.slice(0, MAX_LOG_ENTRIES);
 }
 
 /**
@@ -52,9 +52,29 @@ export function emit(room: RoomState) {
   void flushHistory(room).catch(() => {});
   try {
     dlog({
-      evt: 'emit', code: room.code, turn: room.turnCount, rev: room.rev,
-      changed: changed.length, keys: changed.join(',') || '-',
-      fullBytes: JSON.stringify(room).length, patchBytes: JSON.stringify(patch).length,
+      evt: 'emit',
+      code: room.code,
+      turn: room.turnCount,
+      rev: room.rev,
+      changed: changed.length,
+      keys: changed.join(',') || '-',
+      fullBytes: JSON.stringify(room).length,
+      patchBytes: JSON.stringify(patch).length,
     });
-  } catch { /* journal is best-effort */ }
+  } catch {
+    /* journal is best-effort */
+  }
+}
+
+/**
+ * Targeted seat-takeover notice. Lives here (not seat.ts) so broadcast.ts
+ * stays the only module that touches socket.io — seat.ts resolves the
+ * previous socket and delegates the send.
+ */
+export function notifyEvicted(prevSocketId: string, seatId: string, by: string) {
+  try {
+    getIo().to(prevSocketId).emit('evicted', { seatId, by });
+  } catch {
+    /* presence hint is best-effort */
+  }
 }

@@ -1,12 +1,17 @@
 export type TokenKind = 'car' | 'hat' | 'dog' | 'ship' | 'cat' | 'balloon' | 'robot' | 'crown';
 
 export const TOKENS: Record<TokenKind, string> = {
-  car: '🚗', hat: '🎩', dog: '🐶', ship: '⛵', cat: '🐱', balloon: '🎈', robot: '🤖', crown: '👑',
+  car: '🚗',
+  hat: '🎩',
+  dog: '🐶',
+  ship: '⛵',
+  cat: '🐱',
+  balloon: '🎈',
+  robot: '🤖',
+  crown: '👑',
 };
 
-export type TileColor =
-  | 'brown' | 'lightblue' | 'pink' | 'orange' | 'red'
-  | 'yellow' | 'green' | 'blue' | 'none';
+export type TileColor = 'brown' | 'lightblue' | 'pink' | 'orange' | 'red' | 'yellow' | 'green' | 'blue' | 'none';
 
 export type Tile =
   | { kind: 'go'; name: string }
@@ -46,7 +51,10 @@ export interface Player {
 export type LogCat = 'move' | 'purchase' | 'trade' | 'build' | 'money' | 'info';
 
 export interface LogEntry {
-  id: string; text: string; at: number; tone?: 'info' | 'good' | 'bad' | 'money';
+  id: string;
+  text: string;
+  at: number;
+  tone?: 'info' | 'good' | 'bad' | 'money';
   /** Turn number at write time (log() stamps room.turnCount). Absent on old snapshots. */
   turn?: number;
   /** Category for filters. Absent on old snapshots — clients fall back to tone. */
@@ -78,7 +86,11 @@ export interface TradeOffer {
   expiresAt: number;
 }
 
-export interface AuctionBid { playerId: string; amount: number; at: number }
+export interface AuctionBid {
+  playerId: string;
+  amount: number;
+  at: number;
+}
 
 export interface Auction {
   id: string;
@@ -133,6 +145,8 @@ export const MAX_TRADES = 10;
 export const MAX_TRADE_CASH = 100000;
 export const AUCTION_DURATION_MS = 30000;
 export const MIN_BID = 10;
+export const MAX_BID = 100000;
+export const MAX_LOG_ENTRIES = 80;
 export const TURN_MS = 60000;
 export const OFFLINE_TURN_MS = 15000;
 export const UNMORTGAGE_RATE = 0.6;
@@ -183,26 +197,54 @@ export type GameError =
   | 'BID_TOO_LOW'
   // Lobby
   | 'NAME_TAKEN'
-  | 'BAD_STYLE';
+  | 'BAD_STYLE'
+  | 'NOTHING_TO_PASS';
 
 /**
  * Runtime mirror of the GameError union for exhaustiveness tests. Keep in
- * sync when adding codes — errors.test.ts fails any code without a client
- * mapping, so raw codes can never leak into the UI again.
+ * sync when adding codes — friendlyError.test.ts fails any code without a
+ * client mapping, so raw codes can never leak into the UI again.
  */
 export const GAME_ERRORS: GameError[] = [
-  'NO_ROOM', 'ROOM_FULL', 'GAME_OVER', 'NEED_2',
-  'NO_CONTROL', 'NOT_HOST', 'BAD_SEAT', 'BAD_PIN',
-  'NOT_YOUR_TURN', 'ALREADY_ROLLED', 'ROLL_FIRST', 'PENDING_BUY',
-  'TIME_UP', 'AUCTION_LIVE', 'NEGATIVE', 'STALE_OFFER', 'ALREADY_OWNED',
-  'NO_CASH', 'BAD_TILE', 'HAS_HOUSES', 'EVEN_BUILD', 'MAX_HOUSES',
-  'MORTGAGED', 'NOT_FULL_SET', 'TILE_LOCKED', 'NO_CARD', 'NO_CARDS',
-  'BAD_TRADE', 'NO_OFFER', 'NOT_YOUR_OFFER',
-  'NO_AUCTION', 'BID_TOO_LOW',
-  'NAME_TAKEN', 'BAD_STYLE',
+  'NO_ROOM',
+  'ROOM_FULL',
+  'GAME_OVER',
+  'NEED_2',
+  'NO_CONTROL',
+  'NOT_HOST',
+  'BAD_SEAT',
+  'BAD_PIN',
+  'NOT_YOUR_TURN',
+  'ALREADY_ROLLED',
+  'ROLL_FIRST',
+  'PENDING_BUY',
+  'TIME_UP',
+  'AUCTION_LIVE',
+  'NEGATIVE',
+  'STALE_OFFER',
+  'ALREADY_OWNED',
+  'NO_CASH',
+  'BAD_TILE',
+  'HAS_HOUSES',
+  'EVEN_BUILD',
+  'MAX_HOUSES',
+  'MORTGAGED',
+  'NOT_FULL_SET',
+  'TILE_LOCKED',
+  'NO_CARD',
+  'NO_CARDS',
+  'BAD_TRADE',
+  'NO_OFFER',
+  'NOT_YOUR_OFFER',
+  'NO_AUCTION',
+  'BID_TOO_LOW',
+  'NAME_TAKEN',
+  'BAD_STYLE',
+  'NOTHING_TO_PASS',
 ];
 
-/** Standard socket acknowledgement shape used by every handler. */
+/** Standard socket acknowledgement shape used by every handler. Failure
+ * acks always carry a typed code — bare `{ ok: false }` is a compile error,
+ * so unmapped client banners can never regress silently. */
 export type SocketResult<T extends Record<string, unknown> = Record<string, never>> =
-  | ({ ok: true } & T)
-  | { ok: false; error?: GameError };
+  ({ ok: true } & T) | { ok: false; error: GameError };

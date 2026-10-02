@@ -44,22 +44,33 @@ export function TradeTab({ room, me, emit }: Props) {
   }, []);
 
   function resetForm() {
-    setGive([]); setWant([]); setGiveCash(0); setWantCash(0); setGiveCards(0); setWantCards(0);
+    setGive([]);
+    setWant([]);
+    setGiveCash(0);
+    setWantCash(0);
+    setGiveCards(0);
+    setWantCards(0);
   }
 
   function send() {
     if (!to) return;
     // Reset the draft only once the server accepts: a reject (stale cash,
     // locked tile, …) keeps the form intact instead of wiping the user's work.
-    emit('tradeOffer', {
-      to: to.id,
-      giveTiles: give,
-      giveCash,
-      giveCards,
-      wantTiles: want,
-      wantCash,
-      wantCards,
-    }, (res) => { if (res?.ok) resetForm(); });
+    emit(
+      'tradeOffer',
+      {
+        to: to.id,
+        giveTiles: give,
+        giveCash,
+        giveCards,
+        wantTiles: want,
+        wantCash,
+        wantCards,
+      },
+      (res) => {
+        if (res?.ok) resetForm();
+      },
+    );
   }
 
   function startCounterOffer(t: (typeof incoming)[0]) {
@@ -78,18 +89,30 @@ export function TradeTab({ room, me, emit }: Props) {
   // cards have no face value and are excluded — noted under the verdict).
   const giveVal = give.reduce((s, t) => s + tilePrice(t), 0) + giveCash;
   const getVal = want.reduce((s, t) => s + tilePrice(t), 0) + wantCash;
-  const diff = giveVal - getVal;
   const fairTol = Math.max(50, Math.round(Math.max(giveVal, getVal) * 0.1));
   const hasOffer = give.length > 0 || want.length > 0 || giveCash > 0 || wantCash > 0 || giveCards > 0 || wantCards > 0;
-  const fair = Math.abs(diff) <= fairTol;
 
   function stepper(label: string, mine: number, value: number, set: (n: number) => void) {
     return (
       <div className="flex items-center gap-2 text-sm">
-        <span className="flex-1">{label} <span className="text-white/50">(you hold {mine} 🃏)</span></span>
-        <button type="button" onClick={() => set(Math.max(0, value - 1))} className="rounded-lg bg-white/10 px-2 py-1 font-bold">−</button>
+        <span className="flex-1">
+          {label} <span className="text-white/50">(you hold {mine} 🃏)</span>
+        </span>
+        <button
+          type="button"
+          onClick={() => set(Math.max(0, value - 1))}
+          className="rounded-lg bg-white/10 px-2 py-1 font-bold"
+        >
+          −
+        </button>
         <span className="w-6 text-center font-mono font-bold">{value}</span>
-        <button type="button" onClick={() => set(Math.min(mine, 20, value + 1))} className="rounded-lg bg-white/10 px-2 py-1 font-bold">+</button>
+        <button
+          type="button"
+          onClick={() => set(Math.min(mine, 20, value + 1))}
+          className="rounded-lg bg-white/10 px-2 py-1 font-bold"
+        >
+          +
+        </button>
       </div>
     );
   }
@@ -98,10 +121,20 @@ export function TradeTab({ room, me, emit }: Props) {
     const step = (d: number) => set(Math.min(MAX_CASH, Math.max(0, value + d)));
     return (
       <div className="flex items-center gap-1.5">
-        <button type="button" onClick={() => step(-10)} className="flex-1 rounded-lg bg-white/10 py-1.5 font-bold">−</button>
+        <button type="button" onClick={() => step(-10)} className="flex-1 rounded-lg bg-white/10 py-1.5 font-bold">
+          −
+        </button>
         <span className="min-w-16 flex-1 text-center font-mono font-bold">${value}</span>
-        <button type="button" onClick={() => step(10)} className="flex-1 rounded-lg bg-white/10 py-1.5 font-bold">+</button>
-        <button type="button" onClick={() => step(100)} className="rounded-lg bg-white/10 px-2 py-1.5 text-xs font-bold">+100</button>
+        <button type="button" onClick={() => step(10)} className="flex-1 rounded-lg bg-white/10 py-1.5 font-bold">
+          +
+        </button>
+        <button
+          type="button"
+          onClick={() => step(100)}
+          className="rounded-lg bg-white/10 px-2 py-1.5 text-xs font-bold"
+        >
+          +100
+        </button>
       </div>
     );
   }
@@ -116,9 +149,12 @@ export function TradeTab({ room, me, emit }: Props) {
           // Strict set rule (mirrors server setHasBuildings): any building
           // anywhere in the color set locks every deed in that set.
           const t = BOARD[i];
-          const set = t?.kind === 'property'
-            ? BOARD.map((x, idx) => ({ x, idx })).filter(({ x }) => x.kind === 'property' && x.color === t.color).map(({ idx }) => idx)
-            : [];
+          const set =
+            t?.kind === 'property'
+              ? BOARD.map((x, idx) => ({ x, idx }))
+                  .filter(({ x }) => x.kind === 'property' && x.color === t.color)
+                  .map(({ idx }) => idx)
+              : [];
           const setBuilt = set.some((s) => (room.buildings[s] ?? 0) > 0);
           const blocked = (locked && !on) || setBuilt;
 
@@ -130,29 +166,42 @@ export function TradeTab({ room, me, emit }: Props) {
               if (progress.isComplete) {
                 badge = { text: '⚠️ Breaks Set', cls: 'bg-rose-500/25 text-rose-200 border-rose-500/40' };
               } else if (progress.owned > 1) {
-                badge = { text: `${progress.owned}/${progress.total}`, cls: 'bg-white/10 text-white/70 border-white/20' };
+                badge = {
+                  text: `${progress.owned}/${progress.total}`,
+                  cls: 'bg-white/10 text-white/70 border-white/20',
+                };
               }
             } else {
               // What I would receive from them:
               if (progress.owned + 1 === progress.total) {
                 badge = { text: '⭐ Completes Set!', cls: 'bg-emerald-400/25 text-emerald-200 border-emerald-400/40' };
               } else if (progress.owned > 0) {
-                badge = { text: `Set ${progress.owned + 1}/${progress.total}`, cls: 'bg-amber-300/25 text-amber-200 border-amber-300/40' };
+                badge = {
+                  text: `Set ${progress.owned + 1}/${progress.total}`,
+                  cls: 'bg-amber-300/25 text-amber-200 border-amber-300/40',
+                };
               }
             }
           }
 
           return (
-            <button key={i} type="button" disabled={blocked && !on} onClick={() => toggleFn(i)} title={setBuilt ? 'Sell all houses in this set first' : locked ? 'In another open offer' : tileName(i)}
-              className={`flex items-center gap-1.5 rounded-xl border px-1.5 py-1 text-xs font-bold ${on ? 'border-amber-300 bg-amber-300/20' : 'border-white/10 bg-white/5'} ${blocked && !on ? 'opacity-40' : ''}`}>
+            <button
+              key={i}
+              type="button"
+              disabled={blocked && !on}
+              onClick={() => toggleFn(i)}
+              title={setBuilt ? 'Sell all houses in this set first' : locked ? 'In another open offer' : tileName(i)}
+              className={`flex items-center gap-1.5 rounded-xl border px-1.5 py-1 text-xs font-bold ${on ? 'border-amber-300 bg-amber-300/20' : 'border-white/10 bg-white/5'} ${blocked && !on ? 'opacity-40' : ''}`}
+            >
               <TileArt tile={i} size={26} />
               <div className="text-left">
                 <div className="flex items-center gap-1">
-                  <span>{tileName(i)}{setBuilt ? ' 🏠🔒' : ''}</span>
+                  <span>
+                    {tileName(i)}
+                    {setBuilt ? ' 🏠🔒' : ''}
+                  </span>
                   {badge && (
-                    <span className={`rounded px-1 py-0.2 text-[9px] font-bold border ${badge.cls}`}>
-                      {badge.text}
-                    </span>
+                    <span className={`rounded px-1 py-0.2 text-[9px] font-bold border ${badge.cls}`}>{badge.text}</span>
                   )}
                 </div>
                 <span className="font-mono text-emerald-300">${tilePrice(i)}</span>
@@ -216,7 +265,10 @@ export function TradeTab({ room, me, emit }: Props) {
                 <div className="mt-2.5 grid grid-cols-3 gap-2">
                   <button
                     type="button"
-                    onClick={() => { haptic([30, 50, 30]); emit('tradeRespond', { tradeId: t.id, accept: true }); }}
+                    onClick={() => {
+                      haptic([30, 50, 30]);
+                      emit('tradeRespond', { tradeId: t.id, accept: true });
+                    }}
                     className="rounded-xl bg-emerald-300 py-2 text-xs font-extrabold text-emerald-950 shadow active:scale-95"
                   >
                     Accept
@@ -230,7 +282,10 @@ export function TradeTab({ room, me, emit }: Props) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => { haptic(25); emit('tradeRespond', { tradeId: t.id, accept: false }); }}
+                    onClick={() => {
+                      haptic(25);
+                      emit('tradeRespond', { tradeId: t.id, accept: false });
+                    }}
                     className="rounded-xl bg-white/15 py-2 text-xs font-bold active:scale-95"
                   >
                     Decline
@@ -278,15 +333,32 @@ export function TradeTab({ room, me, emit }: Props) {
       )}
 
       <div className="glass rounded-2xl p-3">
-        <div className="font-display font-bold">🤝 New offer {to && <>to <b>{to.name}</b></>}</div>
+        <div className="font-display font-bold">
+          🤝 New offer{' '}
+          {to && (
+            <>
+              to <b>{to.name}</b>
+            </>
+          )}
+        </div>
         {others.length === 0 && <div className="mt-1 text-sm text-white/50">No one to trade with yet.</div>}
         {others.length > 0 && to && (
           <>
-            <label className="mt-2 block text-sm">Trade with
-              <select value={to.id} onChange={(e) => { setToId(e.target.value); setWant([]); setWantCards(0); }}
-                className="mt-1 w-full rounded-xl border border-white/15 bg-black/30 px-3 py-2 outline-none">
+            <label className="mt-2 block text-sm">
+              Trade with
+              <select
+                value={to.id}
+                onChange={(e) => {
+                  setToId(e.target.value);
+                  setWant([]);
+                  setWantCards(0);
+                }}
+                className="mt-1 w-full rounded-xl border border-white/15 bg-black/30 px-3 py-2 outline-none"
+              >
                 {others.map((p) => (
-                  <option key={p.id} value={p.id}>{TOKENS[p.token]} {p.name} (${p.cash})</option>
+                  <option key={p.id} value={p.id}>
+                    {TOKENS[p.token]} {p.name} (${p.cash})
+                  </option>
                 ))}
               </select>
             </label>
@@ -314,12 +386,22 @@ export function TradeTab({ room, me, emit }: Props) {
               <div className="mt-2 rounded-2xl bg-black/25 p-3 text-sm">
                 <div className="font-bold">⚖️ Offer Summary</div>
                 <div className="mt-1 grid grid-cols-2 gap-2">
-                  <div>You give<b className="font-mono"> ${giveVal}</b>
-                    {give.map((t) => <div key={t} className="text-xs text-white/60">• {tileName(t)} (${tilePrice(t)})</div>)}
+                  <div>
+                    You give<b className="font-mono"> ${giveVal}</b>
+                    {give.map((t) => (
+                      <div key={t} className="text-xs text-white/60">
+                        • {tileName(t)} (${tilePrice(t)})
+                      </div>
+                    ))}
                     {giveCash > 0 && <div className="text-xs text-white/60">• ${giveCash} cash</div>}
                   </div>
-                  <div>You get<b className="font-mono"> ${getVal}</b>
-                    {want.map((t) => <div key={t} className="text-xs text-white/60">• {tileName(t)} (${tilePrice(t)})</div>)}
+                  <div>
+                    You get<b className="font-mono"> ${getVal}</b>
+                    {want.map((t) => (
+                      <div key={t} className="text-xs text-white/60">
+                        • {tileName(t)} (${tilePrice(t)})
+                      </div>
+                    ))}
                     {wantCash > 0 && <div className="text-xs text-white/60">• ${wantCash} cash</div>}
                   </div>
                 </div>
@@ -327,13 +409,19 @@ export function TradeTab({ room, me, emit }: Props) {
               </div>
             )}
 
-            <button onClick={() => { haptic(30); send(); }} disabled={!hasOffer}
-              className="mt-3 w-full rounded-xl bg-amber-300 py-3 font-extrabold text-black disabled:opacity-40">
-              Send offer to {to.name} 🤝</button>
+            <button
+              onClick={() => {
+                haptic(30);
+                send();
+              }}
+              disabled={!hasOffer}
+              className="mt-3 w-full rounded-xl bg-amber-300 py-3 font-extrabold text-black disabled:opacity-40"
+            >
+              Send offer to {to.name} 🤝
+            </button>
           </>
         )}
       </div>
     </div>
   );
 }
-

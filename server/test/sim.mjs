@@ -22,13 +22,9 @@ setIo({ to: () => ({ emit: () => {} }) });
 const { BOARD, ownerOf } = await import('@monopoly/shared');
 const { current, checkWin } = await import('../dist/core/player.js');
 const { log } = await import('../dist/core/broadcast.js');
-const {
-  resolveAuction, clearAuctionTimer, openNextQueuedAuction,
-} = await import('../dist/core/auction.js');
+const { resolveAuction, clearAuctionTimer, openNextQueuedAuction } = await import('../dist/core/auction.js');
 const { bankruptPlayer } = await import('../dist/core/bankruptcy.js');
-const {
-  applyTradeSwap, pruneTrades, colorSetTiles, isBuyable,
-} = await import('../dist/core/trade.js');
+const { applyTradeSwap, pruneTrades, colorSetTiles, isBuyable } = await import('../dist/core/trade.js');
 const { setHasBuildings } = await import('../dist/core/houses.js');
 const { botTakeTurn } = await import('../dist/core/botBrain.js');
 
@@ -41,7 +37,8 @@ const TURN_CAP = 800;
 function mulberry32(seed) {
   let a = seed >>> 0;
   return () => {
-    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
     let t = Math.imul(a ^ (a >>> 15), 1 | a);
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
@@ -49,27 +46,61 @@ function mulberry32(seed) {
 }
 
 let failures = 0;
-const fail = (game, msg) => { failures++; console.log(`FAIL game#${game} ${msg}`); };
+const fail = (game, msg) => {
+  failures++;
+  console.log(`FAIL game#${game} ${msg}`);
+};
 
 const BOT_TOKENS = ['car', 'hat', 'dog', 'ship', 'cat', 'balloon', 'robot', 'crown'];
 
 function mkPlayer(i) {
   return {
-    id: `s_p${i}`, name: `Sim${i}`, token: BOT_TOKENS[i % BOT_TOKENS.length], cash: 1500, position: 0,
-    properties: [], mortgaged: [], inJail: false, jailTurns: 0, jailCards: 0,
-    doubles: 0, bankrupt: false, connected: true, isHost: i === 0, isBot: true,
-    hasRolled: false, seatPin: '0000', controllerLabel: 'sim',
+    id: `s_p${i}`,
+    name: `Sim${i}`,
+    token: BOT_TOKENS[i % BOT_TOKENS.length],
+    cash: 1500,
+    position: 0,
+    properties: [],
+    mortgaged: [],
+    inJail: false,
+    jailTurns: 0,
+    jailCards: 0,
+    doubles: 0,
+    bankrupt: false,
+    connected: true,
+    isHost: i === 0,
+    isBot: true,
+    hasRolled: false,
+    seatPin: '0000',
+    controllerLabel: 'sim',
   };
 }
 
+let simSeq = 0;
 function mkRoom(n = 4) {
-  const code = `SIM${Math.floor(Math.random() * 1e6)}`;
+  const code = `SIM${(++simSeq).toString(36).toUpperCase().padStart(4, '0')}`;
   const room = {
-    code, status: 'playing', players: Array.from({ length: n }, (_, i) => mkPlayer(i)),
-    turnIndex: 0, dice: [1, 1], lastRoll: null, lastCard: null, pendingBuy: null,
-    trades: [], auction: null, buildings: {}, turnDeadline: null,
-    auctionQueue: [], lastActivity: Date.now(), pausedAt: null, boardStyle: 'grandprix',
-    log: [], winnerId: null, turnCount: 1, rollingId: null, rev: 0,
+    code,
+    status: 'playing',
+    players: Array.from({ length: n }, (_, i) => mkPlayer(i)),
+    turnIndex: 0,
+    dice: [1, 1],
+    lastRoll: null,
+    lastCard: null,
+    pendingBuy: null,
+    trades: [],
+    auction: null,
+    buildings: {},
+    turnDeadline: null,
+    auctionQueue: [],
+    lastActivity: Date.now(),
+    pausedAt: null,
+    boardStyle: 'grandprix',
+    log: [],
+    winnerId: null,
+    turnCount: 1,
+    rollingId: null,
+    rev: 0,
   };
   rooms.set(code, room);
   return room;
@@ -120,15 +151,26 @@ function agentTurn(room, me, rnd, game) {
         if (!tile || tile.kind !== 'property') continue;
         const set = colorSetTiles(t);
         const mine = set.filter((i) => me.properties.includes(i));
-        const theirs = set.filter((i) => peer.properties.includes(i) && !peer.mortgaged.includes(i) && !setHasBuildings(room, i));
+        const theirs = set.filter(
+          (i) => peer.properties.includes(i) && !peer.mortgaged.includes(i) && !setHasBuildings(room, i),
+        );
         if (mine.length !== set.length - 1 || theirs.length !== 1) continue;
-        const give = me.properties.find((g) =>
-          !set.includes(g) && isBuyable(g) && !me.mortgaged.includes(g) && !setHasBuildings(room, g));
+        const give = me.properties.find(
+          (g) => !set.includes(g) && isBuyable(g) && !me.mortgaged.includes(g) && !setHasBuildings(room, g),
+        );
         if (give === undefined) continue;
         applyTradeSwap(me, peer, {
-          id: 'sim', fromId: me.id, toId: peer.id, giveTiles: [give], giveCash: 0,
-          giveCards: 0, wantTiles: [theirs[0]], wantCash: 0, wantCards: 0,
-          createdAt: Date.now(), expiresAt: Date.now() + 60000,
+          id: 'sim',
+          fromId: me.id,
+          toId: peer.id,
+          giveTiles: [give],
+          giveCash: 0,
+          giveCards: 0,
+          wantTiles: [theirs[0]],
+          wantCash: 0,
+          wantCards: 0,
+          createdAt: Date.now(),
+          expiresAt: Date.now() + 60000,
         });
         log(room, `✅ ${me.name} ↔ ${peer.name} traded (set complete)`, 'good');
         done = true;
@@ -143,14 +185,19 @@ function agentTurn(room, me, rnd, game) {
     const deed = me.properties.find((t) => isBuyable(t) && !me.mortgaged.includes(t) && !setHasBuildings(room, t));
     const want = peer?.properties.find((t) => isBuyable(t) && !peer.mortgaged.includes(t) && !setHasBuildings(room, t));
     if (peer && deed !== undefined && want !== undefined && me.cash >= 0 && peer.cash >= 0) {
-      applyTradeSwap(
-        me, peer,
-        {
-          id: 'sim', fromId: me.id, toId: peer.id, giveTiles: [deed], giveCash: 0,
-          giveCards: 0, wantTiles: [want], wantCash: 0, wantCards: 0,
-          createdAt: Date.now(), expiresAt: Date.now() + 60000,
-        },
-      );
+      applyTradeSwap(me, peer, {
+        id: 'sim',
+        fromId: me.id,
+        toId: peer.id,
+        giveTiles: [deed],
+        giveCash: 0,
+        giveCards: 0,
+        wantTiles: [want],
+        wantCash: 0,
+        wantCards: 0,
+        createdAt: Date.now(),
+        expiresAt: Date.now() + 60000,
+      });
       log(room, `✅ ${me.name} ↔ ${peer.name} traded`, 'good');
     }
   }
@@ -215,47 +262,58 @@ let finished = 0;
 let traceLog = [];
 for (let g = 1; g <= GAMES; g++) {
   Math.random = mulberry32(g * 100003);
-  const room = mkRoom(SEAT_COUNTS[g - 1]);
-  traceLog = [];
-  const f0 = failures;
-  let turns = 0;
-  while (room.status === 'playing' && turns < TURN_CAP) {
-    const me = current(room);
-    agentTurn(room, me, Math.random, g);
-    settleAuctions(room, Math.random, g);
-    openNextQueuedAuction(room);
-    settleAuctions(room, Math.random, g);
-    clearAuctionTimer(room.code);
-    checkWin(room);
-    invariants(room, g, turns);
-    turns++;
-  }
-  Math.random = realRandom;
-  if (failures !== f0 || room.status !== 'finished') {
-    console.log(`--- bot traces game#${g} (last ${traceLog.length} turns) ---`);
-    for (const { turn, who, trace } of traceLog) {
-      console.log(`  turn#${turn} ${who}: ${trace.map((e) => `${e.t}:${e.ok ? 'ok' : 'FAIL'}(${e.detail})`).join(' ')}`);
+  try {
+    const room = mkRoom(SEAT_COUNTS[g - 1]);
+    traceLog = [];
+    const f0 = failures;
+    let turns = 0;
+    while (room.status === 'playing' && turns < TURN_CAP) {
+      const me = current(room);
+      agentTurn(room, me, Math.random, g);
+      settleAuctions(room, Math.random, g);
+      openNextQueuedAuction(room);
+      settleAuctions(room, Math.random, g);
+      clearAuctionTimer(room.code);
+      checkWin(room);
+      invariants(room, g, turns);
+      turns++;
     }
+    if (failures !== f0 || room.status !== 'finished') {
+      console.log(`--- bot traces game#${g} (last ${traceLog.length} turns) ---`);
+      for (const { turn, who, trace } of traceLog) {
+        console.log(
+          `  turn#${turn} ${who}: ${trace.map((e) => `${e.t}:${e.ok ? 'ok' : 'FAIL'}(${e.detail})`).join(' ')}`,
+        );
+      }
+    }
+    if (room.status !== 'finished') {
+      const snap = room.players
+        .map((p) => `${p.name}${p.bankrupt ? '💀' : ''}:$${p.cash}/${p.properties.length}d/${p.mortgaged.length}m`)
+        .join(' ');
+      const built = Object.keys(room.buildings).length;
+      fail(g, `no winner after ${TURN_CAP} turns [${snap} built=${built} q=${room.auctionQueue.length}]`);
+    } else {
+      const w = room.players.find((p) => p.id === room.winnerId);
+      if (!w || w.bankrupt) fail(g, 'bogus winner');
+      winners[w.name] = (winners[w.name] ?? 0) + 1;
+      finished++;
+      totalTurns += turns;
+    }
+    clearAuctionTimer(room.code);
+    rooms.delete(room.code);
+    forgetRoom(room.code);
+  } finally {
+    // A throw mid-game must never leak the seeded stub into later games.
+    Math.random = realRandom;
   }
-  if (room.status !== 'finished') {
-    const snap = room.players.map((p) =>
-      `${p.name}${p.bankrupt ? '💀' : ''}:$${p.cash}/${p.properties.length}d/${p.mortgaged.length}m`).join(' ');
-    const built = Object.keys(room.buildings).length;
-    fail(g, `no winner after ${TURN_CAP} turns [${snap} built=${built} q=${room.auctionQueue.length}]`);
-  } else {
-    const w = room.players.find((p) => p.id === room.winnerId);
-    if (!w || w.bankrupt) fail(g, 'bogus winner');
-    winners[w.name] = (winners[w.name] ?? 0) + 1;
-    finished++;
-    totalTurns += turns;
-  }
-  clearAuctionTimer(room.code);
-  rooms.delete(room.code);
-  forgetRoom(room.code);
 }
-Math.random = realRandom;
 
-console.log(`SIM ${GAMES} games, seats=[${SEAT_COUNTS.join(',')}], finished=${finished}, avgTurns=${finished ? Math.round(totalTurns / finished) : '-'}, winners=${JSON.stringify(winners)}`);
+console.log(
+  `SIM ${GAMES} games, seats=[${SEAT_COUNTS.join(',')}], finished=${finished}, avgTurns=${finished ? Math.round(totalTurns / finished) : '-'}, winners=${JSON.stringify(winners)}`,
+);
 console.log(failures === 0 ? 'PASS sim invariants hold' : `FAIL sim ${failures} violation(s)`);
 if (failures > 0) process.exitCode = 1;
-if (rooms.size !== 0) { console.log(`FAIL sim leaked ${rooms.size} room(s)`); process.exitCode = 1; }
+if (rooms.size !== 0) {
+  console.log(`FAIL sim leaked ${rooms.size} room(s)`);
+  process.exitCode = 1;
+}

@@ -1003,6 +1003,44 @@ let bankArmCalls = 0;
   );
 }
 {
+  // Shared offer/accept tile gate: built set, unowned deed, locked deed, clean.
+  const { validateTradeAssets } = await import('../dist/core/tradeAccept.js');
+  const r = mkRoom({
+    players: [mkPlayer(0, { properties: [1, 3, 6] }), mkPlayer(1)],
+    buildings: { 1: 1 },
+    trades: [
+      {
+        id: 't_lock',
+        fromId: 'u_p1',
+        toId: 'u_p0',
+        giveTiles: [6],
+        giveCash: 0,
+        giveCards: 0,
+        wantTiles: [],
+        wantCash: 0,
+        wantCards: 0,
+        createdAt: 1,
+        expiresAt: Date.now() + 60000,
+      },
+    ],
+  });
+  const holder = r.players[0];
+  check('validateTradeAssets flags built set', validateTradeAssets(r, [1], holder) === 'HAS_HOUSES');
+  check('validateTradeAssets flags unowned deed', validateTradeAssets(r, [5], holder) === 'TILE_LOCKED');
+  check('validateTradeAssets flags locked deed', validateTradeAssets(r, [6], holder) === 'TILE_LOCKED');
+  check('validateTradeAssets ignores self lock', validateTradeAssets(r, [6], holder, 't_lock') === null);
+  cleanup(r);
+}
+{
+  // Offer payload parsing: garbage, empty, and overlapping deeds all reject.
+  const { parseTradeAssets } = await import('../dist/core/tradeAccept.js');
+  const clean = { giveTiles: [1], wantTiles: [], giveCash: 0, wantCash: 0, giveCards: 0, wantCards: 0 };
+  check('parseTradeAssets rejects garbage', parseTradeAssets({ ...clean, giveCash: 1.5 }) === null);
+  check('parseTradeAssets rejects empty', parseTradeAssets({ ...clean, giveTiles: [] }) === null);
+  check('parseTradeAssets rejects overlap', parseTradeAssets({ ...clean, wantTiles: [1] }) === null);
+  check('parseTradeAssets parses clean', JSON.stringify(parseTradeAssets(clean)?.giveTiles) === '[1]');
+}
+{
   // Auction resolve drops corrupt bids instead of NaN-ing the winner.
   const r = mkRoom({ players: [mkPlayer(0, { cash: 1500 }), mkPlayer(1, { cash: 1500 })] });
   r.auction = {

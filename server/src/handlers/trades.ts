@@ -4,16 +4,8 @@ import type { TradeOffer } from '@monopoly/shared';
 import { rooms, uid } from '../store.js';
 import { emit, log } from '../core/broadcast.js';
 import { requireControl } from '../core/seat.js';
-import {
-  applyTradeSwap,
-  describeTrade,
-  isTileLocked,
-  normCards,
-  normCash,
-  normTiles,
-  pruneTrades,
-} from '../core/trade.js';
-import { setHasBuildings } from '../core/houses.js';
+import { applyTradeSwap, describeTrade, pruneTrades } from '../core/trade.js';
+import { parseTradeAssets, validateTradeAssets } from '../core/tradeAccept.js';
 
 export function registerTradeHandlers(socket: Socket) {
   socket.on(
@@ -55,29 +47,13 @@ export function registerTradeHandlers(socket: Socket) {
       if (!target || target.id === me.id || target.bankrupt || me.bankrupt)
         return cb?.({ ok: false, error: 'BAD_TRADE' });
       if (target.isBot) return cb?.({ ok: false, error: 'BAD_TRADE' }); // bots don't negotiate
-      const gT = normTiles(giveTiles);
-      const wT = normTiles(wantTiles);
-      const gC = normCash(giveCash);
-      const wC = normCash(wantCash);
-      const gK = normCards(giveCards);
-      const wK = normCards(wantCards);
-      if (gT === null || wT === null || gC === null || wC === null || gK === null || wK === null)
-        return cb?.({ ok: false, error: 'BAD_TRADE' });
-      if (gT.length === 0 && wT.length === 0 && gC === 0 && wC === 0 && gK === 0 && wK === 0)
-        return cb?.({ ok: false, error: 'BAD_TRADE' });
-      if (new Set([...gT, ...wT]).size !== gT.length + wT.length) return cb?.({ ok: false, error: 'BAD_TRADE' });
-      for (const t of gT) {
-        // Strict official rule: any building anywhere in the color set locks
-        // every deed in that set — sell the whole set off evenly first.
-        if (setHasBuildings(room, t)) return cb?.({ ok: false, error: 'HAS_HOUSES' });
-        if (!me.properties.includes(t) || me.mortgaged.includes(t) || isTileLocked(room, t))
-          return cb?.({ ok: false, error: 'TILE_LOCKED' });
-      }
-      for (const t of wT) {
-        if (setHasBuildings(room, t)) return cb?.({ ok: false, error: 'HAS_HOUSES' });
-        if (!target.properties.includes(t) || target.mortgaged.includes(t) || isTileLocked(room, t))
-          return cb?.({ ok: false, error: 'TILE_LOCKED' });
-      }
+      const assets = parseTradeAssets({ giveTiles, wantTiles, giveCash, wantCash, giveCards, wantCards });
+      if (!assets) return cb?.({ ok: false, error: 'BAD_TRADE' });
+      const { giveTiles: gT, wantTiles: wT, giveCash: gC, wantCash: wC, giveCards: gK, wantCards: wK } = assets;
+      const giveErr = validateTradeAssets(room, gT, me);
+      if (giveErr) return cb?.({ ok: false, error: giveErr });
+      const wantErr = validateTradeAssets(room, wT, target);
+      if (wantErr) return cb?.({ ok: false, error: wantErr });
       if (me.cash < gC || target.cash < wC) return cb?.({ ok: false, error: 'NO_CASH' });
       if (me.jailCards < gK || target.jailCards < wK) return cb?.({ ok: false, error: 'NO_CARDS' });
       if (room.trades.length >= MAX_TRADES) return cb?.({ ok: false, error: 'BAD_TRADE' });
@@ -153,25 +129,21 @@ export function registerTradeHandlers(socket: Socket) {
         return;
       }
       // Re-validate everything at accept time (cash/ownership may have changed).
-      for (const t of offer.giveTiles) {
-        if (setHasBuildings(room, t)) {
-          reject('HAS_HOUSES');
-          return;
-        }
-        if (!from.properties.includes(t) || from.mortgaged.includes(t) || isTileLocked(room, t, offer.id)) {
-          reject('TILE_LOCKED', `⌛ Trade ${from.name} ↔ ${me.name} fell through (property moved)`);
-          return;
-        }
+      const giveErr = validateTradeAssets(room, offer.giveTiles, from, offer.id);
+      if (giveErr) {
+        reject(
+          giveErr,
+          giveErr === 'TILE_LOCKED' ? `⌛ Trade ${from.name} ↔ ${me.name} fell through (property moved)` : undefined,
+        );
+        return;
       }
-      for (const t of offer.wantTiles) {
-        if (setHasBuildings(room, t)) {
-          reject('HAS_HOUSES');
-          return;
-        }
-        if (!me.properties.includes(t) || me.mortgaged.includes(t) || isTileLocked(room, t, offer.id)) {
-          reject('TILE_LOCKED', `⌛ Trade ${from.name} ↔ ${me.name} fell through (property moved)`);
-          return;
-        }
+      const wantErr = validateTradeAssets(room, offer.wantTiles, me, offer.id);
+      if (wantErr) {
+        reject(
+          wantErr,
+          wantErr === 'TILE_LOCKED' ? `⌛ Trade ${from.name} ↔ ${me.name} fell through (property moved)` : undefined,
+        );
+        return;
       }
       if (from.cash < offer.giveCash || me.cash < offer.wantCash) {
         reject('NO_CASH', `⌛ Trade ${from.name} ↔ ${me.name} fell through (insufficient funds)`);

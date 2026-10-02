@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { BOARD, COLOR_HEX, fullSetOf, tilePrice } from '@monopoly/shared';
+import { BOARD, COLOR_HEX, UNMORTGAGE_RATE, fullSetOf, tilePrice } from '@monopoly/shared';
 import type { Player, RoomState, Tile } from '@monopoly/shared';
 
 interface DeedModalProps {
@@ -48,14 +48,9 @@ export function DeedModal({ tileIndex, room, me, onClose, emit }: DeedModalProps
 
           {/* Color Header Banner */}
           {t.kind === 'property' && (
-            <div
-              className="px-4 py-3 text-center shadow-md"
-              style={{ backgroundColor: COLOR_HEX[t.color] }}
-            >
+            <div className="px-4 py-3 text-center shadow-md" style={{ backgroundColor: COLOR_HEX[t.color] }}>
               <div className="text-[10px] font-black uppercase tracking-widest text-black/70">TITLE DEED</div>
-              <h3 className="text-base font-black tracking-tight text-white drop-shadow-md">
-                {t.name.toUpperCase()}
-              </h3>
+              <h3 className="text-base font-black tracking-tight text-white drop-shadow-md">{t.name.toUpperCase()}</h3>
             </div>
           )}
 
@@ -85,27 +80,39 @@ export function DeedModal({ tileIndex, room, me, onClose, emit }: DeedModalProps
                 </div>
 
                 <div className="space-y-1">
-                  <div className={`flex justify-between rounded px-1.5 py-0.5 ${level === 0 && isFullSet ? 'bg-amber-300/20 text-amber-200 font-bold' : 'text-white/80'}`}>
+                  <div
+                    className={`flex justify-between rounded px-1.5 py-0.5 ${level === 0 && isFullSet ? 'bg-amber-300/20 text-amber-200 font-bold' : 'text-white/80'}`}
+                  >
                     <span>With Color Set (2×)</span>
                     <span className="font-mono">${t.rent[1]}</span>
                   </div>
-                  <div className={`flex justify-between rounded px-1.5 py-0.5 ${level === 1 ? 'bg-amber-300/20 text-amber-200 font-bold' : 'text-white/80'}`}>
+                  <div
+                    className={`flex justify-between rounded px-1.5 py-0.5 ${level === 1 ? 'bg-amber-300/20 text-amber-200 font-bold' : 'text-white/80'}`}
+                  >
                     <span>With 1 House 🏠</span>
                     <span className="font-mono">${t.rent[2]}</span>
                   </div>
-                  <div className={`flex justify-between rounded px-1.5 py-0.5 ${level === 2 ? 'bg-amber-300/20 text-amber-200 font-bold' : 'text-white/80'}`}>
+                  <div
+                    className={`flex justify-between rounded px-1.5 py-0.5 ${level === 2 ? 'bg-amber-300/20 text-amber-200 font-bold' : 'text-white/80'}`}
+                  >
                     <span>With 2 Houses 🏠🏠</span>
                     <span className="font-mono">${t.rent[3]}</span>
                   </div>
-                  <div className={`flex justify-between rounded px-1.5 py-0.5 ${level === 3 ? 'bg-amber-300/20 text-amber-200 font-bold' : 'text-white/80'}`}>
+                  <div
+                    className={`flex justify-between rounded px-1.5 py-0.5 ${level === 3 ? 'bg-amber-300/20 text-amber-200 font-bold' : 'text-white/80'}`}
+                  >
                     <span>With 3 Houses 🏠🏠🏠</span>
                     <span className="font-mono">${t.rent[4]}</span>
                   </div>
-                  <div className={`flex justify-between rounded px-1.5 py-0.5 ${level === 4 ? 'bg-amber-300/20 text-amber-200 font-bold' : 'text-white/80'}`}>
+                  <div
+                    className={`flex justify-between rounded px-1.5 py-0.5 ${level === 4 ? 'bg-amber-300/20 text-amber-200 font-bold' : 'text-white/80'}`}
+                  >
                     <span>With 4 Houses 🏠🏠🏠🏠</span>
                     <span className="font-mono">${t.rent[5]}</span>
                   </div>
-                  <div className={`flex justify-between rounded px-1.5 py-0.5 ${level === 5 ? 'bg-rose-500/25 text-rose-200 font-bold' : 'text-white/80'}`}>
+                  <div
+                    className={`flex justify-between rounded px-1.5 py-0.5 ${level === 5 ? 'bg-rose-500/25 text-rose-200 font-bold' : 'text-white/80'}`}
+                  >
                     <span>With HOTEL 🏨</span>
                     <span className="font-mono">${t.rent[6]}</span>
                   </div>
@@ -190,7 +197,9 @@ export function DeedModal({ tileIndex, room, me, onClose, emit }: DeedModalProps
                       : 'bg-white/15 text-white hover:bg-white/20'
                   }`}
                 >
-                  {isMortgaged ? `Unmortgage (Pay $${Math.round(mortValue * 1.1)})` : `Mortgage (Receive $${mortValue})`}
+                  {isMortgaged
+                    ? `Unmortgage (Pay $${Math.round(price * UNMORTGAGE_RATE)})`
+                    : `Mortgage (Receive $${mortValue})`}
                 </button>
               </div>
             )}

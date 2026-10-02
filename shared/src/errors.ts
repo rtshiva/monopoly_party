@@ -45,6 +45,7 @@ export type GameError =
   // Auctions
   | 'NO_AUCTION'
   | 'BID_TOO_LOW'
+  | 'BID_TOO_HIGH'
   // Lobby
   | 'NAME_TAKEN'
   | 'BAD_STYLE'
@@ -88,6 +89,7 @@ export const GAME_ERRORS: GameError[] = [
   'NOT_YOUR_OFFER',
   'NO_AUCTION',
   'BID_TOO_LOW',
+  'BID_TOO_HIGH',
   'NAME_TAKEN',
   'BAD_STYLE',
   'NOTHING_TO_PASS',

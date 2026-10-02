@@ -733,6 +733,7 @@ try {
   const keyOf = (id) => (id === idA ? keyA2 : keyB3);
   const sockOf = (id) => (id === idA ? s1 : s2);
   let sawPending = false;
+  let sawBidRange = false;
   for (let i = 0; i < 30 && !sawPending; i++) {
     const cur = room.players[room.turnIndex % room.players.length];
     if (!cur || cur.bankrupt) break;
@@ -763,6 +764,19 @@ try {
         await emit(sockOf(cur.id), 'buyProperty', { code, playerId: cur.id, key: keyOf(cur.id) });
       } else {
         await emit(sockOf(cur.id), 'passProperty', { code, playerId: cur.id, key: keyOf(cur.id) });
+        // Abuse path: over-cap bid on the auction the pass just opened
+        // (rejected bids mutate nothing, so the drive is undisturbed).
+        await sleep(250);
+        if (room.auction) {
+          const over = await emit(sockOf(cur.id), 'auctionBid', {
+            code,
+            playerId: cur.id,
+            key: keyOf(cur.id),
+            amount: 100001,
+          });
+          if (over.ok === false && over.error === 'BID_TOO_HIGH') sawBidRange = true;
+          else check('over-max bid rejected', false, JSON.stringify(over));
+        }
       }
       await sleep(120);
     } else if (meNow.hasRolled && stillCur && meNow.cash >= 0) {
@@ -771,6 +785,7 @@ try {
     }
   }
   if (!sawPending) check('endTurn blocked while pendingBuy', true, 'SKIP — no buyable landing in 30 rolls');
+  if (!sawBidRange) check('over-max bid rejected', true, 'SKIP — no pass-opened auction observed in window');
   sC.disconnect();
   [s1, s2, s3].forEach((s) => s.disconnect());
 

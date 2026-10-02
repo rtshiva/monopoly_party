@@ -53,6 +53,8 @@ export function friendlyError(code?: string): string {
       return 'Auction already ended';
     case 'BID_TOO_LOW':
       return 'Bid higher than the top bid (min $10)';
+    case 'BID_TOO_HIGH':
+      return 'Bid exceeds the $100,000 cap';
     case 'HAS_HOUSES':
       return 'Sell houses first';
     case 'NOT_FULL_SET':

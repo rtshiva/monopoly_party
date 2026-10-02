@@ -22,7 +22,7 @@ export function registerAuctionHandlers(socket: Socket) {
       if (room.status !== 'playing') return cb?.({ ok: false, error: 'NO_AUCTION' });
       if (typeof amount !== 'number' || !Number.isInteger(amount) || amount < MIN_BID)
         return cb?.({ ok: false, error: 'BID_TOO_LOW' });
-      if (amount > MAX_BID) return cb?.({ ok: false, error: 'BAD_TRADE' });
+      if (amount > MAX_BID) return cb?.({ ok: false, error: 'BID_TOO_HIGH' });
       const highest = auction.bids.reduce((m, b) => Math.max(m, b.amount), 0);
       if (amount <= highest) return cb?.({ ok: false, error: 'BID_TOO_LOW' });
       if (me.cash < amount) return cb?.({ ok: false, error: 'NO_CASH' });

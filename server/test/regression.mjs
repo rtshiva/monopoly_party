@@ -190,6 +190,72 @@ try {
   await sleep(300);
   check('deadline armed', typeof room.turnDeadline === 'number' && room.turnDeadline > Date.now());
   check('default board is classic', room.boardStyle === 'classic');
+  // Early-game pendingBuy hunt: empty board ⇒ a buyable landing within a few
+  // rolls (no SKIP: 15 misses on an empty board is a real failure). The pass
+  // opens a live auction synchronously, so the bid-range pins need no waits.
+  {
+    let sawPending = false;
+    let huntId = null;
+    let huntSock = null;
+    let huntKey = null;
+    for (let i = 0; i < 15 && !sawPending; i++) {
+      const roller = room.players[room.turnIndex % room.players.length];
+      if (!roller || roller.bankrupt) break;
+      const rsk = roller.id === idA ? s1 : s2;
+      const rkk = roller.id === idA ? keyA : keyB;
+      huntId = roller.id;
+      huntSock = rsk;
+      huntKey = rkk;
+      await emit(rsk, 'rollDice', { code, playerId: roller.id, key: rkk });
+      await sleep(120);
+      const stillCur = room.players[room.turnIndex % room.players.length]?.id === roller.id;
+      if (room.pendingBuy != null && stillCur) {
+        sawPending = true;
+        check(
+          'endTurn blocked while pendingBuy',
+          (await emit(rsk, 'endTurn', { code, playerId: roller.id, key: rkk })).error === 'PENDING_BUY',
+        );
+        // Pass (never buy here) → auction opens in the ack flow → bid pins.
+        const passed = await emit(rsk, 'passProperty', { code, playerId: roller.id, key: rkk });
+        check('pass opens auction', passed.ok === true);
+        const over = await emit(rsk, 'auctionBid', { code, playerId: roller.id, key: rkk, amount: 100001 });
+        check('over-max bid rejected', over.ok === false && over.error === 'BID_TOO_HIGH', JSON.stringify(over));
+        const min = await emit(rsk, 'auctionBid', { code, playerId: roller.id, key: rkk, amount: 10 });
+        check('min bid accepted', min.ok === true);
+        // The hammer needs its 30s: wait for the opening to land, then the resolve.
+        const t1 = Date.now();
+        while (!room.auction && Date.now() - t1 < 5000) await sleep(200);
+        check('auction opened', !!room.auction);
+        const t0 = Date.now();
+        while (room.auction && Date.now() - t0 < 35000) await sleep(500);
+        check('auction resolved', !room.auction);
+      } else {
+        const st = room.players.find((p) => p.id === roller.id);
+        if (st.hasRolled && stillCur && st.cash >= 0 && room.pendingBuy == null) {
+          await emit(rsk, 'endTurn', { code, playerId: roller.id, key: rkk });
+          await sleep(80);
+        }
+      }
+    }
+    check('early pendingBuy found', sawPending);
+    // Settle back to a fresh turn: the suite below assumes 'roll ok' opens
+    // on an unrolled seat, and the hunt may leave a rolled/doubles turn behind.
+    for (let s = 0; s < 6; s++) {
+      const holder = room.players[room.turnIndex % room.players.length];
+      if (!holder || holder.bankrupt || holder.id !== huntId) break; // turn moved on
+      if (room.pendingBuy != null) {
+        await emit(huntSock, 'buyProperty', { code, playerId: huntId, key: huntKey });
+        await sleep(120);
+      } else if (holder.hasRolled) {
+        const e = await emit(huntSock, 'endTurn', { code, playerId: huntId, key: huntKey });
+        if (e.ok) break;
+        await sleep(80);
+      } else {
+        await emit(huntSock, 'rollDice', { code, playerId: huntId, key: huntKey });
+        await sleep(120);
+      }
+    }
+  }
   check('lastCard starts null', room.lastCard == null);
   const listed2 = await emit(s2, 'listRooms', {});
   check(
@@ -497,98 +563,47 @@ try {
   check('escape grants no extra roll', escapeClean);
   check('failed jail roll waits turn', waited);
 
-  // S10 live (opportunistic): bounded drive hoping to play a real card
-  let sawCardUse = false,
-    drive = 0;
-  while (drive++ < 25 && room.status === 'playing' && !sawCardUse) {
-    const dm = room.players[room.turnIndex % room.players.length];
-    if (dm.bankrupt) break;
-    const dsk = dm.id === idA ? s1 : s2;
-    const dkk = dm.id === idA ? keyA : keyB;
-    if (dm.inJail && dm.jailCards > 0 && !dm.hasRolled) {
-      const u = await emit(dsk, 'useJailCard', { code, playerId: dm.id, key: dkk });
-      if (u.ok) {
-        sawCardUse = true;
-        await sleep(150);
-        continue;
-      }
-    }
-    await emit(dsk, 'rollDice', { code, playerId: dm.id, key: dkk });
-    await sleep(120);
-    const du = room.players.find((p) => p.id === dm.id);
-    const isCur = room.players[room.turnIndex % room.players.length]?.id === dm.id;
-    if (room.pendingBuy != null && isCur) {
-      const b = await emit(dsk, 'buyProperty', { code, playerId: dm.id, key: dkk });
-      if (!b.ok) await emit(dsk, 'passProperty', { code, playerId: dm.id, key: dkk });
-      await sleep(120);
-    }
-    const du2 = room.players.find((p) => p.id === dm.id);
-    if (du2.hasRolled && room.pendingBuy == null && du2.cash >= 0 && isCur) {
-      await emit(dsk, 'endTurn', { code, playerId: dm.id, key: dkk });
-      await sleep(120);
-    }
-    if (du2.cash < 0) break;
-  }
-  check('jail card live use', true, sawCardUse ? 'observed live' : 'SKIP — jail+card not attained in 25 turns');
-  // Abuse path: a jailed card-holder acting off-turn must be rejected (skips jail-roll risk).
+  // Deterministic trade accept over live sockets (cash-only: needs no cards,
+  // deeds, or dice luck — the card-swap path is pinned at core level, and the
+  // old opportunistic jail/card drives are replaced by a seeded bot pin in unit.mjs).
   {
-    const cur = room.players[room.turnIndex % room.players.length]?.id;
-    const offHolder = room.players.find((p) => !p.bankrupt && p.inJail && p.jailCards > 0 && p.id !== cur);
-    if (offHolder) {
-      const hs = offHolder.id === idA ? s1 : s2;
-      const hk = offHolder.id === idA ? keyA : keyB;
-      check(
-        'off-turn jail card rejected',
-        (await emit(hs, 'useJailCard', { code, playerId: offHolder.id, key: hk })).error === 'NOT_YOUR_TURN',
-      );
-    } else {
-      check('off-turn jail card rejected', true, 'SKIP — no off-turn jailed card holder after drive');
-    }
-  }
-
-  // Card trade live (opportunistic): anyone holding a card sells it for $10
-  const cardHolder = room.players.find((p) => !p.bankrupt && p.jailCards > 0);
-  const cardBuyer = cardHolder && room.players.find((p) => !p.bankrupt && p.id !== cardHolder.id && p.cash >= 10);
-  if (cardHolder && cardBuyer) {
-    const hk = cardHolder.id === idA ? keyA : keyB;
-    const hs = cardHolder.id === idA ? s1 : s2;
-    const ok = cardBuyer.id === idA ? keyA : keyB;
-    const os = cardBuyer.id === idA ? s1 : s2;
-    const c0 = cardHolder.jailCards;
-    const b0 = cardBuyer.jailCards;
-    const off = await emit(hs, 'tradeOffer', {
+    const tA = room.players.find((p) => !p.bankrupt && p.cash >= 100);
+    const tB = room.players.find((p) => !p.bankrupt && p.id !== tA?.id);
+    const sA = tA.id === idA ? s1 : s2;
+    const kA = tA.id === idA ? keyA : keyB;
+    const sB = tB.id === idA ? s1 : s2;
+    const kB = tB.id === idA ? keyA : keyB;
+    const aCash = tA.cash;
+    const bCash = tB.cash;
+    const offer = await emit(sA, 'tradeOffer', {
       code,
-      playerId: cardHolder.id,
-      key: hk,
-      to: cardBuyer.id,
+      playerId: tA.id,
+      key: kA,
+      to: tB.id,
       giveTiles: [],
-      giveCash: 0,
-      giveCards: 1,
+      giveCash: 50,
+      giveCards: 0,
       wantTiles: [],
-      wantCash: 10,
+      wantCash: 0,
       wantCards: 0,
     });
-    check('card offer created', off.ok === true, JSON.stringify(off));
-    if (off.ok) {
-      await sleep(150);
-      const acc = await emit(os, 'tradeRespond', {
-        code,
-        playerId: cardBuyer.id,
-        key: ok,
-        tradeId: off.tradeId,
-        accept: true,
-      });
-      await sleep(150);
-      const nc = room.players.find((p) => p.id === cardHolder.id).jailCards;
-      const no = room.players.find((p) => p.id === cardBuyer.id).jailCards;
-      check(
-        'card swap atomic',
-        acc.ok === true && nc === c0 - 1 && no === b0 + 1,
-        `${c0}->${nc} holder, ${b0}->${no} buyer`,
-      );
-    }
-  } else {
-    check('card trade live', true, 'SKIP — no funded card holder after drive');
+    check('cash trade offered', offer.ok === true && !!offer.tradeId);
+    await sleep(150);
+    const acc = await emit(sB, 'tradeRespond', {
+      code,
+      playerId: tB.id,
+      key: kB,
+      tradeId: offer.tradeId,
+      accept: true,
+    });
+    await sleep(150);
+    const na = room.players.find((p) => p.id === tA.id).cash;
+    const nb = room.players.find((p) => p.id === tB.id).cash;
+    check(
+      'cash trade atomic',
+      acc.ok === true && na === aCash - 50 && nb === bCash + 50,
+      `${aCash}->${na}, ${bCash}->${nb}`,
+    );
   }
 
   // seat takeover: s5 claims B's seat with the TV PIN; s2 must hear evicted
@@ -855,64 +870,8 @@ try {
   check('host kicks C', (await emit(s1, 'kickPlayer', { code, playerId: idA, key: keyA2, targetId: idC })).ok === true);
   await sleep(150);
   check('kicked seat removed', room.players.length === 2 && !room.players.some((p) => p.id === idC));
-  // An undecided purchase blocks endTurn: the deed must go through Buy/Pass.
-  // Drive rolls until a buyable landing appears (bounded; skips gracefully).
-  const keyOf = (id) => (id === idA ? keyA2 : keyB3);
-  const sockOf = (id) => (id === idA ? s1 : s2);
-  let sawPending = false;
-  let sawBidRange = false;
-  for (let i = 0; i < 30 && !sawPending; i++) {
-    const cur = room.players[room.turnIndex % room.players.length];
-    if (!cur || cur.bankrupt) break;
-    // Turns freeze while the hammer is down — wait out any live auction
-    // (pass/queued stock can open one) instead of hammering rejected rolls.
-    if (room.auction) {
-      const t0 = Date.now();
-      while (room.auction && Date.now() - t0 < 35000) await sleep(500);
-      continue;
-    }
-    await emit(sockOf(cur.id), 'rollDice', { code, playerId: cur.id, key: keyOf(cur.id) });
-    await sleep(120);
-    const meNow = room.players.find((p) => p.id === cur.id);
-    const stillCur = room.players[room.turnIndex % room.players.length]?.id === cur.id;
-    if (room.pendingBuy != null && stillCur) {
-      const rej = await emit(sockOf(cur.id), 'endTurn', { code, playerId: cur.id, key: keyOf(cur.id) });
-      check('endTurn blocked while pendingBuy', rej.ok === false && rej.error === 'PENDING_BUY', JSON.stringify(rej));
-      sawPending = true;
-      // Buy when affordable (no auction, no freeze); otherwise pass and let
-      // the top-of-loop wait handle the hammer.
-      const tile = BOARD[room.pendingBuy];
-      const price =
-        tile && (tile.kind === 'property' || tile.kind === 'railroad' || tile.kind === 'utility')
-          ? tile.price
-          : Infinity;
-      const buyer = room.players.find((p) => p.id === cur.id);
-      if (buyer && buyer.cash >= price) {
-        await emit(sockOf(cur.id), 'buyProperty', { code, playerId: cur.id, key: keyOf(cur.id) });
-      } else {
-        await emit(sockOf(cur.id), 'passProperty', { code, playerId: cur.id, key: keyOf(cur.id) });
-        // Abuse path: over-cap bid on the auction the pass just opened
-        // (rejected bids mutate nothing, so the drive is undisturbed).
-        await sleep(250);
-        if (room.auction) {
-          const over = await emit(sockOf(cur.id), 'auctionBid', {
-            code,
-            playerId: cur.id,
-            key: keyOf(cur.id),
-            amount: 100001,
-          });
-          if (over.ok === false && over.error === 'BID_TOO_HIGH') sawBidRange = true;
-          else check('over-max bid rejected', false, JSON.stringify(over));
-        }
-      }
-      await sleep(120);
-    } else if (meNow.hasRolled && stillCur && meNow.cash >= 0) {
-      await emit(sockOf(cur.id), 'endTurn', { code, playerId: cur.id, key: keyOf(cur.id) });
-      await sleep(80);
-    }
-  }
-  if (!sawPending) check('endTurn blocked while pendingBuy', true, 'SKIP — no buyable landing in 30 rolls');
-  if (!sawBidRange) check('over-max bid rejected', true, 'SKIP — no pass-opened auction observed in window');
+  // (pendingBuy + bid-range pins moved to the early-game hunt above, where an
+  // empty board makes them deterministic instead of opportunistic.)
   sC.disconnect();
   [s1, s2, s3].forEach((s) => s.disconnect());
 

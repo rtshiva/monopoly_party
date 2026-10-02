@@ -603,6 +603,19 @@ function cleanup(room) {
   cleanup(r);
 }
 {
+  // Deterministic jail-card play: a jailed bot holding a card plays it
+  // (the live suite can only hope jail+card coincide on the right turn).
+  const r = mkRoom({ players: [mkPlayer(0, { isBot: true, inJail: true, jailCards: 1 }), mkPlayer(1), mkPlayer(2)] });
+  const me = r.players[0];
+  const trace = [];
+  botTakeTurn(r, me, trace);
+  check(
+    'bot plays held jail card',
+    trace.some((e) => e.t === 'jail' && e.ok && e.detail === 'card') && me.inJail === false && me.jailCards === 0,
+  );
+  cleanup(r);
+}
+{
   // Flight recorder: buy + build show up in the trace (brown set owned).
   const r = mkRoom({
     players: [

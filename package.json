@@ -24,6 +24,7 @@
     "format:check": "prettier --check shared/src server/src server/test client/src scripts eslint.config.mjs",
     "verify": "npm run build && npm run lint && npm run test --workspace=@monopoly/server && npm run test --workspace=@monopoly/client",
     "coverage": "npm run test:coverage --workspace=@monopoly/client && npm run test:coverage --workspace=@monopoly/server",
+    "test:e2e": "npm run build --workspace=@monopoly/shared && npm run build --workspace=@monopoly/server && playwright test",
     "typecheck": "tsc -p shared/tsconfig.json --noEmit && tsc -p server/tsconfig.json --noEmit && tsc -p client/tsconfig.json --noEmit",
     "check:circ": "madge --circular --extensions ts,tsx shared/src server/src client/src",
     "check:dup": "jscpd shared/src server/src client/src --threshold 5 --reporters console",
@@ -42,6 +43,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
     "concurrently": "^9.1.0",
     "eslint": "^10.11.0",
     "eslint-plugin-react-hooks": "^7.1.1",

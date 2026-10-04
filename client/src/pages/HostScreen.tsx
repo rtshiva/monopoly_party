@@ -67,6 +67,12 @@ export function HostScreen() {
         if (res?.ok) setRoom(res.room);
         else setErr('Room not found. Create one from the home page.');
       });
+      // Heal host presence: creating/joining runs on a one-shot socket, so
+      // this browser's seat reads offline until a persistent socket rejoins.
+      // Same rejoin contract as PlayScreen; a dead key is a harmless NO_CONTROL.
+      const pid = sessionPidFor(upCode);
+      const key = pid ? loadControl(pid) : null;
+      if (pid && key) s.emit('rejoin', { code: upCode, playerId: pid, key });
     };
     s.on('connect', sync);
     s.on('roomState', (r) => {

@@ -7,5 +7,7 @@ client/coverage/
 coverage/
 .c8-report/
 .jscpd/
+playwright-report/
+test-results/
 .DS_Store
 *.local

@@ -12,8 +12,10 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
       reportsDirectory: 'coverage',
-      // Warn-only v1: no thresholds so `verify` stays green while
-      // reports are informational. Raise once baselines are known.
+      // Ratchet floors (measured 2026-10-04: 25/67/52/25): fail the coverage
+      // run on silent drops, never gate `verify`. Raise these when adding
+      // tests — never lower them to make red green.
+      thresholds: { statements: 20, branches: 60, functions: 45, lines: 20 },
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/**/*.test.{ts,tsx}', 'src/**/*.d.ts', 'coverage/**', 'dist/**'],
       all: true,

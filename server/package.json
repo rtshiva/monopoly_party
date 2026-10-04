@@ -13,7 +13,7 @@
     "test:unit": "npm --prefix .. run build --workspace=@monopoly/shared && npm run build && node test/unit.mjs",
     "test:sim": "npm --prefix .. run build --workspace=@monopoly/shared && npm run build && node test/sim.mjs",
     "test:regression": "npm --prefix .. run build --workspace=@monopoly/shared && npm run build && node test/regression.mjs",
-    "test:coverage": "npm --prefix .. run build --workspace=@monopoly/shared && npm run build && c8 --reporter=text --reporter=html --reporter=lcov --reports-dir=coverage --all --include=dist/**/*.js node test/unit.mjs"
+    "test:coverage": "npm --prefix .. run build --workspace=@monopoly/shared && npm run build && c8 --reporter=text --reporter=html --reporter=lcov --reports-dir=coverage --all --include=dist/**/*.js --check-coverage --lines=40 --functions=70 --branches=68 --statements=40 node test/unit.mjs"
   },
   "dependencies": {
     "@monopoly/shared": "*",

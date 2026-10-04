@@ -605,13 +605,15 @@ function cleanup(room) {
 {
   // Deterministic jail-card play: a jailed bot holding a card plays it
   // (the live suite can only hope jail+card coincide on the right turn).
+  // Assert the trace event only: the rest of the turn is dice-driven and may
+  // re-jail or re-draw afterwards.
   const r = mkRoom({ players: [mkPlayer(0, { isBot: true, inJail: true, jailCards: 1 }), mkPlayer(1), mkPlayer(2)] });
   const me = r.players[0];
   const trace = [];
   botTakeTurn(r, me, trace);
   check(
     'bot plays held jail card',
-    trace.some((e) => e.t === 'jail' && e.ok && e.detail === 'card') && me.inJail === false && me.jailCards === 0,
+    trace.some((e) => e.t === 'jail' && e.ok && e.detail === 'card'),
   );
   cleanup(r);
 }
